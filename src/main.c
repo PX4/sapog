@@ -34,40 +34,42 @@
 
 #include <ch.h>
 #include <hal.h>
-#include <stdio.h>
+#include <assert.h>
 #include "sys/sys.h"
 
-static void ledSetStatus(bool state)
+static void led_set_status(bool state)
 {
-    if (state)
-        palSetPad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS);
-    else
-        palClearPad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS);
+	if (state)
+		palSetPad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS);
+	else
+		palClearPad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS);
 }
 
-static void ledSetError(bool state)
+static void led_set_error(bool state)
 {
-    if (state)
-        palSetPad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR);
-    else
-        palClearPad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR);
+	if (state)
+		palSetPad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR);
+	else
+		palClearPad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR);
 }
 
 int main(void)
 {
-    halInit();
-    chSysInit();
-    sdStart(&STDOUT_SD, NULL);
+	halInit();
+	chSysInit();
+	sdStart(&STDOUT_SD, NULL);
 
-    while (1)
-    {
-        printf("Hello world!\n");
-        chThdSleepMilliseconds(500);
-        ledSetStatus(1);
-        ledSetError(0);
-        chThdSleepMilliseconds(500);
-        ledSetStatus(0);
-        ledSetError(1);
-    }
-    return 0;
+	while (1) {
+		lowsyslog("Hello world!\n");
+		chThdSleepMilliseconds(500);
+
+		led_set_status(1);
+		led_set_error(0);
+
+		chThdSleepMilliseconds(500);
+
+		led_set_status(0);
+		led_set_error(1);
+	}
+	return 0;
 }

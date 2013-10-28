@@ -35,6 +35,7 @@
 #include "sys.h"
 #include <stm32f10x.h>
 #include <stdio.h>
+#include <assert.h>
 
 #if !CH_DBG_ENABLED
 const char *dbg_panic_msg;
@@ -46,34 +47,49 @@ void systemTickHook(void)
 
 static void writepoll(const char* str)
 {
-    for (const char *p = str; *p; p++)
-    {
-        while (!(USART1->SR & USART_SR_TXE)) { }
-        USART1->DR = *p;
-    }
+	for (const char *p = str; *p; p++) {
+		while (!(USART1->SR & USART_SR_TXE)) { }
+		USART1->DR = *p;
+	}
 }
 
 void systemHaltHook(void)
 {
-    port_disable();
-    writepoll("\nPANIC [");
-    const Thread *pthread = chThdSelf();
-    if (pthread && pthread->p_name)
-        writepoll(pthread->p_name);
-    writepoll("] ");
+	port_disable();
+	writepoll("\nPANIC [");
+	const Thread *pthread = chThdSelf();
+	if (pthread && pthread->p_name) writepoll(pthread->p_name);
+	writepoll("] ");
 
-    if (dbg_panic_msg != NULL)
-        writepoll(dbg_panic_msg);
-    writepoll("\n");
+	if (dbg_panic_msg != NULL) writepoll(dbg_panic_msg);
+	writepoll("\n");
+}
+
+void __assert_func(const char* file, int line, const char* func, const char* expr)
+{
+	port_disable();
+
+	char buf[128]; // We don't care about possible stack overflow because going to die anyway
+	snprintf(buf, sizeof(buf), "%s:%i at %s(..): %s", file, line, func, expr);
+	dbg_panic_msg = buf;
+
+	chSysHalt();
+	while (1) { }
 }
 
 void _exit(int status)
 {
-    (void)status;
-    chSysHalt();
-    while(TRUE) { }
+	(void) status;
+	chSysHalt();
+	while (1) { }
 }
 
-pid_t _getpid(void) { return 1; }
+pid_t _getpid(void)
+{
+	return 1;
+}
 
-void _kill(pid_t id) { (void)id; }
+void _kill(pid_t id)
+{
+	(void) id;
+}
