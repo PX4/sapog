@@ -1,18 +1,21 @@
-# Object files
 *.o
-*.ko
-
-# Libraries
-*.lib
+*.elf
+*.bin
+lib*.so
+lib*.so.*
 *.a
+*.d
+.dep
+build
+.gdbinit
+*.swp
+*~
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
+# Eclipse
+.metadata/*
+.settings/*
+.project
+.cproject
 
-# Executables
-*.exe
-*.out
-*.app
+# 3rdparty
+chibios
