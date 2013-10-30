@@ -204,8 +204,7 @@ uint64_t motor_timer_hnsec(void)
 	 * which actually may break some interrupted critical section
 	 * inside the kernel.
 	 */
-	assert(__get_PRIMASK() == 0);
-	__disable_irq();
+	irq_primask_disable();
 
 	volatile uint64_t ticks = _raw_ticks;
 	volatile uint_fast16_t sample = TIMX->CNT;
@@ -224,7 +223,7 @@ uint64_t motor_timer_hnsec(void)
 		ticks += TICKS_PER_OVERFLOW;
 	}
 
-	__enable_irq();
+	irq_primask_enable();
 
 	return (ticks + sample) * _nanosec_per_tick / 100;
 }
@@ -247,8 +246,7 @@ void motor_timer_set_relative(int delay_hnsec)
 	 * sequence requires strict timing.
 	 * No port_*() functions shall be used here!
 	 */
-	assert(__get_PRIMASK() == 0);
-	__disable_irq();
+	irq_primask_disable();
 
 	if (delay_hnsec > 2 * HNSEC_PER_USEC) {
 		TIMX->CCR1 = TIMX->CNT + delay_ticks;
@@ -260,7 +258,7 @@ void motor_timer_set_relative(int delay_hnsec)
 		TIMX->EGR = TIM_EGR_CC1G;
 	}
 
-	__enable_irq();
+	irq_primask_enable();
 }
 
 void motor_timer_set_absolute(uint64_t timestamp_hnsec)

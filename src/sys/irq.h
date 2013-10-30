@@ -32,86 +32,30 @@
  *
  ****************************************************************************/
 
-#include "sys.h"
-#include <stm32f10x.h>
-#include <stdio.h>
-#include <unistd.h>
+#pragma once
+
+#include <hal.h>
+#include <stdint.h>
 #include <assert.h>
 
-#if !CH_DBG_ENABLED
-const char *dbg_panic_msg;
-#endif
+typedef uint32_t irqstate_t;
 
-void system_tick_hook(void)
-{
+static inline irqstate_t irq_primask_save(void) {
+	const irqstate_t primask = __get_PRIMASK();
+	__set_PRIMASK(1);
+	return primask;
 }
 
-static void writepoll(const char* str)
-{
-	for (const char *p = str; *p; p++) {
-		while (!(USART1->SR & USART_SR_TXE)) { }
-		USART1->DR = *p;
-	}
+static inline void irq_primask_restore(irqstate_t state) {
+	assert(state == 1 || state == 0);
+	__set_PRIMASK(state);
 }
 
-void system_halt_hook(void)
-{
-	application_halt_hook();
-
-	port_disable();
-	writepoll("\nPANIC [");
-	const Thread *pthread = chThdSelf();
-	if (pthread && pthread->p_name) writepoll(pthread->p_name);
-	writepoll("] ");
-
-	if (dbg_panic_msg != NULL) writepoll(dbg_panic_msg);
-	writepoll("\n");
+static inline void irq_primask_disable(void) {
+	assert(__get_PRIMASK() == 0);  // Make sure PRIMASK is not set
+	__set_PRIMASK(1);
 }
 
-__attribute__((weak))
-void application_halt_hook(void)
-{
-}
-
-void __assert_func(const char* file, int line, const char* func, const char* expr)
-{
-	port_disable();
-
-	char buf[128]; // We don't care about possible stack overflow because going to die anyway
-	snprintf(buf, sizeof(buf), "%s:%i at %s(..): %s", file, line, func, expr);
-	dbg_panic_msg = buf;
-
-	chSysHalt();
-	while (1) { }
-}
-
-void _exit(int status)
-{
-	(void) status;
-	chSysHalt();
-	while (1) { }
-}
-
-pid_t _getpid(void)
-{
-	return 1;
-}
-
-void _kill(pid_t id)
-{
-	(void) id;
-}
-
-/// From unistd
-int usleep(useconds_t useconds)
-{
-	chThdSleepMicroseconds(useconds);
-	return 0;
-}
-
-/// From unistd
-unsigned sleep(unsigned int seconds)
-{
-	chThdSleepSeconds(seconds);
-	return 0;
+static inline void irq_primask_enable(void) {
+	__set_PRIMASK(0);
 }

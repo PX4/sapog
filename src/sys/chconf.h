@@ -42,11 +42,11 @@
 #define CH_USE_MESSAGES                 FALSE
 #define CH_USE_CONDVARS                 FALSE
 
-void systemHaltHook(void);
-#define SYSTEM_HALT_HOOK                systemHaltHook
+void system_halt_hook(void);
+#define SYSTEM_HALT_HOOK                system_halt_hook
 
-void systemTickHook(void);
-#define SYSTEM_TICK_EVENT_HOOK          systemTickHook
+void system_tick_hook(void);
+#define SYSTEM_TICK_EVENT_HOOK          system_tick_hook
 
 #if DEBUG
 #   define CH_OPTIMIZE_SPEED               FALSE

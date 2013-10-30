@@ -62,6 +62,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	motor_timer_set_relative(0);
 }
 
+void application_halt_hook(void)
+{
+	motor_pwm_emergency();
+	led_set_error(true);
+	led_set_status(true);
+}
+
 int main(void)
 {
 	halInit();

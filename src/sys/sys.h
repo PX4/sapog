@@ -37,6 +37,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <chprintf.h>
+#include "irq.h"
 
 /**
  * C++ wrappers
@@ -70,3 +71,8 @@
             chSysHalt();                                    \
         }                                                   \
     } while (0)
+
+/**
+ * Application emergency termination hook
+ */
+extern void application_halt_hook(void);

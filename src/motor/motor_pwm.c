@@ -265,16 +265,16 @@ void motor_pwm_manip(int phase, enum motor_pwm_phase_manip command)
 		struct motor_pwm_val pwm_val;
 		motor_pwm_compute_pwm_val(duty_cycle, &pwm_val);
 
-		__disable_irq();
+		irq_primask_disable();
 		phase_set_i(phase, &pwm_val, false);
-		__enable_irq();
+		irq_primask_enable();
 	} else {
 		// All other combinations do not require high-side pump, so the cycling goes to hell
 		// Disable both inversions on this phase:
-		__disable_irq();
+		irq_primask_disable();
 		TIM3->CCER &= ~TIM3_LOW_CCER_POL[phase];
 		TIM4->CCER &= ~TIM4_HIGH_CCER_POL[phase];
-		__enable_irq();
+		irq_primask_enable();
 
 		// Shutdown high side PWM:
 		*PWM_REG_HIGH[phase] = 0;
@@ -288,12 +288,24 @@ void motor_pwm_manip(int phase, enum motor_pwm_phase_manip command)
 
 void motor_pwm_set_freewheeling(void)
 {
-	for (int i = 0; i < 3; i++)
-		motor_pwm_manip(i, MOTOR_PWM_MANIP_FLOATING);
+	for (int phase = 0; phase < 3; phase++)
+		motor_pwm_manip(phase, MOTOR_PWM_MANIP_FLOATING);
 }
 
 void motor_pwm_emergency(void)
 {
+	const irqstate_t irqstate = irq_primask_save();
+
+	for (int phase = 0; phase < 3; phase++) {
+		// Disable inversions
+		TIM3->CCER &= ~TIM3_LOW_CCER_POL[phase];
+		TIM4->CCER &= ~TIM4_HIGH_CCER_POL[phase];
+		// Shutdown both gates
+		*PWM_REG_HIGH[phase] = 0;
+		*PWM_REG_LOW[phase] = 0;
+	}
+
+	irq_primask_restore(irqstate);
 }
 
 void motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val)
