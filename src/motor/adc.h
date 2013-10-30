@@ -1,7 +1,7 @@
 /****************************************************************************
  *
  *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
+ *   Author: Pavel Kirienko (pavel.kirienko@gmail.com)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,39 +34,42 @@
 
 #pragma once
 
-#include <ch.h>
-#include <hal.h>
-#include <chprintf.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+__BEGIN_DECLS
+
+struct motor_adc_sample
+{
+    uint64_t timestamp;
+    int raw_phase_values[3];
+};
+
+#define MOTOR_ADC_RESOLUTION    12
 
 /**
- * C++ wrappers
+ * Hardcoded for STM32
+ * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
+ *    (1 / 12M) * 14 = 1.17 usec
  */
-#ifdef __cplusplus
-#  define __BEGIN_DECLS		extern "C" {
-#  define __END_DECLS		}
-#else
-#  define __BEGIN_DECLS
-#  define __END_DECLS
-#endif
+#define MOTOR_ADC_SAMPLE_DURATION_NANOSEC       1170
 
 /**
- * NuttX-like low-level logging
+ * Full ADC sample of all channels takes:
+ *    ceil(3 phases / 2 ADC) * one_sample_duration
+ * Thus, optimal advance is one_sample_duration.
  */
-#ifndef STDOUT_SD
-#  error "STDOUT_SD must be defined"
-#endif
-#define lowsyslog(...)     chprintf((BaseSequentialStream*)&(STDOUT_SD), __VA_ARGS__)
+#define MOTOR_ADC_SYNC_ADVANCE_NANOSEC  MOTOR_ADC_SAMPLE_DURATION_NANOSEC
+
+void motor_adc_init(void);
+
+void motor_adc_enable(bool enable);
+
+struct motor_adc_sample motor_adc_get_last_sample(void);
 
 /**
- * Unconditional assert
+ * No OS API can be used from this callback!
  */
-#define STRINGIZE2(x)   #x
-#define STRINGIZE(x)    STRINGIZE2(x)
-#define MAKE_ASSERT_MSG() __FILE__ ":" STRINGIZE(__LINE__)
-#define assert_always(x)                                    \
-    do {                                                    \
-        if ((x) == 0) {                                     \
-            dbg_panic_msg = MAKE_ASSERT_MSG();              \
-            chSysHalt();                                    \
-        }                                                   \
-    } while (0)
+extern void motor_adc_sample_callback(const struct motor_adc_sample* sample);
+
+__END_DECLS

@@ -36,17 +36,25 @@ PROJECT = px4esc
 # Sources
 #
 
+MOTOR_CSRC = src/motor/motor_pwm.c      \
+             src/motor/motor_timer.c    \
+             src/motor/motor_adc.c      \
+             src/motor/motor_selftest.c
+
 CSRC = src/main.c       \
        src/sys/board.c  \
-       src/sys/sys.c
+       src/sys/sys.c    \
+       $(MOTOR_CSRC)
 
 UINCDIR = src/sys
+
+UDEFS = -DHRT_TIMER_NUMBER=1
 
 #
 # OS configuration
 #
 
-UDEFS += -DCORTEX_ENABLE_WFI_IDLE=1 -DSTDOUT_SD=SD1 -DSTDIN_SD=STDOUT_SD
+UDEFS += -DCORTEX_ENABLE_WFI_IDLE=1 -DSTDOUT_SD=SD1 -DSTDIN_SD=STDOUT_SD -DCHPRINTF_USE_FLOAT=1
 
 USE_LINK_GC = yes
 USE_THUMB = yes
@@ -83,7 +91,7 @@ ifneq ($(RELEASE),0)
     USE_OPT += -O1 -fomit-frame-pointer
 else
     DDEFS += -DDEBUG
-    USE_OPT += -O0 -ggdb
+    USE_OPT += -O0 -g3
 endif
 
 #

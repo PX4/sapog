@@ -1,7 +1,7 @@
 /****************************************************************************
  *
  *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
+ *   Author: Pavel Kirienko (pavel.kirienko@gmail.com)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,39 +34,39 @@
 
 #pragma once
 
-#include <ch.h>
-#include <hal.h>
-#include <chprintf.h>
+#include <stdint.h>
+#include "sys.h"
+
+__BEGIN_DECLS
+
+#define HNSEC_PER_USEC  10
+#define HNSEC_PER_MSEC  10000
+#define NSEC_PER_HNSEC  100
+
+void motor_timer_init(void);
 
 /**
- * C++ wrappers
+ * Minimal maintainable RPM depends on this parameter.
  */
-#ifdef __cplusplus
-#  define __BEGIN_DECLS		extern "C" {
-#  define __END_DECLS		}
-#else
-#  define __BEGIN_DECLS
-#  define __END_DECLS
-#endif
+uint64_t motor_timer_get_max_delay_hnsec(void);
 
 /**
- * NuttX-like low-level logging
+ * Returns the current timestamp in hectonanoseconds (10^-7).
  */
-#ifndef STDOUT_SD
-#  error "STDOUT_SD must be defined"
-#endif
-#define lowsyslog(...)     chprintf((BaseSequentialStream*)&(STDOUT_SD), __VA_ARGS__)
+uint64_t motor_timer_hnsec(void);
+
+void motor_timer_set_relative(int delay_hnsec);
+void motor_timer_set_absolute(uint64_t timestamp_hnsec);
+void motor_timer_cancel(void);
 
 /**
- * Unconditional assert
+ * No OS API can be used from this callback!
  */
-#define STRINGIZE2(x)   #x
-#define STRINGIZE(x)    STRINGIZE2(x)
-#define MAKE_ASSERT_MSG() __FILE__ ":" STRINGIZE(__LINE__)
-#define assert_always(x)                                    \
-    do {                                                    \
-        if ((x) == 0) {                                     \
-            dbg_panic_msg = MAKE_ASSERT_MSG();              \
-            chSysHalt();                                    \
-        }                                                   \
-    } while (0)
+extern void motor_timer_callback(void);
+
+/**
+ * Busy loop delay
+ */
+void motor_timer_udelay(int usecs);
+
+__END_DECLS

@@ -35,6 +35,7 @@
 #include "sys.h"
 #include <stm32f10x.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <assert.h>
 
 #if !CH_DBG_ENABLED
@@ -92,4 +93,18 @@ pid_t _getpid(void)
 void _kill(pid_t id)
 {
 	(void) id;
+}
+
+/// From unistd
+int usleep(useconds_t useconds)
+{
+	chThdSleepMicroseconds(useconds);
+	return 0;
+}
+
+/// From unistd
+unsigned sleep(unsigned int seconds)
+{
+	chThdSleepSeconds(seconds);
+	return 0;
 }

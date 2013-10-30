@@ -1,7 +1,7 @@
 /****************************************************************************
  *
  *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
+ *   Author: Pavel Kirienko (pavel.kirienko@gmail.com)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,39 +34,15 @@
 
 #pragma once
 
-#include <ch.h>
-#include <hal.h>
-#include <chprintf.h>
+#include "sys.h"
+
+__BEGIN_DECLS
 
 /**
- * C++ wrappers
+ * Returns 0 on success, anything else otherwise.
+ * Writes diagnostics into lowsyslog.
+ * Assumes that ADC is activated, otherwise fails.
  */
-#ifdef __cplusplus
-#  define __BEGIN_DECLS		extern "C" {
-#  define __END_DECLS		}
-#else
-#  define __BEGIN_DECLS
-#  define __END_DECLS
-#endif
+int motor_selftest(void);
 
-/**
- * NuttX-like low-level logging
- */
-#ifndef STDOUT_SD
-#  error "STDOUT_SD must be defined"
-#endif
-#define lowsyslog(...)     chprintf((BaseSequentialStream*)&(STDOUT_SD), __VA_ARGS__)
-
-/**
- * Unconditional assert
- */
-#define STRINGIZE2(x)   #x
-#define STRINGIZE(x)    STRINGIZE2(x)
-#define MAKE_ASSERT_MSG() __FILE__ ":" STRINGIZE(__LINE__)
-#define assert_always(x)                                    \
-    do {                                                    \
-        if ((x) == 0) {                                     \
-            dbg_panic_msg = MAKE_ASSERT_MSG();              \
-            chSysHalt();                                    \
-        }                                                   \
-    } while (0)
+__END_DECLS

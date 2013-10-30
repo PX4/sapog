@@ -1,7 +1,7 @@
 /****************************************************************************
  *
  *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
+ *   Author: Pavel Kirienko (pavel.kirienko@gmail.com)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,39 +34,47 @@
 
 #pragma once
 
-#include <ch.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <hal.h>
-#include <chprintf.h>
+#include "sys.h"
+
+__BEGIN_DECLS
+
+#define MOTOR_PWM_ADC1_2_TRIGGER        (ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_2)
+
+#define MOTOR_PWM_DUTY_CYCLE_RESOLUTION 16
+#define MOTOR_PWM_DUTY_CYCLE_MIN        0
+#define MOTOR_PWM_DUTY_CYCLE_MAX        0xFFFF
+
+#define MOTOR_PWM_NUM_COMMUTATION_STEPS 6
+
+struct motor_pwm_val {
+	int16_t normalized_duty_cycle;
+};
+
+enum motor_pwm_phase_manip {
+	MOTOR_PWM_MANIP_LOW,
+	MOTOR_PWM_MANIP_HIGH,
+	MOTOR_PWM_MANIP_FLOATING,
+	MOTOR_PWM_MANIP_HALF
+};
+
+void motor_pwm_init(void);
 
 /**
- * C++ wrappers
+ * Direct phase control - for self-testing
  */
-#ifdef __cplusplus
-#  define __BEGIN_DECLS		extern "C" {
-#  define __END_DECLS		}
-#else
-#  define __BEGIN_DECLS
-#  define __END_DECLS
-#endif
+void motor_pwm_manip(int phase, enum motor_pwm_phase_manip command);
 
-/**
- * NuttX-like low-level logging
- */
-#ifndef STDOUT_SD
-#  error "STDOUT_SD must be defined"
-#endif
-#define lowsyslog(...)     chprintf((BaseSequentialStream*)&(STDOUT_SD), __VA_ARGS__)
+void motor_pwm_set_freewheeling(void);
 
-/**
- * Unconditional assert
- */
-#define STRINGIZE2(x)   #x
-#define STRINGIZE(x)    STRINGIZE2(x)
-#define MAKE_ASSERT_MSG() __FILE__ ":" STRINGIZE(__LINE__)
-#define assert_always(x)                                    \
-    do {                                                    \
-        if ((x) == 0) {                                     \
-            dbg_panic_msg = MAKE_ASSERT_MSG();              \
-            chSysHalt();                                    \
-        }                                                   \
-    } while (0)
+void motor_pwm_emergency(void);
+
+void motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val);
+
+void motor_pwm_set_step_from_isr(int step, const struct motor_pwm_val* pwm_val);
+
+void motor_pwm_beep(int frequency, int duration_msec);
+
+__END_DECLS

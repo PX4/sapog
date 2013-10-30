@@ -1,7 +1,7 @@
 /****************************************************************************
  *
  *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
+ *   Author: Pavel Kirienko (pavel.kirienko@gmail.com)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,37 +36,25 @@
 
 #include <ch.h>
 #include <hal.h>
-#include <chprintf.h>
+#include "sys.h"
+
+__BEGIN_DECLS
 
 /**
- * C++ wrappers
+ * Faster alternatives for GPIO API that can be used from IRQ handlers.
  */
-#ifdef __cplusplus
-#  define __BEGIN_DECLS		extern "C" {
-#  define __END_DECLS		}
+#if DEBUG
+#  define TESTPAD_SET(port, pin)        (port)->BSRR = 1 << (pin)
+#  define TESTPAD_CLEAR(port, pin)      (port)->BRR = 1 << (pin)
 #else
-#  define __BEGIN_DECLS
-#  define __END_DECLS
+#  define TESTPAD_SET(port, pin)
+#  define TESTPAD_CLEAR(port, pin)
 #endif
 
 /**
- * NuttX-like low-level logging
+ * Common priority for all hard real time IRQs.
  */
-#ifndef STDOUT_SD
-#  error "STDOUT_SD must be defined"
-#endif
-#define lowsyslog(...)     chprintf((BaseSequentialStream*)&(STDOUT_SD), __VA_ARGS__)
+#define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(CORTEX_MAXIMUM_PRIORITY)
+//#define MOTOR_IRQ_PRIORITY_MASK    CORTEX_BASEPRI_KERNEL
 
-/**
- * Unconditional assert
- */
-#define STRINGIZE2(x)   #x
-#define STRINGIZE(x)    STRINGIZE2(x)
-#define MAKE_ASSERT_MSG() __FILE__ ":" STRINGIZE(__LINE__)
-#define assert_always(x)                                    \
-    do {                                                    \
-        if ((x) == 0) {                                     \
-            dbg_panic_msg = MAKE_ASSERT_MSG();              \
-            chSysHalt();                                    \
-        }                                                   \
-    } while (0)
+__END_DECLS

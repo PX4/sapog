@@ -48,7 +48,8 @@ void systemHaltHook(void);
 void systemTickHook(void);
 #define SYSTEM_TICK_EVENT_HOOK          systemTickHook
 
-#if defined(DEBUG) && DEBUG
+#if DEBUG
+#   define CH_OPTIMIZE_SPEED               FALSE
 #   define CH_DBG_SYSTEM_STATE_CHECK       TRUE
 #   define CH_DBG_ENABLE_CHECKS            TRUE
 #   define CH_DBG_ENABLE_ASSERTS           TRUE

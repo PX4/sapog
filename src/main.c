@@ -35,22 +35,32 @@
 #include <ch.h>
 #include <hal.h>
 #include <assert.h>
+#include <unistd.h>
 #include "sys/sys.h"
+#include "motor/adc.h"
+#include "motor/pwm.h"
+#include "motor/timer.h"
+#include "motor/selftest.h"
 
 static void led_set_status(bool state)
 {
-	if (state)
-		palSetPad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS);
-	else
-		palClearPad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS);
+	palWritePad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS, !state);
 }
 
 static void led_set_error(bool state)
 {
-	if (state)
-		palSetPad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR);
-	else
-		palClearPad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR);
+	palWritePad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR, !state);
+}
+
+void motor_timer_callback(void)
+{
+	// Causes stack overflow (even if the timer is not enabled?)
+//	motor_timer_set_relative(5 * HNSEC_PER_USEC);
+}
+
+void motor_adc_sample_callback(const struct motor_adc_sample* sample)
+{
+//	motor_timer_set_relative(0);
 }
 
 int main(void)
@@ -59,17 +69,44 @@ int main(void)
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
+	led_set_status(false);
+	led_set_error(false);
+	lowsyslog("\nPX4ESC: starting\n");
+
+	usleep(3000000);
+
+	motor_pwm_init();
+	motor_timer_init();
+	motor_adc_init();
+	motor_adc_enable(true);
+
+	assert(0 == motor_selftest());
+	lowsyslog("Initialization done\n");
+	motor_pwm_beep(1000, 100);
+
+//	motor_timer_set_relative(0);
+
 	while (1) {
-		lowsyslog("Hello world!\n");
-		chThdSleepMilliseconds(500);
+		const int ch = sdGet(&STDOUT_SD);
 
-		led_set_status(1);
-		led_set_error(0);
+		const int phase_num = ch - '0';
+		if (phase_num >= 0 && phase_num < 3) {
+			lowsyslog("Phase %i; enter the command (0 lo, 1 hi, 2 float, 3 half)\n", phase_num);
+			const int cmd = sdGet(&STDOUT_SD) - '0';
 
-		chThdSleepMilliseconds(500);
+			if (cmd >= 0 && cmd < 4) {
+				lowsyslog("Command %i\n", cmd);
+				motor_pwm_manip(phase_num, (enum motor_pwm_phase_manip)cmd);
+			}
+		} else if (ch == '+') {
+			motor_pwm_beep(1000, 100);
+			motor_pwm_beep(3000, 100);
+			motor_pwm_beep(7000, 100);
+		}
 
-		led_set_status(0);
-		led_set_error(1);
+		struct motor_adc_sample sample = motor_adc_get_last_sample();
+		lowsyslog("%u %i %i %i\n", (unsigned)(sample.timestamp / HNSEC_PER_MSEC),
+		          sample.raw_phase_values[0], sample.raw_phase_values[1], sample.raw_phase_values[2]);
 	}
 	return 0;
 }
