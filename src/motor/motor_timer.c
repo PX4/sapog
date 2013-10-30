@@ -98,12 +98,20 @@ void TIMX_IRQHandler(void)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
 
+	// It is not necessary to check DIER because UIE is always enabled
 	if (TIMX->SR & TIM_SR_UIF) {
 		TIMX->SR = ~TIM_SR_UIF;
 		_raw_ticks += TICKS_PER_OVERFLOW;
 	}
 
-	if (TIMX->SR & TIM_SR_CC1IF) {
+	/*
+	 * TODO investigate
+	 * - Remove that DIER check from the if statement below (callback will fire at each overflow, ~32ms);
+	 * - Call the timer setup function from motor_timer_callback() handler, something like few usec;
+	 * - Enjoy your stack overflow.
+	 * I have no idea what I am talking about.
+	 */
+	if ((TIMX->SR & TIM_SR_CC1IF) && (TIMX->DIER & TIM_DIER_CC1IE)) {
 		TIMX->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
 		TIMX->SR = ~TIM_SR_CC1IF;
 		// Callback must be called when the IRQ has been ACKed, not other way
@@ -164,6 +172,8 @@ void motor_timer_init(void)
 	// Start the timer
 	TIMX->ARR = 0xFFFF;
 	TIMX->PSC = (uint16_t)(prescaler - 1);
+	TIMX->CR1 = TIM_CR1_URS;
+	TIMX->SR = 0;
 	TIMX->EGR = TIM_EGR_UG;     // Reload immediately
 	TIMX->DIER = TIM_DIER_UIE;
 	TIMX->CR1 = TIM_CR1_CEN;    // Start
@@ -194,6 +204,7 @@ uint64_t motor_timer_hnsec(void)
 	 * which actually may break some interrupted critical section
 	 * inside the kernel.
 	 */
+	assert(__get_PRIMASK() == 0);
 	__disable_irq();
 
 	volatile uint64_t ticks = _raw_ticks;
@@ -236,6 +247,7 @@ void motor_timer_set_relative(int delay_hnsec)
 	 * sequence requires strict timing.
 	 * No port_*() functions shall be used here!
 	 */
+	assert(__get_PRIMASK() == 0);
 	__disable_irq();
 
 	if (delay_hnsec > 2 * HNSEC_PER_USEC) {

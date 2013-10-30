@@ -54,13 +54,12 @@ static void led_set_error(bool state)
 
 void motor_timer_callback(void)
 {
-	// Causes stack overflow (even if the timer is not enabled?)
 //	motor_timer_set_relative(5 * HNSEC_PER_USEC);
 }
 
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
-//	motor_timer_set_relative(0);
+	motor_timer_set_relative(0);
 }
 
 int main(void)
@@ -84,7 +83,7 @@ int main(void)
 	lowsyslog("Initialization done\n");
 	motor_pwm_beep(1000, 100);
 
-//	motor_timer_set_relative(0);
+	motor_timer_set_relative(0);
 
 	while (1) {
 		const int ch = sdGet(&STDOUT_SD);
