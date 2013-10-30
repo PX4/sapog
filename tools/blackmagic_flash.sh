@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PORT=${2:-'/dev/ttyACM0'}
+PORT=${1:-'/dev/ttyACM0'}
 #/dev/serial/by-id/usb-Black_Sphere_Technologies_Black_Magic_Probe_DDE578CC-if00
 
 # Find the firmware ELF
