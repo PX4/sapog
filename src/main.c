@@ -40,7 +40,7 @@
 #include "motor/adc.h"
 #include "motor/pwm.h"
 #include "motor/timer.h"
-#include "motor/selftest.h"
+#include "motor/test.h"
 
 static void led_set_status(bool state)
 {
@@ -86,7 +86,14 @@ int main(void)
 	motor_adc_init();
 	motor_adc_enable(true);
 
-	assert(0 == motor_selftest());
+	assert(0 == motor_test_power_stage());
+
+	if (motor_test_connected_motor()) {
+		lowsyslog("Motor is not connected or damaged\n");
+	} else {
+		lowsyslog("Motor is OK\n");
+	}
+
 	lowsyslog("Initialization done\n");
 	motor_pwm_beep(1000, 150);
 

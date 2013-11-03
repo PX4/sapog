@@ -39,7 +39,7 @@
 #include <stdbool.h>
 #include "pwm.h"
 #include "adc.h"
-#include "selftest.h"
+#include "test.h"
 
 #define NUM_PHASES  3
 
@@ -74,7 +74,7 @@ static int compare_samples(const void* p1, const void* p2)
     return (*(const int*)p1 - *(const int*)p2);
 }
 
-int motor_selftest(void)
+int motor_test_power_stage(void)
 {
 	int result = 0;
 	int high_samples[NUM_PHASES];
@@ -124,6 +124,47 @@ int motor_selftest(void)
 			result++;
 		}
 	}
+
+	motor_pwm_set_freewheeling();
+	return result;
+}
+
+int motor_test_connected_motor(void)
+{
+	const int threshold = ((1 << MOTOR_ADC_RESOLUTION) * ANALOG_TOLERANCE_PERCENT) / 100;
+	struct motor_adc_sample sample;
+	int result = 0;
+	enum motor_pwm_phase_manip manip_cmd[3] = {
+		MOTOR_PWM_MANIP_LOW,
+		MOTOR_PWM_MANIP_FLOATING,
+		MOTOR_PWM_MANIP_FLOATING
+	};
+
+	motor_pwm_set_freewheeling();
+	/*
+	 * Test with low level
+	 */
+	manip_cmd[0] = MOTOR_PWM_MANIP_LOW;
+	motor_pwm_manip(manip_cmd);
+	usleep(SAMPLE_DELAY_MS * 1000);
+	sample = motor_adc_get_last_sample();
+
+	if (sample.raw_phase_values[1] > threshold || sample.raw_phase_values[2] > threshold)
+		result++;
+
+	/*
+	 * Test with high level
+	 */
+	manip_cmd[0] = MOTOR_PWM_MANIP_HIGH;
+	motor_pwm_manip(manip_cmd);
+	usleep(SAMPLE_DELAY_MS * 1000);
+	sample = motor_adc_get_last_sample();
+
+	if (abs(sample.raw_phase_values[0] - sample.raw_phase_values[1]) > threshold)
+		result++;
+
+	if (abs(sample.raw_phase_values[0] - sample.raw_phase_values[2]) > threshold)
+		result++;
 
 	motor_pwm_set_freewheeling();
 	return result;
