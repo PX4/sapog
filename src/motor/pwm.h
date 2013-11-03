@@ -47,7 +47,11 @@ __BEGIN_DECLS
 #define MOTOR_PWM_DUTY_CYCLE_MIN        0
 #define MOTOR_PWM_DUTY_CYCLE_MAX        0xFFFF
 
-#define MOTOR_PWM_NUM_COMMUTATION_STEPS 6
+struct motor_pwm_commutation_step {
+	int_fast8_t positive;
+	int_fast8_t negative;
+	int_fast8_t floating;
+};
 
 struct motor_pwm_val {
 	int16_t normalized_duty_cycle;
@@ -73,7 +77,7 @@ void motor_pwm_emergency(void);
 
 void motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val);
 
-void motor_pwm_set_step_from_isr(int step, const struct motor_pwm_val* pwm_val);
+void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val);
 
 void motor_pwm_beep(int frequency, int duration_msec);
 

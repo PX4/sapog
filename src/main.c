@@ -42,6 +42,18 @@
 #include "motor/timer.h"
 #include "motor/test.h"
 
+#define NUM_COMMUTATION_STEPS 6
+
+static const struct motor_pwm_commutation_step COMMUTATION_TABLE[NUM_COMMUTATION_STEPS] =
+{
+    {1, 0, 2}, // Positive, negative, floating
+    {1, 2, 0},
+    {0, 2, 1},
+    {0, 1, 2},
+    {2, 1, 0},
+    {2, 0, 1}
+};
+
 static void led_set_status(bool state)
 {
 	palWritePad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS, !state);
@@ -125,6 +137,13 @@ int main(void)
 			motor_pwm_beep(7000, 150);
 		} else if (ch == '-') {
 			motor_pwm_beep(500, 1000);
+		} else if (ch >= 'a' && ch <= 'f') {
+			const int step = ch - 'a';
+			assert(step >= 0 && step < 6);
+			lowsyslog("Step %i\n", step);
+			struct motor_pwm_val pwm_val;
+			motor_pwm_compute_pwm_val(0x8000, &pwm_val);
+			motor_pwm_set_step_from_isr(COMMUTATION_TABLE + step, &pwm_val);
 		}
 
 		struct motor_adc_sample sample = motor_adc_get_last_sample();

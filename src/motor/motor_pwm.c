@@ -73,25 +73,6 @@
 
 
 /**
- * Commutation table
- */
-struct commutation_step {
-	int_fast8_t positive;
-	int_fast8_t negative;
-	int_fast8_t floating;
-};
-static const struct commutation_step COMMUTATION_TABLE[MOTOR_PWM_NUM_COMMUTATION_STEPS] =
-{
-    {1, 0, 2}, // Positive, negative, floating
-    {1, 2, 0},
-    {0, 2, 1},
-    {0, 1, 2},
-    {2, 1, 0},
-    {2, 0, 1}
-};
-
-
-/**
  * PWM channel mapping
  */
 static volatile uint16_t* const PWM_REG_HIGH[3] = {
@@ -388,8 +369,16 @@ void motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_va
 	assert(out_val->normalized_duty_cycle <= PWM_TOP);
 }
 
-void motor_pwm_set_step_from_isr(int step, const struct motor_pwm_val* pwm_val)
+void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val)
 {
+	phase_reset_all_i();
+
+	phase_set_i(step->positive, pwm_val, false);
+	phase_set_i(step->negative, pwm_val, true);
+	// Floating phase was configured with the reset call above
+
+	phase_enable_i(step->positive);
+	phase_enable_i(step->negative);
 }
 
 void motor_pwm_beep(int frequency, int duration_msec)
