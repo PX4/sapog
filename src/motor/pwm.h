@@ -47,17 +47,20 @@ __BEGIN_DECLS
 #define MOTOR_PWM_DUTY_CYCLE_MIN        0
 #define MOTOR_PWM_DUTY_CYCLE_MAX        0xFFFF
 
-struct motor_pwm_commutation_step {
+struct motor_pwm_commutation_step
+{
 	int_fast8_t positive;
 	int_fast8_t negative;
 	int_fast8_t floating;
 };
 
-struct motor_pwm_val {
+struct motor_pwm_val
+{
 	int16_t normalized_duty_cycle;
 };
 
-enum motor_pwm_phase_manip {
+enum motor_pwm_phase_manip
+{
 	MOTOR_PWM_MANIP_LOW,
 	MOTOR_PWM_MANIP_HIGH,
 	MOTOR_PWM_MANIP_FLOATING,

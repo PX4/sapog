@@ -65,7 +65,8 @@ static const struct motor_pwm_commutation_step COMMUTATION_TABLE[NUM_COMMUTATION
 
 enum control_state_id { CS_IDLE, CS_BEFORE_ZC, CS_PAST_ZC };
 
-static struct control_state {
+static struct control_state
+{
 	enum control_state_id control_state;
 
 	uint64_t blank_time_deadline;
@@ -87,7 +88,8 @@ static struct control_state {
 	struct motor_pwm_val pwm_val;
 } state;
 
-static struct precomputed_params {
+static struct precomputed_params
+{
 	int spinup_erpm;
 	int spinup_steps;
 
@@ -95,11 +97,11 @@ static struct precomputed_params {
 	int timing_advance_deg;
 	int zc_failures_max;
 
-	int comm_period_lowpass_alpha_reciprocal;  // Reciprocal of lowpass alpha (0; 1]
-	uint32_t max_acceleration_per_step_x64;    // Like percent but in range [0; 64] for faster division
+	int comm_period_lowpass_alpha_reciprocal; // Reciprocal of lowpass alpha (0; 1]
+	uint32_t max_acceleration_per_step_x64;   // Like percent but in range [0; 64] for faster division
 
-	uint32_t comm_period_zc_threshold_first;    // slow/moderate
-	uint32_t comm_period_zc_threshold_second;   // moderate/fast
+	uint32_t comm_period_zc_threshold_first;  // slow/moderate
+	uint32_t comm_period_zc_threshold_second; // moderate/fast
 
 	uint32_t comm_period_min;
 	uint32_t comm_period_max;
@@ -121,7 +123,7 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	params.comm_period_zc_threshold_second = erpm_to_comm_period(80000);
 
 	params.comm_period_min = 50 * HNSEC_PER_USEC;
-	params.comm_period_max = motor_timer_get_max_delay_hnsec(); // True maximum is twice larger, but who cares..
+	params.comm_period_max = motor_timer_get_max_delay_hnsec();
 }
 
 static inline uint32_t erpm_to_comm_period(uint32_t erpm)
