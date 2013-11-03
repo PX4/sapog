@@ -100,8 +100,8 @@ static struct precomputed_params
 	int comm_period_lowpass_alpha_reciprocal; // Reciprocal of lowpass alpha (0; 1]
 	uint32_t max_acceleration_per_step_x64;   // Like percent but in range [0; 64] for faster division
 
-	uint32_t comm_period_zc_threshold_first;  // slow/moderate
-	uint32_t comm_period_zc_threshold_second; // moderate/fast
+	uint32_t comm_period_threshold_slow;  // slow/moderate
+	uint32_t comm_period_threshold_fast;  // moderate/fast
 
 	uint32_t comm_period_min;
 	uint32_t comm_period_max;
@@ -119,8 +119,8 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	params.comm_period_lowpass_alpha_reciprocal = 10;
 	params.max_acceleration_per_step_x64 = 64 / 4;
 
-	params.comm_period_zc_threshold_first  = erpm_to_comm_period(50000);
-	params.comm_period_zc_threshold_second = erpm_to_comm_period(80000);
+	params.comm_period_threshold_slow = 300 * HNSEC_PER_USEC;
+	params.comm_period_threshold_fast = 150 * HNSEC_PER_USEC;
 
 	params.comm_period_min = 50 * HNSEC_PER_USEC;
 	params.comm_period_max = motor_timer_get_max_delay_hnsec();
@@ -128,12 +128,14 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 
 static inline uint32_t erpm_to_comm_period(uint32_t erpm)
 {
+	// erpm_to_comm_period = lambda erpm: ((10000000 * 60) / erpm) / 6
 	const uint64_t hnsec_per_rev = HNSEC_PER_MINUTE / erpm;
 	return hnsec_per_rev / NUM_COMMUTATION_STEPS;
 }
 
 static inline uint32_t comm_period_to_erpm(uint32_t comm_period)
 {
+	// comm_period_to_erpm = lambda cp: (10000000 * 60) / (cp * 6)
 	if (comm_period == 0)
 		return 0;
 	const uint64_t hnsec_per_rev = comm_period * NUM_COMMUTATION_STEPS;
