@@ -46,7 +46,7 @@
 static const int INITIAL_DELAY_MS = 500;
 static const int SAMPLE_DELAY_MS  = 10;
 
-static const int ANALOG_TOLERANCE_PERCENT = 10;
+static const int ANALOG_TOLERANCE_PERCENT = 5;
 
 
 static int test_one_phase(int phase, bool level)
@@ -92,7 +92,7 @@ int motor_test_power_stage(void)
 		// Low level
 		const int low = test_one_phase(phase, false);
 		if (low > threshold) {
-			lowsyslog("Motor: Selftest FAILURE at phase %i: sample %i is above threshold %i\n",
+			lowsyslog("Motor: Selftest FAILURE at phase %i: low sample %i is above threshold %i\n",
 			          phase, low, threshold);
 			result++;
 		}
@@ -100,9 +100,9 @@ int motor_test_power_stage(void)
 		// High level
 		const int high = test_one_phase(phase, true);
 		high_samples[phase] = high;
-		if (high <= low) {
-			lowsyslog("Motor: Selftest FAILURE at phase %i: low sample >= high sample: %i, %i\n",
-			          phase, low, high);
+		if (high < threshold) {
+			lowsyslog("Motor: Selftest FAILURE at phase %i: high sample %i is below threshold %i\n",
+			          phase, high, threshold);
 			result++;
 		}
 		// It is not possible to check against the high threshold directly

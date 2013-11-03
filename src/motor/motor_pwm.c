@@ -285,6 +285,7 @@ static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inv
 			duty_cycle_low  += _pwm_dead_time_ticks;
 	}
 
+	// And as always, thanks for watching.
 	*PWM_REG_HIGH[phase] = duty_cycle_high;
 	*PWM_REG_LOW[phase] = duty_cycle_low;
 }
