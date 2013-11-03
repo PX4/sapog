@@ -104,13 +104,6 @@ void TIMX_IRQHandler(void)
 		_raw_ticks += TICKS_PER_OVERFLOW;
 	}
 
-	/*
-	 * TODO investigate
-	 * - Remove that DIER check from the if statement below (callback will fire at each overflow, ~32ms);
-	 * - Call the timer setup function from motor_timer_callback() handler, something like few usec;
-	 * - Enjoy your stack overflow.
-	 * I have no idea what I am talking about.
-	 */
 	if ((TIMX->SR & TIM_SR_CC1IF) && (TIMX->DIER & TIM_DIER_CC1IE)) {
 		TIMX->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
 		TIMX->SR = ~TIM_SR_CC1IF;

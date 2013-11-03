@@ -54,12 +54,12 @@ static void led_set_error(bool state)
 
 void motor_timer_callback(void)
 {
-//	motor_timer_set_relative(5 * HNSEC_PER_USEC);
+	motor_timer_set_relative(5 * HNSEC_PER_USEC);
 }
 
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
-	motor_timer_set_relative(0);
+//	motor_timer_set_relative(0);
 }
 
 void application_halt_hook(void)
@@ -88,7 +88,7 @@ int main(void)
 
 	assert(0 == motor_selftest());
 	lowsyslog("Initialization done\n");
-	motor_pwm_beep(1000, 100);
+	motor_pwm_beep(1000, 150);
 
 	motor_timer_set_relative(0);
 
@@ -113,11 +113,11 @@ int main(void)
 			}
 			lowsyslog("New state: %i, %i, %i\n", manip_cmd[0], manip_cmd[1], manip_cmd[2]);
 		} else if (ch == '+') {
-			motor_pwm_beep(1000, 100);
-			motor_pwm_beep(3000, 100);
-			motor_pwm_beep(7000, 100);
+			motor_pwm_beep(1000, 150);
+			motor_pwm_beep(3000, 150);
+			motor_pwm_beep(7000, 150);
 		} else if (ch == '-') {
-			motor_pwm_beep(7000, 1000);
+			motor_pwm_beep(500, 1000);
 		}
 
 		struct motor_adc_sample sample = motor_adc_get_last_sample();
