@@ -74,8 +74,9 @@
  * The timer frequency is a compromise between maximum delay and timer resolution
  * 2 MHz --> ~32ms max
  * 4 MHz --> ~16ms max
+ * 5 MHz --> ~13ms max
  */
-static const int MAX_FREQUENCY = 4000000;
+static const int MAX_FREQUENCY = 5000000;
 
 static const uint64_t INT_1E9 = 1000000000ul;
 static const uint32_t TICKS_PER_OVERFLOW = 0xFFFF + 1;
