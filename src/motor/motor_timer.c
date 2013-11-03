@@ -70,10 +70,17 @@
 #endif
 
 
+/**
+ * The timer frequency is a compromise between maximum delay and timer resolution
+ * 2 MHz --> ~32ms max
+ * 4 MHz --> ~16ms max
+ */
+static const int MAX_FREQUENCY = 4000000;
+
 static const uint64_t INT_1E9 = 1000000000ul;
 static const uint32_t TICKS_PER_OVERFLOW = 0xFFFF + 1;
 
-static uint32_t _nanosec_per_tick = 0;  // 0 means uninitialized
+static uint32_t _nanosec_per_tick = 0;    // 0 means uninitialized
 static uint64_t _raw_ticks = 0;
 
 
@@ -135,10 +142,7 @@ void motor_timer_init(void)
 	chSysEnable();
 
 	// Find the optimal prescaler value
-	// The frequency is a compromise between maximum delay and timer resolution
-	const uint32_t max_freq = 2000000; // 2 MHz gives us about 32ms max, should be fine
-
-	uint32_t prescaler = (uint32_t)(TIMX_INPUT_CLOCK / ((float)max_freq)); // Initial value
+	uint32_t prescaler = (uint32_t)(TIMX_INPUT_CLOCK / ((float)MAX_FREQUENCY)); // Initial value
 	if (prescaler < 1)
 		prescaler = 1;
 

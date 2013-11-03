@@ -351,7 +351,7 @@ void motor_pwm_emergency(void)
 	irq_primask_restore(irqstate);
 }
 
-void motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val)
+uint16_t motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val)
 {
 	assert(out_val);
 
@@ -368,6 +368,8 @@ void motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_va
 
 	assert(out_val->normalized_duty_cycle >= PWM_HALF_TOP);
 	assert(out_val->normalized_duty_cycle <= PWM_TOP);
+
+	return corrected_duty_cycle << (MOTOR_PWM_DUTY_CYCLE_RESOLUTION - PWM_TRUE_RESOLUTION);
 }
 
 void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val)

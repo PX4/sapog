@@ -44,7 +44,7 @@ __BEGIN_DECLS
  * Writes diagnostics into lowsyslog.
  * Assumes that ADC is activated, otherwise fails.
  */
-int motor_test_power_stage(void);
+int motor_test_test_power_stage(void);
 
 /**
  * Tests connected motor.
@@ -52,6 +52,6 @@ int motor_test_power_stage(void);
  * Writes diagnostics into lowsyslog.
  * Assumes that ADC is activated, otherwise fails.
  */
-int motor_test_connected_motor(void);
+int motor_test_test_motor(void);
 
 __END_DECLS

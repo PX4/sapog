@@ -74,7 +74,7 @@ static int compare_samples(const void* p1, const void* p2)
     return (*(const int*)p1 - *(const int*)p2);
 }
 
-int motor_test_power_stage(void)
+int motor_test_test_power_stage(void)
 {
 	int result = 0;
 	int high_samples[NUM_PHASES];
@@ -129,7 +129,7 @@ int motor_test_power_stage(void)
 	return result;
 }
 
-int motor_test_connected_motor(void)
+int motor_test_test_motor(void) // What an awkward name.
 {
 	const int threshold = ((1 << MOTOR_ADC_RESOLUTION) * ANALOG_TOLERANCE_PERCENT) / 100;
 	struct motor_adc_sample sample;

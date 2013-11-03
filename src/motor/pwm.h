@@ -75,7 +75,10 @@ void motor_pwm_set_freewheeling(void);
 
 void motor_pwm_emergency(void);
 
-void motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val);
+/**
+ * Returns true duty cycle
+ */
+uint16_t motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val);
 
 void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val);
 

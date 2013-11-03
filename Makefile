@@ -39,7 +39,8 @@ PROJECT = px4esc
 MOTOR_CSRC = src/motor/motor_pwm.c      \
              src/motor/motor_timer.c    \
              src/motor/motor_adc.c      \
-             src/motor/motor_test.c
+             src/motor/motor_test.c     \
+             src/motor/motor.c
 
 CSRC = src/main.c       \
        src/sys/board.c  \

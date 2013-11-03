@@ -32,3 +32,73 @@
  *
  ****************************************************************************/
 
+#pragma once
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <sys.h>
+
+__BEGIN_DECLS
+
+/**
+ * Initialize the hardware and control logic
+ * @return 0 on success, negative on error
+ */
+int motor_init(void);
+
+/**
+ * Start the motor with last configured duty cycle.
+ */
+void motor_start(bool reverse);
+
+/**
+ * Turn the motor into freewheeling state
+ */
+void motor_stop(void);
+
+/**
+ * Configure PWM duty cycle
+ * @param [in] duty_cycle PWM duty cycle [0; 65536)
+ * @return     True duty cycle, corrected with respect to the true resolution.
+ */
+uint16_t motor_set_duty_cycle(uint16_t duty_cycle);
+
+/**
+ * Is the motor running or not.
+ */
+bool motor_is_started(void);
+
+/**
+ * Make noise.
+ */
+void motor_beep(int frequency, int duration_msec);
+
+/**
+ * Magnetic field RPM. Can be used to compute the mechanical RPM.
+ * @return Field RPM; 0 if the motor is not running.
+ */
+uint32_t motor_get_electrical_rpm(void);
+
+/**
+ * Number of zero cross detection failures since the motor has started.
+ * The value stops incrementing at the maximum value, thus it never overflows.
+ */
+uint64_t motor_get_zc_failures_since_start(void);
+
+/**
+ * Perform the ESC self test.
+ * @return 0        - test OK,
+ *         negative - unable to run the test at the current state,
+ *         positive - test failed.
+ */
+int motor_test_hardware(void);
+
+/**
+ * Test the connected motor (if any).
+ * @return 0        - motor appears to be connected,
+ *         negative - unable to run the test at the current state,
+ *         positive - motor is not connected or went bananas.
+ */
+int motor_test_motor(void);
+
+__END_DECLS

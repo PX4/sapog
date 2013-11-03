@@ -41,6 +41,7 @@ __BEGIN_DECLS
 
 #define HNSEC_PER_USEC  10
 #define HNSEC_PER_MSEC  10000
+#define HNSEC_PER_SEC   10000000
 #define NSEC_PER_HNSEC  100
 
 void motor_timer_init(void);
