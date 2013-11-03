@@ -53,11 +53,19 @@ static int test_one_phase(int phase, bool level)
 {
 	assert(phase >= 0 && phase < NUM_PHASES);
 
-	motor_pwm_manip(phase, level ? MOTOR_PWM_MANIP_HIGH : MOTOR_PWM_MANIP_LOW);
+	enum motor_pwm_phase_manip manip_cmd[3] = {
+		MOTOR_PWM_MANIP_FLOATING,
+		MOTOR_PWM_MANIP_FLOATING,
+		MOTOR_PWM_MANIP_FLOATING
+	};
+
+	manip_cmd[phase] = level ? MOTOR_PWM_MANIP_HIGH : MOTOR_PWM_MANIP_LOW;
+	motor_pwm_manip(manip_cmd);
 	usleep(SAMPLE_DELAY_MS * 1000);
 	const int sample = motor_adc_get_last_sample().raw_phase_values[phase];
 
-	motor_pwm_manip(phase, MOTOR_PWM_MANIP_FLOATING);
+	manip_cmd[phase] = MOTOR_PWM_MANIP_FLOATING;
+	motor_pwm_manip(manip_cmd);
 	return sample;
 }
 
@@ -92,6 +100,11 @@ int motor_selftest(void)
 		// High level
 		const int high = test_one_phase(phase, true);
 		high_samples[phase] = high;
+		if (high <= low) {
+			lowsyslog("Motor: Selftest FAILURE at phase %i: low sample >= high sample: %i, %i\n",
+			          phase, low, high);
+			result++;
+		}
 		// It is not possible to check against the high threshold directly
 		// because its value will depend on the supply voltage
 

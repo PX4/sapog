@@ -65,7 +65,7 @@ void motor_pwm_init(void);
 /**
  * Direct phase control - for self-testing
  */
-void motor_pwm_manip(int phase, enum motor_pwm_phase_manip command);
+void motor_pwm_manip(const enum motor_pwm_phase_manip command[3]);
 
 void motor_pwm_set_freewheeling(void);
 

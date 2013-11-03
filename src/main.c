@@ -92,6 +92,12 @@ int main(void)
 
 	motor_timer_set_relative(0);
 
+	enum motor_pwm_phase_manip manip_cmd[3] = {
+		MOTOR_PWM_MANIP_FLOATING,
+		MOTOR_PWM_MANIP_FLOATING,
+		MOTOR_PWM_MANIP_FLOATING
+	};
+
 	while (1) {
 		const int ch = sdGet(&STDOUT_SD);
 
@@ -102,12 +108,16 @@ int main(void)
 
 			if (cmd >= 0 && cmd < 4) {
 				lowsyslog("Command %i\n", cmd);
-				motor_pwm_manip(phase_num, (enum motor_pwm_phase_manip)cmd);
+				manip_cmd[phase_num] = (enum motor_pwm_phase_manip)cmd;
+				motor_pwm_manip(manip_cmd);
 			}
+			lowsyslog("New state: %i, %i, %i\n", manip_cmd[0], manip_cmd[1], manip_cmd[2]);
 		} else if (ch == '+') {
 			motor_pwm_beep(1000, 100);
 			motor_pwm_beep(3000, 100);
 			motor_pwm_beep(7000, 100);
+		} else if (ch == '-') {
+			motor_pwm_beep(7000, 1000);
 		}
 
 		struct motor_adc_sample sample = motor_adc_get_last_sample();
