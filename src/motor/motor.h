@@ -40,6 +40,13 @@
 
 __BEGIN_DECLS
 
+enum motor_state
+{
+	MOTOR_STATE_IDLE,
+	MOTOR_STATE_STARTING,
+	MOTOR_STATE_RUNNING
+};
+
 /**
  * Initialize the hardware and control logic
  * @return 0 on success, negative on error
@@ -47,9 +54,10 @@ __BEGIN_DECLS
 int motor_init(void);
 
 /**
- * Start the motor with last configured duty cycle.
+ * Start the motor.
+ * This function returns immediately.
  */
-void motor_start(bool reverse);
+void motor_start(uint16_t duty_cycle, bool reverse);
 
 /**
  * Turn the motor into freewheeling state
@@ -64,9 +72,9 @@ void motor_stop(void);
 uint16_t motor_set_duty_cycle(uint16_t duty_cycle);
 
 /**
- * Is the motor running or not.
+ * Returns motor state.
  */
-bool motor_is_started(void);
+enum motor_state motor_get_state(void);
 
 /**
  * Make noise.
@@ -100,5 +108,16 @@ int motor_test_hardware(void);
  *         positive - motor is not connected or went bananas.
  */
 int motor_test_motor(void);
+
+/**
+ * Emergency deactivation.
+ * Can be executed from any context.
+ */
+void motor_emergency(void);
+
+/**
+ * Debug only.
+ */
+void motor_print_debug_info(void);
 
 __END_DECLS

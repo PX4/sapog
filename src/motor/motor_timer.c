@@ -259,14 +259,6 @@ void motor_timer_set_relative(int delay_hnsec)
 	irq_primask_enable();
 }
 
-void motor_timer_set_absolute(uint64_t timestamp_hnsec)
-{
-	const uint64_t current = motor_timer_hnsec();
-	if (timestamp_hnsec < current)
-		timestamp_hnsec = current;
-	motor_timer_set_relative(timestamp_hnsec - current);
-}
-
 void motor_timer_cancel(void)
 {
 	TIMX->DIER &= ~TIM_DIER_CC1IE;

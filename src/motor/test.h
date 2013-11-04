@@ -42,7 +42,6 @@ __BEGIN_DECLS
  * Tests ADC, PWM, FETs.
  * Returns 0 on success, anything else otherwise.
  * Writes diagnostics into lowsyslog.
- * Assumes that ADC is activated, otherwise fails.
  */
 int motor_test_test_power_stage(void);
 
@@ -50,7 +49,6 @@ int motor_test_test_power_stage(void);
  * Tests connected motor.
  * Returns 0 if the motor is OK; anything else if the motor is not connected properly or damaged.
  * Writes diagnostics into lowsyslog.
- * Assumes that ADC is activated, otherwise fails.
  */
 int motor_test_test_motor(void);
 

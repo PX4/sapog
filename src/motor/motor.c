@@ -32,6 +32,7 @@
  *
  ****************************************************************************/
 
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "motor.h"
@@ -49,9 +50,22 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 
 /**
  * The neutral voltage will be shifted by this amount to yield the highest ZC threshold.
+ * Higher value --> higher sensitivity.
  * Read the code for details.
  */
-#define ZC_THRESHOLD_SHIFT_BASE     4
+#define ZC_THRESHOLD_SHIFT_MIN     5
+
+/**
+ * Computes the timing advance in comm_period units
+ */
+#define TIMING_ADVANCE(comm_period, degrees) \
+	(((uint64_t)comm_period * (uint64_t)degrees) / 64/*60*/)
+
+/**
+ * Integer low pass filter
+ */
+#define LOWPASS(old_val, new_val, alpha) \
+	(((old_val) * (alpha) + (new_val)) / ((alpha) + 1))
 
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE[NUM_COMMUTATION_STEPS] = {
     {1, 0, 2}, // Positive, negative, floating
@@ -78,31 +92,35 @@ static struct control_state
 	int current_comm_step;
 	bool reverse_rotation;
 
+	bool spinup_done;
+
 	int zc_threshold_shift;
-	int successive_zc_failures;
+	unsigned int zc_failure_rate;
 	uint64_t zc_failures_since_start;
+	uint64_t zc_detects_since_start;
 
 	int prev_adc_normalized_sample;
 	int phase_avg_volt[3];
 
 	struct motor_pwm_val pwm_val;
+
+	uint64_t started_at;
 } state;
 
 static struct precomputed_params
 {
-	int spinup_erpm;
-	int spinup_steps;
+	int spinup_erpm;  // TODO: configurable startup acceleration?
 
-	int comm_blank_usec;
+	int comm_blank_hnsec;
 	int timing_advance_deg;
-	int zc_failures_max;
+	unsigned int zc_failures_max_x2;
+	unsigned int zc_detects_min;
 
-	int comm_period_lowpass_alpha_reciprocal; // Reciprocal of lowpass alpha (0; 1]
-	uint32_t max_acceleration_per_step_x64;   // Like percent but in range [0; 64] for faster division
+	int comm_period_shift_to_voltage_lowpass_alpha_reciprocal;
+	int comm_period_lowpass_alpha_reciprocal;   // Reciprocal of lowpass alpha (0; 1]
+	int max_acceleration_per_step_64;           // Like percent but in range [0; 64] for faster division
 
-	uint32_t comm_period_threshold_slow;  // slow/moderate
-	uint32_t comm_period_threshold_fast;  // moderate/fast
-
+	uint32_t low_speed_comm_period_threshold;
 	uint32_t comm_period_min;
 	uint32_t comm_period_max;
 } params;
@@ -110,18 +128,17 @@ static struct precomputed_params
 static void configure(void) // TODO: obtain the configuration from somewhere else
 {
 	params.spinup_erpm = 1000;
-	params.spinup_steps = 4;
 
-	params.comm_blank_usec = 30;
+	params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
 	params.timing_advance_deg = 10;
-	params.zc_failures_max = 50;
+	params.zc_failures_max_x2 = 50 * 2;
+	params.zc_detects_min = 50;
 
+	params.comm_period_shift_to_voltage_lowpass_alpha_reciprocal = 11; // 11 --> 2048 hnsec, 204.8 usec
 	params.comm_period_lowpass_alpha_reciprocal = 10;
-	params.max_acceleration_per_step_x64 = 64 / 4;
+	params.max_acceleration_per_step_64 = 64 / 4;
 
-	params.comm_period_threshold_slow = 300 * HNSEC_PER_USEC;
-	params.comm_period_threshold_fast = 150 * HNSEC_PER_USEC;
-
+	params.low_speed_comm_period_threshold = 300 * HNSEC_PER_USEC;
 	params.comm_period_min = 50 * HNSEC_PER_USEC;
 	params.comm_period_max = motor_timer_get_max_delay_hnsec();
 }
@@ -142,42 +159,209 @@ static inline uint32_t comm_period_to_erpm(uint32_t comm_period)
 	return HNSEC_PER_MINUTE / hnsec_per_rev;
 }
 
+static inline void switch_commutation_step(void)
+{
+	// We need to keep the current step index
+	if (state.reverse_rotation) {
+		state.current_comm_step--;
+		if (state.current_comm_step <= 0)
+			state.current_comm_step = NUM_COMMUTATION_STEPS;
+
+	} else {
+		state.current_comm_step++;
+		if (state.current_comm_step >= NUM_COMMUTATION_STEPS)
+			state.current_comm_step = 0;
+	}
+	motor_pwm_set_step_from_isr(COMMUTATION_TABLE + state.current_comm_step, &state.pwm_val);
+}
+
+static inline void stop_from_isr(void)
+{
+	state.control_state = CS_IDLE;
+	motor_timer_cancel();
+	motor_pwm_set_freewheeling();
+}
+
+void motor_timer_callback(void)
+{
+	const uint64_t timestamp = motor_timer_hnsec();
+	if (state.control_state == CS_IDLE)
+		return;
+
+	motor_timer_set_relative(state.comm_period);
+	switch_commutation_step();
+	//From this moment we have at least half of the commutation period before the next time critical event.
+
+	if (state.control_state == CS_BEFORE_ZC) {  // ZC has timed out
+		// In this case we need to emulate the ZC detection
+		const uint32_t leeway =
+			state.comm_period / 2 + TIMING_ADVANCE(state.comm_period, params.timing_advance_deg);
+		state.prev_zc_timestamp = timestamp - leeway;
+
+		state.zc_failures_since_start++;
+		state.zc_failure_rate += 2;
+		if (state.zc_failure_rate > params.zc_failures_max_x2) {
+			stop_from_isr();
+			return;
+		}
+	} else { // On successful ZC
+		state.control_state = CS_BEFORE_ZC; // Waiting for the next ZC
+		if (state.zc_failure_rate > 0)
+			state.zc_failure_rate--;
+		state.zc_detects_since_start++;
+	}
+
+	state.prev_adc_sample_timestamp = 0;        // Discard the previous step sample
+	state.blank_time_deadline = timestamp + params.comm_blank_hnsec;
+	state.predicted_zc_timestamp =
+		timestamp + ((uint64_t)state.comm_period * (uint64_t)params.max_acceleration_per_step_64) / 64;
+
+	state.zc_threshold_shift =
+		ZC_THRESHOLD_SHIFT_MIN + state.comm_period / params.low_speed_comm_period_threshold;
+
+	if (!state.spinup_done) {
+		if (state.zc_failure_rate == 0 && state.zc_detects_since_start >= params.zc_detects_min)
+			state.spinup_done = true;
+	}
+}
+
+static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timestamp)
+{
+	if (zc_timestamp < state.prev_zc_timestamp)
+		zc_timestamp = state.prev_zc_timestamp;
+	uint32_t new_comm_period = zc_timestamp - state.prev_zc_timestamp;
+	state.prev_zc_timestamp = zc_timestamp;
+
+	if (new_comm_period > params.comm_period_max)
+	        new_comm_period = params.comm_period_max;
+
+	state.comm_period = LOWPASS(state.comm_period, new_comm_period, params.comm_period_lowpass_alpha_reciprocal);
+	state.control_state = CS_PAST_ZC;
+
+	// Synchronization lost causes extremely low comm periods
+	if (state.comm_period < params.comm_period_min) {
+		stop_from_isr();
+		return;
+	}
+
+	const uint32_t advance = state.comm_period / 2 - TIMING_ADVANCE(state.comm_period, params.timing_advance_deg);
+
+	// Override the comm period deadline that was set at the last commutation switching
+	uint64_t deadline = zc_timestamp + advance;
+	if (deadline < current_timestamp)
+		deadline = current_timestamp;
+	motor_timer_set_relative(deadline - current_timestamp);
+}
+
+void motor_adc_sample_callback(const struct motor_adc_sample* sample)
+{
+	if ((state.control_state != CS_IDLE) && (sample->timestamp > state.blank_time_deadline)) {
+		const int alpha = state.comm_period >> params.comm_period_shift_to_voltage_lowpass_alpha_reciprocal;
+
+		if (alpha) {
+			// I hope the compiler would be smart enough to unroll this
+			for (int i = 0; i < 3; i++) {
+				state.phase_avg_volt[i] =
+					LOWPASS(state.phase_avg_volt[i], sample->raw_phase_values[i], alpha);
+			}
+		} else {
+			for (int i = 0; i < 3; i++)
+				state.phase_avg_volt[i] = sample->raw_phase_values[i];
+		}
+	}
+	if (state.control_state != CS_BEFORE_ZC)
+		return;
+
+	const struct motor_pwm_commutation_step* const step = COMMUTATION_TABLE + state.current_comm_step;
+
+	// Here we compute the floating phase voltage using neutral voltage as a reference
+	const int neutral_voltage = (state.phase_avg_volt[step->positive] + state.phase_avg_volt[step->negative]) / 2;
+	const int normalized_sample = state.phase_avg_volt[step->floating] - neutral_voltage;
+
+	// Check if the floating phase voltage is above minimal threshold, otherwise discard it as noise
+	if (abs(normalized_sample) < (neutral_voltage >> state.zc_threshold_shift))
+		return;
+
+	// Detect our position with respect to zero crossing
+	const bool zc_polarity = state.current_comm_step & 1;
+	const bool zc_occurred = (zc_polarity && (normalized_sample > 0)) || (!zc_polarity && (normalized_sample < 0));
+
+	if (zc_occurred) {
+		// Sanity check. On low RPM we have a lot of noise on the floating phase.
+		if (sample->timestamp < state.predicted_zc_timestamp)
+			return;
+
+		uint64_t zc_timestamp = 0;
+		if (state.prev_adc_sample_timestamp > 0) {
+			/*
+			 * Interpolate with previous ADC sample, in order to estimate ZC time precisely.
+			 * V1, V2 - voltage readings
+			 * t1, t2 - their timestamps
+			 * tz     - ZC timestamp
+			 *
+			 * dt = t2 - t1
+			 * dV = V2 - V1
+			 * tz = t1 + abs((V1 * dt) / dV)
+			 */
+			const int dt = sample->timestamp - state.prev_adc_sample_timestamp;
+			assert(dt > 0);
+			const int dv = normalized_sample - state.prev_adc_normalized_sample;
+			const int t_offset = abs((state.prev_adc_normalized_sample * dt) / dv);
+			zc_timestamp = state.prev_adc_sample_timestamp + (uint64_t)t_offset;
+		} else {
+			/*
+			 * We have no previous sample to interpolate with,
+			 * so we hope that ZC happened exactly between two consequent ADC samples
+			 */
+			zc_timestamp = sample->timestamp - MOTOR_ADC_SAMPLING_PERIOD_HNSEC / 2;
+		}
+		handle_zero_crossing(sample->timestamp, zc_timestamp);
+	} else {
+		state.prev_adc_sample_timestamp = sample->timestamp;
+		state.prev_adc_normalized_sample = normalized_sample;
+	}
+}
+
 int motor_init(void)
 {
-	configure();
-
 	motor_pwm_init();
 	motor_timer_init();
 	motor_adc_init();
+
+	configure();
 
 	motor_stop();
 
 	return 0;
 }
 
-void motor_start(bool reverse)
+void motor_start(uint16_t duty_cycle, bool reverse)
 {
 	motor_stop();                          // Just in case
 
 	memset(&state, 0, sizeof(state));      // Mighty reset
 
+	motor_set_duty_cycle(duty_cycle);
+
 	state.control_state = CS_BEFORE_ZC;
 	state.reverse_rotation = reverse;
 
-	state.zc_threshold_shift = ZC_THRESHOLD_SHIFT_BASE + 2;
+	state.zc_threshold_shift = ZC_THRESHOLD_SHIFT_MIN + 2;
 	state.comm_period = erpm_to_comm_period(params.spinup_erpm);
-	state.blank_time_deadline = motor_timer_hnsec() + ((uint64_t)state.comm_period) * params.spinup_steps;
+	state.blank_time_deadline = motor_timer_hnsec() + params.comm_blank_hnsec;
 
-	motor_adc_enable(true);
+	state.started_at = motor_timer_hnsec();
+
 	motor_timer_set_relative(0);           // Go from here
 }
 
 void motor_stop(void)
 {
+	irq_primask_disable();
 	state.control_state = CS_IDLE;
+	irq_primask_enable();
 	motor_timer_cancel();
 	motor_pwm_set_freewheeling();
-	motor_adc_enable(false);
 }
 
 uint16_t motor_set_duty_cycle(uint16_t duty_cycle)
@@ -192,9 +376,16 @@ uint16_t motor_set_duty_cycle(uint16_t duty_cycle)
 	return true_duty_cycle;
 }
 
-bool motor_is_started(void)
+enum motor_state motor_get_state(void)
 {
-	return state.control_state != CS_IDLE;
+	irq_primask_disable();
+	const enum control_state_id csid = state.control_state;
+	const bool spinup_done = state.spinup_done;
+	irq_primask_enable();
+
+	if (csid == CS_IDLE)
+		return MOTOR_STATE_IDLE;
+	return spinup_done ? MOTOR_STATE_RUNNING : MOTOR_STATE_STARTING;
 }
 
 void motor_beep(int frequency, int duration_msec)
@@ -223,18 +414,45 @@ int motor_test_hardware(void)
 {
 	if (state.control_state != CS_IDLE)
 		return -1;
-	motor_adc_enable(true);
-	const int res = motor_test_test_power_stage();
-	motor_adc_enable(false);
-	return res;
+	return motor_test_test_power_stage();
 }
 
 int motor_test_motor(void)
 {
 	if (state.control_state != CS_IDLE)
 		return -1;
-	motor_adc_enable(true);
-	const int res = motor_test_test_motor();  // REDRUM
-	motor_adc_enable(false);
-	return res;
+	return motor_test_test_motor();  // REDRUM
+}
+
+void motor_emergency(void)
+{
+	const irqstate_t irqstate = irq_primask_save();
+	motor_pwm_emergency();
+	state.control_state = CS_IDLE;
+	irq_primask_restore(irqstate);
+}
+
+void motor_print_debug_info(void)
+{
+	irq_primask_disable();
+	const struct control_state state_copy = state;
+	irq_primask_enable();
+
+	lowsyslog("Motor debug:\n"
+		"  comm period        %u usec\n"
+		"  erpm               %u RPM\n"
+		"  spinup done        %i\n"
+		"  zc threshold shift %i\n"
+		"  zc failure rate    %u\n"
+		"  zc failures        %u\n"
+		"  zc detects         %u\n"
+		"  phase volt         %i %i %i\n",
+		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
+		(unsigned)(comm_period_to_erpm(state_copy.comm_period)),
+		(int)state_copy.spinup_done,
+		(int)state_copy.zc_threshold_shift,
+		(unsigned)state_copy.zc_failure_rate,
+		(unsigned)state_copy.zc_failures_since_start,
+		(unsigned)state_copy.zc_detects_since_start,
+		state_copy.phase_avg_volt[0], state_copy.phase_avg_volt[1], state_copy.phase_avg_volt[2]);
 }

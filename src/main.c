@@ -37,10 +37,8 @@
 #include <assert.h>
 #include <unistd.h>
 #include "sys/sys.h"
-#include "motor/adc.h"
+#include "motor/motor.h"
 #include "motor/pwm.h"
-#include "motor/timer.h"
-#include "motor/test.h"
 
 static void led_set_status(bool state)
 {
@@ -52,19 +50,9 @@ static void led_set_error(bool state)
 	palWritePad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR, !state);
 }
 
-void motor_timer_callback(void)
-{
-	motor_timer_set_relative(5 * HNSEC_PER_USEC);
-}
-
-void motor_adc_sample_callback(const struct motor_adc_sample* sample)
-{
-//	motor_timer_set_relative(0);
-}
-
 void application_halt_hook(void)
 {
-	motor_pwm_emergency();
+	motor_emergency();
 	led_set_error(true);
 	led_set_status(true);
 }
@@ -81,23 +69,16 @@ int main(void)
 
 	usleep(3000000);
 
-	motor_pwm_init();
-	motor_timer_init();
-	motor_adc_init();
-	motor_adc_enable(true);
+	motor_init();
+	assert(0 == motor_test_hardware());
 
-	assert(0 == motor_test_test_power_stage());
-
-	if (motor_test_test_motor()) {
+	if (motor_test_motor())
 		lowsyslog("Motor is not connected or damaged\n");
-	} else {
+	else
 		lowsyslog("Motor is OK\n");
-	}
 
 	lowsyslog("Initialization done\n");
-	motor_pwm_beep(1000, 150);
-
-	motor_timer_set_relative(0);
+	motor_beep(1000, 150);
 
 	enum motor_pwm_phase_manip manip_cmd[3] = {
 		MOTOR_PWM_MANIP_FLOATING,
@@ -106,30 +87,40 @@ int main(void)
 	};
 
 	while (1) {
+		motor_print_debug_info();
+
 		const int ch = sdGet(&STDOUT_SD);
 
-		const int phase_num = ch - '0';
-		if (phase_num >= 0 && phase_num < 3) {
-			lowsyslog("Phase %i; enter the command (0 lo, 1 hi, 2 float, 3 half)\n", phase_num);
-			const int cmd = sdGet(&STDOUT_SD) - '0';
+		if (ch >= '0' && ch <= ('9' + 1)) {
+			const int percent = (ch - '0') * 10;
+			const uint16_t duty_cycle = (0xFFFF * percent) / 100;
+			lowsyslog("Duty cycle: %i%% (%x)\n", percent, duty_cycle);
 
-			if (cmd >= 0 && cmd < 4) {
-				lowsyslog("Command %i\n", cmd);
-				manip_cmd[phase_num] = (enum motor_pwm_phase_manip)cmd;
-				motor_pwm_manip(manip_cmd);
+			if (motor_get_state() == MOTOR_STATE_IDLE)
+				motor_start(duty_cycle, false);
+			else
+				motor_set_duty_cycle(duty_cycle);
+		} else if (ch == 'p') {
+			motor_stop();
+			const int phase_num = ch - '0';
+			if (phase_num >= 0 && phase_num < 3) {
+				lowsyslog("Phase %i; enter the command (0 lo, 1 hi, 2 float, 3 half)\n", phase_num);
+				const int cmd = sdGet(&STDOUT_SD) - '0';
+
+				if (cmd >= 0 && cmd < 4) {
+					lowsyslog("Command %i\n", cmd);
+					manip_cmd[phase_num] = (enum motor_pwm_phase_manip)cmd;
+					motor_pwm_manip(manip_cmd);
+				}
+				lowsyslog("New state: %i, %i, %i\n", manip_cmd[0], manip_cmd[1], manip_cmd[2]);
 			}
-			lowsyslog("New state: %i, %i, %i\n", manip_cmd[0], manip_cmd[1], manip_cmd[2]);
 		} else if (ch == '+') {
-			motor_pwm_beep(1000, 150);
-			motor_pwm_beep(3000, 150);
-			motor_pwm_beep(7000, 150);
+			motor_beep(1000, 150);
+			motor_beep(3000, 150);
+			motor_beep(7000, 150);
 		} else if (ch == '-') {
-			motor_pwm_beep(500, 1000);
+			motor_beep(500, 1000);
 		}
-
-		struct motor_adc_sample sample = motor_adc_get_last_sample();
-		lowsyslog("%u %i %i %i\n", (unsigned)(sample.timestamp / HNSEC_PER_MSEC),
-		          sample.raw_phase_values[0], sample.raw_phase_values[1], sample.raw_phase_values[2]);
 	}
 	return 0;
 }

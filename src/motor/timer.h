@@ -57,7 +57,6 @@ uint64_t motor_timer_get_max_delay_hnsec(void);
 uint64_t motor_timer_hnsec(void);
 
 void motor_timer_set_relative(int delay_hnsec);
-void motor_timer_set_absolute(uint64_t timestamp_hnsec);
 void motor_timer_cancel(void);
 
 /**

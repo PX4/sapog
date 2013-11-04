@@ -63,8 +63,6 @@ struct motor_adc_sample
 
 void motor_adc_init(void);
 
-void motor_adc_enable(bool enable);
-
 struct motor_adc_sample motor_adc_get_last_sample(void);
 
 /**
