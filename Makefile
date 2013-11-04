@@ -89,7 +89,7 @@ USE_CPPOPT = -fno-rtti
 RELEASE ?= 0
 ifneq ($(RELEASE),0)
     DDEFS += -DRELEASE
-    USE_OPT += -O1 -fomit-frame-pointer
+    USE_OPT += -O2 -fomit-frame-pointer
 else
     DDEFS += -DDEBUG
     USE_OPT += -O0 -g3

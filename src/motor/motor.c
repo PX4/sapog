@@ -139,7 +139,7 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	params.max_acceleration_per_step_64 = 64 / 4;
 
 	params.low_speed_comm_period_threshold = 300 * HNSEC_PER_USEC;
-	params.comm_period_min = 50 * HNSEC_PER_USEC;
+	params.comm_period_min = 30 * HNSEC_PER_USEC;
 	params.comm_period_max = motor_timer_get_max_delay_hnsec();
 }
 
@@ -201,6 +201,7 @@ void motor_timer_callback(void)
 		state.zc_failures_since_start++;
 		state.zc_failure_rate += 2;
 		if (state.zc_failure_rate > params.zc_failures_max_x2) {
+			// No bounce no play
 			stop_from_isr();
 			return;
 		}
@@ -328,11 +329,8 @@ int motor_init(void)
 	motor_pwm_init();
 	motor_timer_init();
 	motor_adc_init();
-
 	configure();
-
 	motor_stop();
-
 	return 0;
 }
 

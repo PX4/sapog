@@ -61,6 +61,9 @@
 /**
  * Unconditional assert
  */
+#if !CH_DBG_ENABLED
+extern const char *dbg_panic_msg;
+#endif
 #define STRINGIZE2(x)   #x
 #define STRINGIZE(x)    STRINGIZE2(x)
 #define MAKE_ASSERT_MSG() __FILE__ ":" STRINGIZE(__LINE__)
