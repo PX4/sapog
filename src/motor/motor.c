@@ -164,8 +164,8 @@ static inline void switch_commutation_step(void)
 	// We need to keep the current step index
 	if (state.reverse_rotation) {
 		state.current_comm_step--;
-		if (state.current_comm_step <= 0)
-			state.current_comm_step = NUM_COMMUTATION_STEPS;
+		if (state.current_comm_step < 0)
+			state.current_comm_step = NUM_COMMUTATION_STEPS - 1;
 
 	} else {
 		state.current_comm_step++;
@@ -283,7 +283,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		return;
 
 	// Detect our position with respect to zero crossing
-	const bool zc_polarity = state.current_comm_step & 1;
+	const bool zc_polarity = state.reverse_rotation
+		? !(state.current_comm_step & 1) : (state.current_comm_step & 1);
 	const bool zc_occurred = (zc_polarity && (normalized_sample > 0)) || (!zc_polarity && (normalized_sample < 0));
 
 	if (zc_occurred) {

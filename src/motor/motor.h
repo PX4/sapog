@@ -60,7 +60,7 @@ int motor_init(void);
 void motor_start(uint16_t duty_cycle, bool reverse);
 
 /**
- * Turn the motor into freewheeling state
+ * Engage freewheeling.
  */
 void motor_stop(void);
 

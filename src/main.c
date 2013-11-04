@@ -86,6 +86,8 @@ int main(void)
 		MOTOR_PWM_MANIP_FLOATING
 	};
 
+	bool reverse = false;
+
 	while (1) {
 		motor_print_debug_info();
 
@@ -97,7 +99,7 @@ int main(void)
 			lowsyslog("Duty cycle: %i%% (%x)\n", percent, duty_cycle);
 
 			if (motor_get_state() == MOTOR_STATE_IDLE)
-				motor_start(duty_cycle, false);
+				motor_start(duty_cycle, reverse);
 			else
 				motor_set_duty_cycle(duty_cycle);
 		} else if (ch == 'p') {
@@ -120,6 +122,9 @@ int main(void)
 			motor_beep(7000, 150);
 		} else if (ch == '-') {
 			motor_beep(500, 1000);
+		} else if (ch == 'r') {
+			reverse = !reverse;
+			lowsyslog("Reverse %s\n", reverse ? "ON" : "OFF");
 		}
 	}
 	return 0;
