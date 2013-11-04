@@ -67,6 +67,7 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 #define LOWPASS(old_val, new_val, alpha) \
 	(((old_val) * (alpha) + (new_val)) / ((alpha) + 1))
 
+
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE[NUM_COMMUTATION_STEPS] = {
     {1, 0, 2}, // Positive, negative, floating
     {1, 2, 0},
@@ -437,7 +438,7 @@ void motor_print_debug_info(void)
 	const struct control_state state_copy = state;
 	irq_primask_enable();
 
-	lowsyslog("Motor debug:\n"
+	lowsyslog("Motor: Debug\n"
 		"  comm period        %u usec\n"
 		"  erpm               %u RPM\n"
 		"  spinup done        %i\n"

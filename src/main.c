@@ -39,6 +39,7 @@
 #include "sys/sys.h"
 #include "motor/motor.h"
 #include "motor/pwm.h"
+#include "motor/adc.h"
 
 static void led_set_status(bool state)
 {
@@ -70,7 +71,8 @@ int main(void)
 	usleep(3000000);
 
 	motor_init();
-	assert(0 == motor_test_hardware());
+	//assert(0 == motor_test_hardware());
+	motor_test_hardware();
 
 	if (motor_test_motor())
 		lowsyslog("Motor is not connected or damaged\n");
@@ -91,6 +93,10 @@ int main(void)
 	while (1) {
 		motor_print_debug_info();
 
+		struct motor_adc_sample sample = motor_adc_get_last_sample();
+		lowsyslog("%i %i %i\n",
+			sample.raw_phase_values[0], sample.raw_phase_values[1], sample.raw_phase_values[2]);
+
 		const int ch = sdGet(&STDOUT_SD);
 
 		if (ch >= '0' && ch <= ('9' + 1)) {
@@ -102,9 +108,9 @@ int main(void)
 				motor_start(duty_cycle, reverse);
 			else
 				motor_set_duty_cycle(duty_cycle);
-		} else if (ch == 'p') {
+		} else if (ch >= 'a' && ch <= 'c') {
 			motor_stop();
-			const int phase_num = ch - '0';
+			const int phase_num = ch - 'a';
 			if (phase_num >= 0 && phase_num < 3) {
 				lowsyslog("Phase %i; enter the command (0 lo, 1 hi, 2 float, 3 half)\n", phase_num);
 				const int cmd = sdGet(&STDOUT_SD) - '0';

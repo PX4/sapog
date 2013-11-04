@@ -114,8 +114,10 @@ int motor_test_test_power_stage(void)
 	/*
 	 * Make sure that the high level readings are nearly identical
 	 */
-	qsort(high_samples, NUM_PHASES, sizeof(int), compare_samples);
-	const int high_median = high_samples[NUM_PHASES / 2];
+	int high_samples_sorted[NUM_PHASES];
+	memcpy(high_samples_sorted, high_samples, sizeof(high_samples));
+	qsort(high_samples_sorted, NUM_PHASES, sizeof(int), compare_samples);
+	const int high_median = high_samples_sorted[NUM_PHASES / 2];
 
 	for (int phase = 0; phase < NUM_PHASES; phase++) {
 		if (abs(high_samples[phase] - high_median) > threshold) {
