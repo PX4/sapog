@@ -49,6 +49,11 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 #define NUM_COMMUTATION_STEPS 6
 
 /**
+ * Stall detection by abnormally high ERPM
+ */
+#define LOWEST_VALID_COMM_PERIOD   (MOTOR_PWM_PERIOD_HNSEC * 3)
+
+/**
  * Computes the timing advance in comm_period units
  */
 #define TIMING_ADVANCE(comm_period, degrees) \
@@ -109,7 +114,6 @@ static struct precomputed_params
 	unsigned int zc_failures_max;
 	unsigned int zc_detects_min;
 
-	int comm_period_shift_to_voltage_lowpass_alpha_reciprocal;
 	int comm_period_lowpass_alpha_reciprocal;   // Reciprocal of lowpass alpha (0; 1]
 	int max_acceleration_per_step_64;           // Like percent but in range [0; 64] for faster division
 
@@ -123,7 +127,6 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	params.zc_failures_max = 50;
 	params.zc_detects_min = 50;
 
-	params.comm_period_shift_to_voltage_lowpass_alpha_reciprocal = 11; // 11 --> 2048 hnsec, 204.8 usec
 	params.comm_period_lowpass_alpha_reciprocal = 10;
 	params.max_acceleration_per_step_64 = 64 / 4;
 
@@ -197,7 +200,7 @@ void motor_timer_callback(void)
 		}
 
 		// Another stall detection heuristic - abnormally high RPM
-		if (state.comm_period < MOTOR_PWM_PERIOD_HNSEC * 2) {
+		if (state.comm_period < LOWEST_VALID_COMM_PERIOD) {
 			stop_from_isr();
 			return;
 		}
@@ -260,9 +263,15 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
 	if ((state.control_state != CS_IDLE) && (sample->timestamp > state.blank_time_deadline)) {
 		/*
-		 * TODO: Derive this from amount of samples per commutation?
+		 * Voltage filter gain computation.
+		 * Number of ADC samples per commutation:
+		 *    samples_per_comm = comm_period / adc_sample_period
+		 * Number of samples between commutation and ZC:
+		 *    samples_before_zc = samples_per_comm / 2
+		 * We want to consider 1/X of all samples between commutation and ZC, so:
+		 *    alpha = samples_before_zc / X
 		 */
-		const int alpha = state.comm_period >> params.comm_period_shift_to_voltage_lowpass_alpha_reciprocal;
+		const int alpha = (state.comm_period / MOTOR_ADC_SAMPLING_PERIOD_HNSEC / 2) / 8;
 
 		if (alpha) {
 			// I hope the compiler would be smart enough to unroll this
