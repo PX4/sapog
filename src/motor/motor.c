@@ -88,10 +88,10 @@ static struct control_state
 
 	bool spinup_done;
 
-	unsigned int zc_failure_rate;
+	unsigned int immediate_zc_failures;
+	unsigned int immediate_zc_detects;
 	uint64_t zc_failures_since_start;
 	uint64_t zc_detects_since_start;
-	uint64_t zc_detects_before_spinup_done;
 
 	int prev_adc_normalized_sample;
 	int phase_avg_volt[3];
@@ -105,7 +105,7 @@ static struct precomputed_params
 {
 	int comm_blank_hnsec;
 	int timing_advance_deg;
-	unsigned int zc_failures_max_x2;
+	unsigned int zc_failures_max;
 	unsigned int zc_detects_min;
 
 	int comm_period_shift_to_voltage_lowpass_alpha_reciprocal;
@@ -120,7 +120,7 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 {
 	params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
 	params.timing_advance_deg = 10;
-	params.zc_failures_max_x2 = 50 * 2;
+	params.zc_failures_max = 50;
 	params.zc_detects_min = 50;
 
 	params.comm_period_shift_to_voltage_lowpass_alpha_reciprocal = 11; // 11 --> 2048 hnsec, 204.8 usec
@@ -187,8 +187,11 @@ void motor_timer_callback(void)
 		state.prev_zc_timestamp = timestamp - leeway;
 
 		state.zc_failures_since_start++;
-		state.zc_failure_rate += 2;
-		if (state.zc_failure_rate > params.zc_failures_max_x2) {
+
+		// Stall detection
+		state.immediate_zc_detects = 0;
+		state.immediate_zc_failures++;
+		if (state.immediate_zc_failures > params.zc_failures_max) {
 			// No bounce no play
 			stop_from_isr();
 			return;
@@ -197,19 +200,19 @@ void motor_timer_callback(void)
 		// Slow down a bit
 		if (state.zc_detects_since_start >= params.zc_detects_min) {
 			state.comm_period = state.comm_period + state.comm_period / 8; // TODO: make configurable
-			if (state.comm_period > params.comm_period_max) {
-				// We're too slow now, seems that we got to re-spinup
+			if (state.comm_period > params.comm_period_max)
 				state.comm_period = params.comm_period_max;
-				state.zc_detects_before_spinup_done =
-					state.zc_detects_since_start + params.zc_detects_min;
-				state.spinup_done = false;
-			}
 		}
 	} else { // On successful ZC
 		state.control_state = CS_BEFORE_ZC; // Waiting for the next ZC
-		if (state.zc_failure_rate > 0)
-			state.zc_failure_rate--;
 		state.zc_detects_since_start++;
+
+		// Stall detection update
+		if (state.immediate_zc_failures) {
+			state.immediate_zc_detects++;
+			if (state.immediate_zc_detects > NUM_COMMUTATION_STEPS)
+				state.immediate_zc_failures = 0;
+		}
 	}
 
 	state.prev_adc_sample_timestamp = 0;        // Discard the previous step sample
@@ -217,8 +220,9 @@ void motor_timer_callback(void)
 	state.predicted_zc_timestamp =
 		timestamp + ((uint64_t)state.comm_period * (uint64_t)params.max_acceleration_per_step_64) / 64;
 
+	// Are we reached the stable operation mode
 	if (!state.spinup_done) {
-		if (state.zc_failure_rate == 0 && state.zc_detects_since_start >= params.zc_detects_min)
+		if (state.immediate_zc_failures == 0 && state.zc_detects_since_start > params.zc_detects_min)
 			state.spinup_done = true;
 	}
 }
@@ -334,10 +338,10 @@ void motor_start(uint16_t duty_cycle, bool reverse)
 
 	state.control_state = CS_BEFORE_ZC;
 	state.reverse_rotation = reverse;
+	state.spinup_done = false;
 
 	state.comm_period = params.comm_period_max;
 	state.blank_time_deadline = motor_timer_hnsec() + params.comm_blank_hnsec;
-	state.zc_detects_before_spinup_done = params.zc_detects_min;
 
 	state.started_at = motor_timer_hnsec();
 
@@ -431,14 +435,16 @@ void motor_print_debug_info(void)
 		"  comm period        %u usec\n"
 		"  erpm               %u RPM\n"
 		"  spinup done        %i\n"
-		"  zc failure rate    %u\n"
+		"  zc immed failures  %u\n"
+		"  zc immed detects   %u\n"
 		"  zc failures        %u\n"
 		"  zc detects         %u\n"
 		"  phase volt         %i %i %i\n",
 		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
 		(unsigned)(comm_period_to_erpm(state_copy.comm_period)),
 		(int)state_copy.spinup_done,
-		(unsigned)state_copy.zc_failure_rate,
+		(unsigned)state_copy.immediate_zc_failures,
+		(unsigned)state_copy.immediate_zc_detects,
 		(unsigned)state_copy.zc_failures_since_start,
 		(unsigned)state_copy.zc_detects_since_start,
 		state_copy.phase_avg_volt[0], state_copy.phase_avg_volt[1], state_copy.phase_avg_volt[2]);
