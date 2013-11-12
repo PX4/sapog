@@ -59,12 +59,6 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 #define TIMING_ADVANCE(comm_period, degrees) \
 	(((uint64_t)comm_period * (uint64_t)degrees) / 64/*60*/)
 
-/**
- * Integer low pass filter
- */
-#define LOWPASS(old_val, new_val, alpha) \
-	(((old_val) * (alpha) + (new_val)) / ((alpha) + 1))
-
 
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE[NUM_COMMUTATION_STEPS] = {
     {1, 0, 2}, // Positive, negative, floating
@@ -99,7 +93,6 @@ static struct control_state
 	uint64_t zc_detects_since_start;
 
 	int prev_adc_normalized_sample;
-	int phase_avg_volt[3];
 
 	struct motor_pwm_val pwm_val;
 	struct motor_pwm_val pwm_val_after_spinup;
@@ -247,7 +240,9 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	if (new_comm_period > params.comm_period_max)
 	        new_comm_period = params.comm_period_max;
 
-	state.comm_period = LOWPASS(state.comm_period, new_comm_period, params.comm_period_lowpass_alpha_reciprocal);
+	state.comm_period = (state.comm_period * params.comm_period_lowpass_alpha_reciprocal + new_comm_period) /
+		(params.comm_period_lowpass_alpha_reciprocal + 1);
+
 	state.control_state = CS_PAST_ZC;
 
 	const uint32_t advance = state.comm_period / 2 - TIMING_ADVANCE(state.comm_period, params.timing_advance_deg);
@@ -261,37 +256,15 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
-	if ((state.control_state != CS_IDLE) && (sample->timestamp > state.blank_time_deadline)) {
-		/*
-		 * Voltage filter gain computation.
-		 * Number of ADC samples per commutation:
-		 *    samples_per_comm = comm_period / adc_sample_period
-		 * Number of samples between commutation and ZC:
-		 *    samples_before_zc = samples_per_comm / 2
-		 * We want to consider 1/X of all samples between commutation and ZC, so:
-		 *    alpha = samples_before_zc / X
-		 */
-		const int alpha = (state.comm_period / MOTOR_ADC_SAMPLING_PERIOD_HNSEC / 2) / 8;
-
-		if (alpha) {
-			// I hope the compiler would be smart enough to unroll this
-			for (int i = 0; i < 3; i++) {
-				state.phase_avg_volt[i] =
-					LOWPASS(state.phase_avg_volt[i], sample->raw_phase_values[i], alpha);
-			}
-		} else {
-			for (int i = 0; i < 3; i++)
-				state.phase_avg_volt[i] = sample->raw_phase_values[i];
-		}
-	}
 	if (state.control_state != CS_BEFORE_ZC)
 		return;
 
 	const struct motor_pwm_commutation_step* const step = COMMUTATION_TABLE + state.current_comm_step;
 
-	// Here we compute the floating phase voltage using neutral voltage as a reference
-	const int neutral_voltage = (state.phase_avg_volt[step->positive] + state.phase_avg_volt[step->negative]) / 2;
-	const int normalized_sample = state.phase_avg_volt[step->floating] - neutral_voltage;
+	// Here we compute the floating phase voltage using neutral voltage as reference
+	const int neutral_voltage =
+		(sample->raw_phase_values[step->positive] + sample->raw_phase_values[step->negative]) / 2;
+	const int normalized_sample = sample->raw_phase_values[step->floating] - neutral_voltage;
 
 	// Detect our position with respect to zero crossing
 	const bool zc_polarity = state.reverse_rotation
@@ -457,14 +430,12 @@ void motor_print_debug_info(void)
 		"  zc immed failures  %u\n"
 		"  zc immed detects   %u\n"
 		"  zc failures        %u\n"
-		"  zc detects         %u\n"
-		"  phase volt         %i %i %i\n",
+		"  zc detects         %u\n",
 		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
 		(unsigned)(comm_period_to_erpm(state_copy.comm_period)),
 		(int)state_copy.spinup_done,
 		(unsigned)state_copy.immediate_zc_failures,
 		(unsigned)state_copy.immediate_zc_detects,
 		(unsigned)state_copy.zc_failures_since_start,
-		(unsigned)state_copy.zc_detects_since_start,
-		state_copy.phase_avg_volt[0], state_copy.phase_avg_volt[1], state_copy.phase_avg_volt[2]);
+		(unsigned)state_copy.zc_detects_since_start);
 }
