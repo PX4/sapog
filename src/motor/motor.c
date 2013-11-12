@@ -124,7 +124,9 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	_params.comm_period_lowpass_alpha_reciprocal = 10;
 	_params.max_acceleration_per_step_64 = 64 / 4;
 
-	_params.comm_period_max = erpm_to_comm_period(1000);//motor_timer_get_max_delay_hnsec();
+	_params.comm_period_max = erpm_to_comm_period(1000);
+	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
+		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 }
 
 static inline uint32_t erpm_to_comm_period(uint32_t erpm)
