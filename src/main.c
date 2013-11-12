@@ -131,6 +131,8 @@ int main(void)
 		} else if (ch == 'r') {
 			reverse = !reverse;
 			lowsyslog("Reverse %s\n", reverse ? "ON" : "OFF");
+		} else if (ch == ' ') {
+			motor_stop();
 		}
 	}
 	return 0;

@@ -117,7 +117,7 @@ static struct precomputed_params
 static void configure(void) // TODO: obtain the configuration from somewhere else
 {
 	_params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
-	_params.timing_advance_deg = 10;
+	_params.timing_advance_deg = 15;
 	_params.zc_failures_max = 50;
 	_params.zc_detects_min = 50;
 
