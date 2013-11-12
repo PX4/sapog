@@ -153,14 +153,23 @@ static void init_timers(void)
 	TIM3->CCER = 0;
 	TIM4->CCER = TIM_CCER_CC4E; // ADC sync
 
-	// ADC synchronization
-	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
-	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
-	assert_always(adc_trigger_advance_ticks_float >= 0);
-	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.3f));
-
-	// This event is triggered at downcounting, so we need to increase CCR to get advance
-	TIM4->CCR4 = PWM_HALF_TOP + (uint16_t)adc_trigger_advance_ticks_float;
+	/*
+	 * ADC synchronization
+	 *
+	 * 100%     /\      /
+	 * 75%     /  \    /
+	 * 25%    /    \  /
+	 * 0%    /      \/
+	 *             A  B
+	 * Complementary PWM operates in range (50%, 100%], thus a FET commutation will never happen in range
+	 * between points A and B on the diagram above.
+	 * In order to increase the time between a FET commutation and subsequent ADC sample, ADC should be
+	 * triggered exactly at the point B.
+	 * However, regenerative braking can use PWM in range [0%, 50%], this is why we stick to the point
+	 * between A and B (CCR == 1).
+	 * ADC sync advance is not used in order to optimize the performance for normal mode (non breaking).
+	 */
+	TIM4->CCR4 = 1;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM3->EGR = TIM_EGR_UG;
