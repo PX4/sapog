@@ -159,7 +159,8 @@ static void init_timers(void)
 	assert_always(adc_trigger_advance_ticks_float >= 0);
 	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.3f));
 
-	TIM4->CCR4 = PWM_HALF_TOP - (uint16_t)adc_trigger_advance_ticks_float;
+	// This event is triggered at downcounting, so we need to increase CCR to get advance
+	TIM4->CCR4 = PWM_HALF_TOP + (uint16_t)adc_trigger_advance_ticks_float;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM3->EGR = TIM_EGR_UG;
