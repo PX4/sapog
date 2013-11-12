@@ -49,13 +49,6 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 #define NUM_COMMUTATION_STEPS 6
 
 /**
- * The neutral voltage will be shifted by this amount to yield the highest ZC threshold.
- * Higher value --> higher sensitivity.
- * Read the code for details.
- */
-#define ZC_THRESHOLD_SHIFT_MIN     5
-
-/**
  * Computes the timing advance in comm_period units
  */
 #define TIMING_ADVANCE(comm_period, degrees) \
@@ -95,10 +88,10 @@ static struct control_state
 
 	bool spinup_done;
 
-	int zc_threshold_shift;
 	unsigned int zc_failure_rate;
 	uint64_t zc_failures_since_start;
 	uint64_t zc_detects_since_start;
+	uint64_t zc_detects_before_spinup_done;
 
 	int prev_adc_normalized_sample;
 	int phase_avg_volt[3];
@@ -110,8 +103,6 @@ static struct control_state
 
 static struct precomputed_params
 {
-	int spinup_erpm;  // TODO: configurable startup acceleration?
-
 	int comm_blank_hnsec;
 	int timing_advance_deg;
 	unsigned int zc_failures_max_x2;
@@ -121,15 +112,12 @@ static struct precomputed_params
 	int comm_period_lowpass_alpha_reciprocal;   // Reciprocal of lowpass alpha (0; 1]
 	int max_acceleration_per_step_64;           // Like percent but in range [0; 64] for faster division
 
-	uint32_t low_speed_comm_period_threshold;
 	uint32_t comm_period_min;
 	uint32_t comm_period_max;
 } params;
 
 static void configure(void) // TODO: obtain the configuration from somewhere else
 {
-	params.spinup_erpm = 1000;
-
 	params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
 	params.timing_advance_deg = 10;
 	params.zc_failures_max_x2 = 50 * 2;
@@ -139,9 +127,8 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	params.comm_period_lowpass_alpha_reciprocal = 10;
 	params.max_acceleration_per_step_64 = 64 / 4;
 
-	params.low_speed_comm_period_threshold = 300 * HNSEC_PER_USEC;
-	params.comm_period_min = 30 * HNSEC_PER_USEC;
-	params.comm_period_max = motor_timer_get_max_delay_hnsec();
+	params.comm_period_min = 50 * HNSEC_PER_USEC;
+	params.comm_period_max = erpm_to_comm_period(1000);//motor_timer_get_max_delay_hnsec();
 }
 
 static inline uint32_t erpm_to_comm_period(uint32_t erpm)
@@ -206,6 +193,18 @@ void motor_timer_callback(void)
 			stop_from_isr();
 			return;
 		}
+
+		// Slow down a bit
+		if (state.zc_detects_since_start >= params.zc_detects_min) {
+			state.comm_period = state.comm_period + state.comm_period / 8; // TODO: make configurable
+			if (state.comm_period > params.comm_period_max) {
+				// We're too slow now, seems that we got to re-spinup
+				state.comm_period = params.comm_period_max;
+				state.zc_detects_before_spinup_done =
+					state.zc_detects_since_start + params.zc_detects_min;
+				state.spinup_done = false;
+			}
+		}
 	} else { // On successful ZC
 		state.control_state = CS_BEFORE_ZC; // Waiting for the next ZC
 		if (state.zc_failure_rate > 0)
@@ -217,9 +216,6 @@ void motor_timer_callback(void)
 	state.blank_time_deadline = timestamp + params.comm_blank_hnsec;
 	state.predicted_zc_timestamp =
 		timestamp + ((uint64_t)state.comm_period * (uint64_t)params.max_acceleration_per_step_64) / 64;
-
-	state.zc_threshold_shift =
-		ZC_THRESHOLD_SHIFT_MIN + state.comm_period / params.low_speed_comm_period_threshold;
 
 	if (!state.spinup_done) {
 		if (state.zc_failure_rate == 0 && state.zc_detects_since_start >= params.zc_detects_min)
@@ -240,12 +236,6 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	state.comm_period = LOWPASS(state.comm_period, new_comm_period, params.comm_period_lowpass_alpha_reciprocal);
 	state.control_state = CS_PAST_ZC;
 
-	// Synchronization lost causes extremely low comm periods
-	if (state.comm_period < params.comm_period_min) {
-		stop_from_isr();
-		return;
-	}
-
 	const uint32_t advance = state.comm_period / 2 - TIMING_ADVANCE(state.comm_period, params.timing_advance_deg);
 
 	// Override the comm period deadline that was set at the last commutation switching
@@ -258,6 +248,9 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
 	if ((state.control_state != CS_IDLE) && (sample->timestamp > state.blank_time_deadline)) {
+		/*
+		 * TODO: Derive this from amount of samples per commutation?
+		 */
 		const int alpha = state.comm_period >> params.comm_period_shift_to_voltage_lowpass_alpha_reciprocal;
 
 		if (alpha) {
@@ -279,10 +272,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	// Here we compute the floating phase voltage using neutral voltage as a reference
 	const int neutral_voltage = (state.phase_avg_volt[step->positive] + state.phase_avg_volt[step->negative]) / 2;
 	const int normalized_sample = state.phase_avg_volt[step->floating] - neutral_voltage;
-
-	// Check if the floating phase voltage is above minimal threshold, otherwise discard it as noise
-	if (abs(normalized_sample) < (neutral_voltage >> state.zc_threshold_shift))
-		return;
 
 	// Detect our position with respect to zero crossing
 	const bool zc_polarity = state.reverse_rotation
@@ -346,9 +335,9 @@ void motor_start(uint16_t duty_cycle, bool reverse)
 	state.control_state = CS_BEFORE_ZC;
 	state.reverse_rotation = reverse;
 
-	state.zc_threshold_shift = ZC_THRESHOLD_SHIFT_MIN + 2;
-	state.comm_period = erpm_to_comm_period(params.spinup_erpm);
+	state.comm_period = params.comm_period_max;
 	state.blank_time_deadline = motor_timer_hnsec() + params.comm_blank_hnsec;
+	state.zc_detects_before_spinup_done = params.zc_detects_min;
 
 	state.started_at = motor_timer_hnsec();
 
@@ -442,7 +431,6 @@ void motor_print_debug_info(void)
 		"  comm period        %u usec\n"
 		"  erpm               %u RPM\n"
 		"  spinup done        %i\n"
-		"  zc threshold shift %i\n"
 		"  zc failure rate    %u\n"
 		"  zc failures        %u\n"
 		"  zc detects         %u\n"
@@ -450,7 +438,6 @@ void motor_print_debug_info(void)
 		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
 		(unsigned)(comm_period_to_erpm(state_copy.comm_period)),
 		(int)state_copy.spinup_done,
-		(int)state_copy.zc_threshold_shift,
 		(unsigned)state_copy.zc_failure_rate,
 		(unsigned)state_copy.zc_failures_since_start,
 		(unsigned)state_copy.zc_detects_since_start,
