@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <limits.h>
 #include "motor.h"
 #include "adc.h"
 #include "pwm.h"
@@ -43,6 +44,7 @@
 
 static uint32_t erpm_to_comm_period(uint32_t erpm);
 
+#define INVALID_ADC_SAMPLE_VAL INT_MIN
 
 #define HNSEC_PER_MINUTE      (HNSEC_PER_SEC * 60)
 #define NUM_PHASES            3
@@ -79,7 +81,6 @@ static struct control_state
 	uint64_t blank_time_deadline;
 	uint64_t prev_zc_timestamp;
 	uint64_t predicted_zc_timestamp;
-	uint64_t prev_adc_sample_timestamp;
 	uint32_t comm_period;
 
 	int current_comm_step;
@@ -216,7 +217,7 @@ void motor_timer_callback(void)
 		}
 	}
 
-	state.prev_adc_sample_timestamp = 0;        // Discard the previous step sample
+	state.prev_adc_normalized_sample = INVALID_ADC_SAMPLE_VAL;    // Discard the previous step sample
 	state.blank_time_deadline = timestamp + params.comm_blank_hnsec;
 	state.predicted_zc_timestamp =
 		timestamp + ((uint64_t)state.comm_period * (uint64_t)params.max_acceleration_per_step_64) / 64;
@@ -269,7 +270,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	// Detect our position with respect to zero crossing
 	const bool zc_polarity = state.reverse_rotation
 		? !(state.current_comm_step & 1) : (state.current_comm_step & 1);
-	const bool zc_occurred = (zc_polarity && (normalized_sample > 0)) || (!zc_polarity && (normalized_sample < 0));
+	const bool zc_occurred =
+		(zc_polarity && (normalized_sample >= 0)) || (!zc_polarity && (normalized_sample <= 0));
 
 	if (zc_occurred) {
 		// Sanity check. On low RPM we have a lot of noise on the floating phase.
@@ -277,7 +279,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			return;
 
 		uint64_t zc_timestamp = 0;
-		if (state.prev_adc_sample_timestamp > 0) {
+		if (state.prev_adc_normalized_sample != INVALID_ADC_SAMPLE_VAL) {
 			/*
 			 * Interpolate with previous ADC sample, in order to estimate ZC time precisely.
 			 * V1, V2 - voltage readings
@@ -288,11 +290,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			 * dV = V2 - V1
 			 * tz = t1 + abs((V1 * dt) / dV)
 			 */
-			const int dt = sample->timestamp - state.prev_adc_sample_timestamp;
-			assert(dt > 0);
+			const int dt = MOTOR_ADC_SAMPLING_PERIOD_HNSEC;
 			const int dv = normalized_sample - state.prev_adc_normalized_sample;
 			const int t_offset = abs((state.prev_adc_normalized_sample * dt) / dv);
-			zc_timestamp = state.prev_adc_sample_timestamp + (uint64_t)t_offset;
+			zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
 		} else {
 			/*
 			 * We have no previous sample to interpolate with,
@@ -302,7 +303,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		}
 		handle_zero_crossing(sample->timestamp, zc_timestamp);
 	} else {
-		state.prev_adc_sample_timestamp = sample->timestamp;
 		state.prev_adc_normalized_sample = normalized_sample;
 	}
 }
@@ -344,6 +344,7 @@ void motor_stop(void)
 {
 	irq_primask_disable();
 	state.control_state = CS_IDLE;
+	state.prev_adc_normalized_sample = INVALID_ADC_SAMPLE_VAL;
 	irq_primask_enable();
 	motor_timer_cancel();
 	motor_pwm_set_freewheeling();
