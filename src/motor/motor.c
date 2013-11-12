@@ -198,7 +198,7 @@ void motor_timer_callback(void)
 		}
 
 		// Slow down a bit
-		if (state.zc_detects_since_start >= params.zc_detects_min) {
+		if (state.spinup_done) {
 			state.comm_period = state.comm_period + state.comm_period / 8; // TODO: make configurable
 			if (state.comm_period > params.comm_period_max)
 				state.comm_period = params.comm_period_max;
