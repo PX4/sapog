@@ -156,6 +156,17 @@ void motor_adc_init(void)
 	enable();
 }
 
+void motor_adc_enable_from_isr(void)
+{
+	ADC1->SR = 0;
+	ADC1->CR1 |= ADC_CR1_EOCIE;
+}
+
+void motor_adc_disable_from_isr(void)
+{
+	ADC1->CR1 &= ~ADC_CR1_EOCIE;
+}
+
 struct motor_adc_sample motor_adc_get_last_sample(void)
 {
 	struct motor_adc_sample ret;

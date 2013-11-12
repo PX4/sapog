@@ -219,6 +219,9 @@ void motor_timer_callback(void)
 		}
 	}
 
+	// Enable ADC sampling
+	motor_adc_enable_from_isr();
+
 	_state.prev_adc_normalized_sample = INVALID_ADC_SAMPLE_VAL;    // Discard the previous step sample
 	_state.blank_time_deadline = timestamp + _params.comm_blank_hnsec;
 	_state.predicted_zc_timestamp =
@@ -256,6 +259,9 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	if (deadline < current_timestamp)
 		deadline = current_timestamp;
 	motor_timer_set_relative(deadline - current_timestamp);
+
+	// Disable till next comm period
+	motor_adc_disable_from_isr();
 }
 
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
@@ -346,9 +352,14 @@ uint16_t motor_start(uint16_t spinup_duty_cycle, uint16_t normal_duty_cycle, boo
 void motor_stop(void)
 {
 	irq_primask_disable();
+
 	_state.control_state = CS_IDLE;
 	_state.prev_adc_normalized_sample = INVALID_ADC_SAMPLE_VAL;
+	// ADC should be enabled by default
+	motor_adc_enable_from_isr();
+
 	irq_primask_enable();
+
 	motor_timer_cancel();
 	motor_pwm_set_freewheeling();
 }

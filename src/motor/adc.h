@@ -63,6 +63,9 @@ struct motor_adc_sample
 
 void motor_adc_init(void);
 
+void motor_adc_enable_from_isr(void);
+void motor_adc_disable_from_isr(void);
+
 struct motor_adc_sample motor_adc_get_last_sample(void);
 
 /**
