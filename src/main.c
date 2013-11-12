@@ -105,7 +105,7 @@ int main(void)
 			lowsyslog("Duty cycle: %i%% (%x)\n", percent, duty_cycle);
 
 			if (motor_get_state() == MOTOR_STATE_IDLE)
-				motor_start(duty_cycle, reverse);
+				motor_start(duty_cycle, 0xFFFF * 0.2, reverse);  // Engage 20% by default
 			else
 				motor_set_duty_cycle(duty_cycle);
 		} else if (ch >= 'a' && ch <= 'c') {

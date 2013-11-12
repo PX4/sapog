@@ -56,8 +56,12 @@ int motor_init(void);
 /**
  * Start the motor.
  * This function returns immediately.
+ * @param [in] spinup_duty_cycle Initial PWM duty cycle for initial alignment and spinup
+ * @param [in] normal_duty_cycle Normal PWM duty cycle that will be applied once the motor is started
+ * @param [in] reverse           Spin direction
+ * @return     True normal duty cycle, corrected with respect to the true resolution.
  */
-void motor_start(uint16_t duty_cycle, bool reverse);
+uint16_t motor_start(uint16_t spinup_duty_cycle, uint16_t normal_duty_cycle, bool reverse);
 
 /**
  * Engage freewheeling.

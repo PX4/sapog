@@ -72,10 +72,10 @@
 #define PWM_HALF_TOP   ((1 << PWM_TRUE_RESOLUTION) / 2)
 
 /**
- * This constant is global, the control logic needs it
+ * Global constants
  */
+const uint32_t MOTOR_PWM_PERIOD_HNSEC          = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((PWM_TOP + 1) * 2));
 const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((PWM_TOP + 1) * 2));
-
 
 /**
  * PWM channel mapping

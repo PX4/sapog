@@ -97,6 +97,7 @@ static struct control_state
 	int phase_avg_volt[3];
 
 	struct motor_pwm_val pwm_val;
+	struct motor_pwm_val pwm_val_after_spinup;
 
 	uint64_t started_at;
 } state;
@@ -112,7 +113,6 @@ static struct precomputed_params
 	int comm_period_lowpass_alpha_reciprocal;   // Reciprocal of lowpass alpha (0; 1]
 	int max_acceleration_per_step_64;           // Like percent but in range [0; 64] for faster division
 
-	uint32_t comm_period_min;
 	uint32_t comm_period_max;
 } params;
 
@@ -127,7 +127,6 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	params.comm_period_lowpass_alpha_reciprocal = 10;
 	params.max_acceleration_per_step_64 = 64 / 4;
 
-	params.comm_period_min = 50 * HNSEC_PER_USEC;
 	params.comm_period_max = erpm_to_comm_period(1000);//motor_timer_get_max_delay_hnsec();
 }
 
@@ -197,6 +196,12 @@ void motor_timer_callback(void)
 			return;
 		}
 
+		// Another stall detection heuristic - abnormally high RPM
+		if (state.comm_period < MOTOR_PWM_PERIOD_HNSEC * 2) {
+			stop_from_isr();
+			return;
+		}
+
 		// Slow down a bit
 		if (state.spinup_done) {
 			state.comm_period = state.comm_period + state.comm_period / 8; // TODO: make configurable
@@ -222,8 +227,10 @@ void motor_timer_callback(void)
 
 	// Are we reached the stable operation mode
 	if (!state.spinup_done) {
-		if (state.immediate_zc_failures == 0 && state.zc_detects_since_start > params.zc_detects_min)
+		if (state.immediate_zc_failures == 0 && state.zc_detects_since_start > params.zc_detects_min) {
 			state.spinup_done = true;
+			state.pwm_val = state.pwm_val_after_spinup;  // Engage normal duty cycle
+		}
 	}
 }
 
@@ -328,15 +335,15 @@ int motor_init(void)
 	return 0;
 }
 
-void motor_start(uint16_t duty_cycle, bool reverse)
+uint16_t motor_start(uint16_t spinup_duty_cycle, uint16_t normal_duty_cycle, bool reverse)
 {
 	motor_stop();                          // Just in case
 
 	memset(&state, 0, sizeof(state));      // Mighty reset
 
-	motor_set_duty_cycle(duty_cycle);
+	motor_pwm_compute_pwm_val(spinup_duty_cycle, &state.pwm_val);
+	const uint16_t ret = motor_pwm_compute_pwm_val(normal_duty_cycle, &state.pwm_val_after_spinup);
 
-	state.control_state = CS_BEFORE_ZC;
 	state.reverse_rotation = reverse;
 	state.spinup_done = false;
 
@@ -345,7 +352,10 @@ void motor_start(uint16_t duty_cycle, bool reverse)
 
 	state.started_at = motor_timer_hnsec();
 
+	state.control_state = CS_BEFORE_ZC;
 	motor_timer_set_relative(0);           // Go from here
+
+	return ret;
 }
 
 void motor_stop(void)
