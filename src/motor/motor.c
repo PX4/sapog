@@ -116,7 +116,7 @@ static struct precomputed_params
 
 static void configure(void) // TODO: obtain the configuration from somewhere else
 {
-	_params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
+	_params.comm_blank_hnsec = 20 * HNSEC_PER_USEC;
 	_params.timing_advance_deg = 15;
 	_params.zc_failures_max = 50;
 	_params.zc_detects_min = 50;
@@ -164,6 +164,7 @@ static inline void switch_commutation_step(void)
 static inline void stop_from_isr(void)
 {
 	_state.control_state = CS_IDLE;
+	_state.prev_adc_normalized_sample = INVALID_ADC_SAMPLE_VAL;
 	motor_timer_cancel();
 	motor_pwm_set_freewheeling();
 }
