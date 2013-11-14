@@ -62,4 +62,7 @@ void system_tick_hook(void);
 #   error "Invalid configuration: Either DEBUG or RELEASE must be true"
 #endif
 
+#define PORT_IDLE_THREAD_STACK_SIZE    64
+#define PORT_INT_REQUIRED_STACK        128
+
 #include "../../chibios/os/kernel/templates/chconf.h"
