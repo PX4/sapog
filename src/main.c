@@ -133,6 +133,8 @@ int main(void)
 			lowsyslog("Reverse %s\n", reverse ? "ON" : "OFF");
 		} else if (ch == ' ') {
 			motor_stop();
+			for (int i = 0; i < 3; i++)
+				manip_cmd[i] = MOTOR_PWM_MANIP_FLOATING;
 		}
 	}
 	return 0;

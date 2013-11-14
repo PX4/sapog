@@ -69,12 +69,12 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 static void adc_calibrate(ADC_TypeDef* const adc)
 {
 	// RSTCAL
-	assert(!(adc->CR2 & ADC_CR2_RSTCAL));
+	assert_always(!(adc->CR2 & ADC_CR2_RSTCAL));
 	adc->CR2 |= ADC_CR2_RSTCAL;
 	while (adc->CR2 & ADC_CR2_RSTCAL) { }
 
 	// CAL
-	assert(!(adc->CR2 & ADC_CR2_CAL));
+	assert_always(!(adc->CR2 & ADC_CR2_CAL));
 	adc->CR2 |= ADC_CR2_CAL;
 	while (adc->CR2 & ADC_CR2_CAL) { }
 }
