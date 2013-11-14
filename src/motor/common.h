@@ -55,7 +55,7 @@ __BEGIN_DECLS
  * Common priority for all hard real time IRQs.
  * TODO: IRQ priorities higher than 2 (i.e. 0 and 1) cause stack corruption. Fix that and set the priority to 0.
  */
-#define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(2)
+#define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(0)
 //#define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(CORTEX_MAXIMUM_PRIORITY)
 
 __END_DECLS

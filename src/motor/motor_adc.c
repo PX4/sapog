@@ -47,7 +47,7 @@ static uint32_t _adc1_2_dma_buffer[2];
 static struct motor_adc_sample _sample;
 
 
-void ADC1_2_IRQHandler(void)
+CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 

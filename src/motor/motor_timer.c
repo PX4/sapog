@@ -102,7 +102,7 @@ static uint64_t _raw_ticks = 0;
  * 2. Use advanced timer (advanced timers have independent IRQ vectors for overflow
  *    event and compare match).
  */
-void TIMX_IRQHandler(void)
+CH_FAST_IRQ_HANDLER(TIMX_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
 
