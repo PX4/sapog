@@ -46,9 +46,6 @@ extern const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC;
 
 #define MOTOR_ADC1_2_TRIGGER    (ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_2)
 
-#define MOTOR_PWM_DUTY_CYCLE_RESOLUTION 16
-#define MOTOR_PWM_DUTY_CYCLE_MIN        0
-#define MOTOR_PWM_DUTY_CYCLE_MAX        0xFFFF
 
 struct motor_pwm_commutation_step
 {
@@ -82,9 +79,9 @@ void motor_pwm_set_freewheeling(void);
 void motor_pwm_emergency(void);
 
 /**
- * Returns true duty cycle
+ * Duty cycle in [-1; 1]
  */
-uint16_t motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val);
+void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val);
 
 void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val);
 

@@ -35,6 +35,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <assert.h>
+#include <math.h>
 #include <stm32f10x.h>
 #include "pwm.h"
 #include "adc.h"
@@ -118,6 +119,7 @@ static const uint16_t TIM4_HIGH_CCER_EN_MASK = TIM_CCER_CC1E | TIM_CCER_CC2E | T
 static const uint16_t TIM3_LOW_CCER_EN_MASK  = TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
 
 static uint16_t _pwm_max;
+static uint16_t _pwm_min;
 static uint16_t _pwm_dead_time_ticks;
 
 
@@ -213,6 +215,7 @@ void motor_pwm_init(void)
 
 	// We need to divide the min value by 2 since we're using the center-aligned PWM
 	_pwm_max = PWM_TOP - (pwm_min_pulse_ticks / 2 + 1);
+	_pwm_min = pwm_min_pulse_ticks / 2 + 1;
 
 	// PWM dead time
 	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
@@ -223,8 +226,8 @@ void motor_pwm_init(void)
 	// Dead time shall not be halved
 	_pwm_dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
 
-	lowsyslog("Motor: PWM max: %u; Dead time: %u ticks\n",
-	          (unsigned int)_pwm_max, (unsigned int)_pwm_dead_time_ticks);
+	lowsyslog("Motor: PWM range: [%u, %u]; Dead time: %u ticks\n",
+		(unsigned)_pwm_min, (unsigned)_pwm_max, (unsigned)_pwm_dead_time_ticks);
 
 	// This step is required to complete the initialization
 	motor_pwm_set_freewheeling();
@@ -317,8 +320,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 		switch (command[phase]) {
 		case MOTOR_PWM_MANIP_HIGH:
 		case MOTOR_PWM_MANIP_HALF: {
-			const uint16_t duty_cycle = (command[phase] == MOTOR_PWM_MANIP_HIGH)
-			        ? MOTOR_PWM_DUTY_CYCLE_MAX : 0;
+			const float duty_cycle = (command[phase] == MOTOR_PWM_MANIP_HIGH) ? 1.f : 0.f;
 
 			struct motor_pwm_val pwm_val;
 			motor_pwm_compute_pwm_val(duty_cycle, &pwm_val);
@@ -366,25 +368,43 @@ void motor_pwm_emergency(void)
 	irq_primask_restore(irqstate);
 }
 
-uint16_t motor_pwm_compute_pwm_val(uint16_t duty_cycle, struct motor_pwm_val* out_val)
+void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val)
 {
 	assert(out_val);
 
-	// Discard extra least significant bits
-	const uint_fast16_t corrected_duty_cycle =
-		duty_cycle >> (MOTOR_PWM_DUTY_CYCLE_RESOLUTION - PWM_TRUE_RESOLUTION);
+	/*
+	 * Normalize into [0; PWM_TOP] regardless of sign
+	 */
+	const float abs_duty_cycle = fabs(duty_cycle);
+	uint_fast16_t int_duty_cycle = 0;
+	if (abs_duty_cycle >= 1)
+		int_duty_cycle = PWM_TOP;
+	else
+		int_duty_cycle = (uint_fast16_t)(abs_duty_cycle * PWM_TOP);
 
-	// Ref. "Influence of PWM Schemes and Commutation Methods for DC and Brushless Motors and Drives", page 4.
-	out_val->normalized_duty_cycle = PWM_TOP - ((PWM_TOP - corrected_duty_cycle) / 2);
+	/*
+	 * Compute the complementary duty cycle
+	 * Ref. "Influence of PWM Schemes and Commutation Methods for DC and Brushless Motors and Drives", page 4.
+	 */
+	if (duty_cycle >= 0) {
+		// Forward mode
+		out_val->normalized_duty_cycle = PWM_TOP - ((PWM_TOP - int_duty_cycle) / 2);
 
-	// Maintain the proper cycling for the high-side pump capacitor
-	if (out_val->normalized_duty_cycle > _pwm_max)
-		out_val->normalized_duty_cycle = _pwm_max;
+		if (out_val->normalized_duty_cycle > _pwm_max)
+			out_val->normalized_duty_cycle = _pwm_max;
 
-	assert(out_val->normalized_duty_cycle >= PWM_HALF_TOP);
-	assert(out_val->normalized_duty_cycle <= PWM_TOP);
+		assert(out_val->normalized_duty_cycle >= PWM_HALF_TOP);
+		assert(out_val->normalized_duty_cycle <= PWM_TOP);
+	} else {
+		// Braking mode
+		out_val->normalized_duty_cycle = (PWM_TOP - int_duty_cycle) / 2;
 
-	return corrected_duty_cycle << (MOTOR_PWM_DUTY_CYCLE_RESOLUTION - PWM_TRUE_RESOLUTION);
+		if (out_val->normalized_duty_cycle < _pwm_min)
+			out_val->normalized_duty_cycle = _pwm_min;
+
+		assert(out_val->normalized_duty_cycle >= 0);
+		assert(out_val->normalized_duty_cycle <= PWM_HALF_TOP);
+	}
 }
 
 void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val)

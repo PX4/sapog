@@ -50,6 +50,7 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 #define NUM_PHASES            3
 #define NUM_COMMUTATION_STEPS 6
 
+
 /**
  * Stall detection by abnormally high ERPM
  */
@@ -327,14 +328,20 @@ int motor_init(void)
 	return 0;
 }
 
-uint16_t motor_start(uint16_t spinup_duty_cycle, uint16_t normal_duty_cycle, bool reverse)
+void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 {
+	assert(spinup_duty_cycle >= 0);
+	assert(normal_duty_cycle >= 0);
+
 	motor_stop();                          // Just in case
 
-	memset(&_state, 0, sizeof(_state));      // Mighty reset
+	if (spinup_duty_cycle <= 0 || normal_duty_cycle <= 0)
+		return;
+
+	memset(&_state, 0, sizeof(_state));    // Mighty reset
 
 	motor_pwm_compute_pwm_val(spinup_duty_cycle, &_state.pwm_val);
-	const uint16_t ret = motor_pwm_compute_pwm_val(normal_duty_cycle, &_state.pwm_val_after_spinup);
+	motor_pwm_compute_pwm_val(normal_duty_cycle, &_state.pwm_val_after_spinup);
 
 	_state.reverse_rotation = reverse;
 	_state.spinup_done = false;
@@ -346,8 +353,6 @@ uint16_t motor_start(uint16_t spinup_duty_cycle, uint16_t normal_duty_cycle, boo
 
 	_state.control_state = CS_BEFORE_ZC;
 	motor_timer_set_relative(0);           // Go from here
-
-	return ret;
 }
 
 void motor_stop(void)
@@ -365,16 +370,14 @@ void motor_stop(void)
 	motor_pwm_set_freewheeling();
 }
 
-uint16_t motor_set_duty_cycle(uint16_t duty_cycle)
+void motor_set_duty_cycle(float duty_cycle)
 {
 	struct motor_pwm_val val;
-	const uint16_t true_duty_cycle = motor_pwm_compute_pwm_val(duty_cycle, &val);
+	motor_pwm_compute_pwm_val(duty_cycle, &val);
 
 	irq_primask_disable();
 	_state.pwm_val = val;
 	irq_primask_enable();
-
-	return true_duty_cycle;
 }
 
 enum motor_state motor_get_state(void)

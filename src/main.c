@@ -100,12 +100,11 @@ int main(void)
 		const int ch = sdGet(&STDOUT_SD);
 
 		if (ch >= '0' && ch <= ('9' + 1)) {
-			const int percent = (ch - '0') * 10;
-			const uint16_t duty_cycle = (0xFFFF * percent) / 100;
-			lowsyslog("Duty cycle: %i%% (%x)\n", percent, duty_cycle);
+			const float duty_cycle = 0.1f * (ch - '0');
+			lowsyslog("Duty cycle: %.1f%%\n", duty_cycle * 100);
 
 			if (motor_get_state() == MOTOR_STATE_IDLE)
-				motor_start(duty_cycle, 0xFFFF * 0.2, reverse);  // Engage 20% by default
+				motor_start(duty_cycle, 0.2, reverse);  // Engage 20% by default
 			else
 				motor_set_duty_cycle(duty_cycle);
 		} else if (ch >= 'a' && ch <= 'c') {
