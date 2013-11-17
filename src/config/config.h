@@ -32,88 +32,61 @@
  *
  ****************************************************************************/
 
-#include "sys.h"
-#include <stm32f10x.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <assert.h>
+#pragma once
 
-#if !CH_DBG_ENABLED
-const char *dbg_panic_msg;
+#include <sys.h>
+
+__BEGIN_DECLS
+
+enum config_data_type
+{
+	CONFIG_TYPE_FLOAT,
+	CONFIG_TYPE_INT,
+	CONFIG_TYPE_BOOL
+};
+
+struct config_param
+{
+	const char* name;
+	float default_;
+	float min;
+	float max;
+	enum config_data_type type;
+};
+
+
+#if !defined(GLUE)
+#  define GLUE_(a, b) a##b
+#  define GLUE(a, b)  GLUE_(a, b)
 #endif
 
-void system_tick_hook(void)
-{
-}
-
-static void writepoll(const char* str)
-{
-	for (const char *p = str; *p; p++) {
-		while (!(USART1->SR & USART_SR_TXE)) { }
-		USART1->DR = *p;
+#define CONFIG_PARAM_RAW_(name, default_, min, max, type)                         \
+	static const struct config_param GLUE(_config_local_param_, __LINE__) =   \
+		{name, default_, min, max, type};                                 \
+	__attribute__((constructor))                                              \
+	static void GLUE(_config_local_constructor_, __LINE__)(void) {            \
+		config_register_param(&GLUE(_config_local_param_, __LINE__));     \
 	}
-}
 
-void system_halt_hook(void)
-{
-	application_halt_hook();
+#define CONFIG_PARAM_FLOAT(name, default_, min, max)  CONFIG_PARAM_RAW_(name, default_, min, max, CONFIG_TYPE_FLOAT)
+#define CONFIG_PARAM_INT(name, default_, min, max)    CONFIG_PARAM_RAW_(name, default_, min, max, CONFIG_TYPE_INT)
+#define CONFIG_PARAM_BOOL(name, default_)             CONFIG_PARAM_RAW_(name, default_, 0,   1,   CONFIG_TYPE_BOOL)
 
-	port_disable();
-	writepoll("\nPANIC [");
-	const Thread *pthread = chThdSelf();
-	if (pthread && pthread->p_name)
-		writepoll(pthread->p_name);
-	writepoll("] ");
 
-	if (dbg_panic_msg != NULL)
-		writepoll(dbg_panic_msg);
-	writepoll("\n");
-}
+void config_register_param(const struct config_param* param);
 
-__attribute__((weak))
-void application_halt_hook(void)
-{
-}
+int config_init(void);
 
-void __assert_func(const char* file, int line, const char* func, const char* expr)
-{
-	port_disable();
+int config_save(void);
 
-	char buf[128]; // We don't care about possible stack overflow because going to die anyway
-	snprintf(buf, sizeof(buf), "%s:%i at %s(..): %s", file, line, func, expr);
-	dbg_panic_msg = buf;
+int config_erase(void);
 
-	chSysHalt();
-	while (1) { }
-}
+const char* config_name_by_index(int index);
 
-void _exit(int status)
-{
-	(void) status;
-	chSysHalt();
-	while (1) { }
-}
+int config_set(const char* name, float value);
 
-pid_t _getpid(void)
-{
-	return 1;
-}
+int config_get_descr(const char* name, struct config_param* out);
 
-void _kill(pid_t id)
-{
-	(void) id;
-}
+float config_get(const char* name);
 
-/// From unistd
-int usleep(useconds_t useconds)
-{
-	chThdSleepMicroseconds(useconds);
-	return 0;
-}
-
-/// From unistd
-unsigned sleep(unsigned int seconds)
-{
-	chThdSleepSeconds(seconds);
-	return 0;
-}
+__END_DECLS

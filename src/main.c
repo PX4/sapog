@@ -35,11 +35,14 @@
 #include <ch.h>
 #include <hal.h>
 #include <assert.h>
+#include <errno.h>
+#include <math.h>
 #include <unistd.h>
 #include "sys/sys.h"
 #include "motor/motor.h"
 #include "motor/pwm.h"
 #include "motor/adc.h"
+#include <config.h>
 
 static void led_set_status(bool state)
 {
@@ -58,6 +61,68 @@ void application_halt_hook(void)
 	led_set_status(true);
 }
 
+CONFIG_PARAM_BOOL("bool", false)
+CONFIG_PARAM_INT("int", 42, 0, 123)
+CONFIG_PARAM_FLOAT("float", 0.5, 0.0, 1.0)
+
+void config_print(const char* name)
+{
+	struct config_param par;
+	const int res = config_get_descr(name, &par);
+	if (res)
+		lowsyslog("Config param: %s UNKNOWN\n", name);
+	else
+		lowsyslog("Config param: %s [%f; %f] (%f) %f\n",
+			par.name, par.min, par.max, par.default_, config_get(name));
+}
+
+void config_list(void)
+{
+	for (int i = 0;; i++) {
+		const char* name = config_name_by_index(i);
+		if (!name)
+			break;
+		config_print(name);
+	}
+}
+
+void config_test(void)
+{
+	config_init();
+
+	bool save_later = true;
+	if (config_get("bool")) {
+		assert(!config_erase());
+		lowsyslog("Config erased\n");
+		save_later = false;
+	}
+
+	config_list();
+	lowsyslog("\n");
+
+	assert(-EINVAL == config_set("bool", 123));
+	assert(-EINVAL == config_set("int", -2));
+	assert(-EINVAL == config_set("int", 4.3));
+	assert(-EINVAL == config_set("float", 2));
+	assert(-EINVAL == config_set("float", NAN));
+	assert(-ENOENT == config_set("nonexistent", 1));
+
+	config_list();
+	lowsyslog("\n");
+
+	assert(0 == config_set("bool", true));
+	assert(0 == config_set("int", 73));
+	assert(0 == config_set("float", 0.75));
+
+	config_list();
+	lowsyslog("\n");
+
+	if (save_later) {
+		assert(!config_save());
+		lowsyslog("Config saved\n");
+	}
+}
+
 int main(void)
 {
 	halInit();
@@ -67,6 +132,9 @@ int main(void)
 	led_set_status(false);
 	led_set_error(false);
 	lowsyslog("\nPX4ESC: starting\n");
+
+	config_test();
+	lowsyslog("Config test OK\n");
 
 	usleep(3000000);
 

@@ -42,12 +42,14 @@ MOTOR_CSRC = src/motor/motor_pwm.c      \
              src/motor/motor_test.c     \
              src/motor/motor.c
 
-CSRC = src/main.c       \
-       src/sys/board.c  \
-       src/sys/sys.c    \
+CSRC = src/main.c                       \
+       src/sys/board.c                  \
+       src/sys/sys.c                    \
+       src/config/config.c              \
+       src/config/flash_storage.c       \
        $(MOTOR_CSRC)
 
-UINCDIR = src/sys
+UINCDIR = src/sys src/config
 
 UDEFS = -DHRT_TIMER_NUMBER=1
 
