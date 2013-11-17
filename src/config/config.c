@@ -42,7 +42,9 @@
 #include <stdint.h>
 #include "config.h"
 
-#define MAX_PARAMS     32
+#ifndef CONFIG_PARAMS_MAX
+#  define CONFIG_PARAMS_MAX     32
+#endif
 
 
 int flash_storage_read(unsigned offset, void* data, unsigned len);
@@ -54,8 +56,8 @@ int flash_storage_erase(void);
 #define OFFSET_CRC              4
 #define OFFSET_VALUES           8
 
-static const struct config_param* _descr_pool[MAX_PARAMS];
-static float _value_pool[MAX_PARAMS];
+static const struct config_param* _descr_pool[CONFIG_PARAMS_MAX];
+static float _value_pool[CONFIG_PARAMS_MAX];
 
 static int _num_params = 0;
 static uint32_t _layout_hash = 0;
@@ -135,7 +137,7 @@ void config_register_param(const struct config_param* param)
 		return;
 
 	assert_always(param && param->name);
-	assert_always(_num_params < MAX_PARAMS);         // If fails here, increase MAX_PARAMS
+	assert_always(_num_params < CONFIG_PARAMS_MAX);  // If fails here, increase CONFIG_PARAMS_MAX
 	assert_always(is_valid(param, param->default_)); // If fails here, param descriptor is invalid
 	assert_always(index_by_name(param->name) < 0);   // If fails here, param name is not unique
 
@@ -160,12 +162,11 @@ static void reinitialize_defaults(const char* reason)
 
 int config_init(void)
 {
+	assert_always(_num_params < CONFIG_PARAMS_MAX);  // being paranoid
 	assert_always(!_frozen);
 	_frozen = true;
 
 	chMtxInit(&_mutex);
-
-	assert_always(_num_params < MAX_PARAMS);  // being paranoid
 
 	// Read the layout hash
 	uint32_t stored_layout_hash = 0xdeadbeef;
