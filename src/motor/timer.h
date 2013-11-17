@@ -35,7 +35,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "sys.h"
+#include <sys.h>
 
 __BEGIN_DECLS
 

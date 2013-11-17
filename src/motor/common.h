@@ -36,7 +36,7 @@
 
 #include <ch.h>
 #include <hal.h>
-#include "sys.h"
+#include <sys.h>
 
 __BEGIN_DECLS
 
