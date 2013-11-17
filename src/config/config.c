@@ -32,6 +32,7 @@
  *
  ****************************************************************************/
 
+#include <ch.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
@@ -60,7 +61,7 @@ static int _num_params = 0;
 static uint32_t _layout_hash = 0;
 static bool _frozen = false;
 
-// TODO: mutex
+static Mutex _mutex;
 
 
 static uint32_t crc32_step(uint32_t crc, uint8_t new_byte)
@@ -97,7 +98,7 @@ static bool is_valid(const struct config_param* descr, float value)
 		break;
 
 	case CONFIG_TYPE_INT: {
-		const long truncated = (long)value;
+		volatile const long truncated = (long)value;
 		if (value != (float)truncated)
 			return false;
 	}
@@ -159,8 +160,10 @@ static void reinitialize_defaults(const char* reason)
 
 int config_init(void)
 {
-	assert(!_frozen);
+	assert_always(!_frozen);
 	_frozen = true;
+
+	chMtxInit(&_mutex);
 
 	assert_always(_num_params < MAX_PARAMS);  // being paranoid
 
@@ -214,6 +217,8 @@ int config_init(void)
 
 int config_save(void)
 {
+	chMtxLock(&_mutex);
+
 	// Erase
 	int flash_res = flash_storage_erase();
 	if (flash_res)
@@ -236,16 +241,21 @@ int config_save(void)
 	if (flash_res)
 		goto flash_error;
 
+	chMtxUnlock();
 	return 0;
 
 	flash_error:
 	assert(flash_res);
+	chMtxUnlock();
 	return flash_res;
 }
 
 int config_erase(void)
 {
-	return flash_storage_erase();
+	chMtxLock(&_mutex);
+	int res = flash_storage_erase();
+	chMtxUnlock();
+	return res;
 }
 
 const char* config_name_by_index(int index)
@@ -258,15 +268,25 @@ const char* config_name_by_index(int index)
 
 int config_set(const char* name, float value)
 {
-	const int index = index_by_name(name);
-	if (index < 0)
-		return -ENOENT;
+	int retval = 0;
+	chMtxLock(&_mutex);
 
-	if (!is_valid(_descr_pool[index], value))
-		return -EINVAL;
+	const int index = index_by_name(name);
+	if (index < 0) {
+		retval = -ENOENT;
+		goto leave;
+	}
+
+	if (!is_valid(_descr_pool[index], value)) {
+		retval = -EINVAL;
+		goto leave;
+	}
 
 	_value_pool[index] = value;
-	return 0;
+
+	leave:
+	chMtxUnlock();
+	return retval;
 }
 
 int config_get_descr(const char* name, struct config_param* out)
@@ -275,16 +295,27 @@ int config_get_descr(const char* name, struct config_param* out)
 	if (!out)
 		return -EINVAL;
 
+	int retval = 0;
+	chMtxLock(&_mutex);
+
 	const int index = index_by_name(name);
-	if (index < 0)
-		return -ENOENT;
+	if (index < 0) {
+		retval = -ENOENT;
+		goto leave;
+	}
 
 	*out = *_descr_pool[index];
-	return 0;
+
+	leave:
+	chMtxUnlock();
+	return retval;
 }
 
 float config_get(const char* name)
 {
+	chMtxLock(&_mutex);
 	const int index = index_by_name(name);
-	return (index < 0) ? nanf("") : _value_pool[index];
+	const float val = (index < 0) ? nanf("") : _value_pool[index];
+	chMtxUnlock();
+	return val;
 }
