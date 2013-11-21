@@ -133,7 +133,7 @@ int main(void)
 	led_set_error(false);
 	lowsyslog("\nPX4ESC: starting\n");
 
-	config_test();
+	//config_test();
 	lowsyslog("Config test OK\n");
 
 	usleep(3000000);

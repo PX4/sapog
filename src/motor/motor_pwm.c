@@ -54,7 +54,7 @@
  *   400ns - less than 1mA at 35kHz
  *   500ns - much less than 1mA
  */
-#define PWM_DEAD_TIME_NANOSEC   400
+#define PWM_DEAD_TIME_NANOSEC   500
 
 /**
  * PWM is used in center-aligned mode, so the frequency is defined as:
