@@ -406,6 +406,16 @@ uint32_t motor_get_electrical_rpm(void)
 	return comm_period_to_erpm(val);
 }
 
+uint32_t motor_get_comm_period_usec(void)
+{
+	if (motor_get_state() == MOTOR_STATE_IDLE)
+		return 0;
+	irq_primask_disable();
+	const uint32_t val = _state.comm_period;
+	irq_primask_enable();
+	return val;
+}
+
 uint64_t motor_get_zc_failures_since_start(void)
 {
 	irq_primask_disable();

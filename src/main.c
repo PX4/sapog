@@ -123,33 +123,8 @@ void config_test(void)
 	}
 }
 
-int main(void)
+void run_test_serial(void)
 {
-	halInit();
-	chSysInit();
-	sdStart(&STDOUT_SD, NULL);
-
-	led_set_status(false);
-	led_set_error(false);
-	lowsyslog("\nPX4ESC: starting\n");
-
-	//config_test();
-	lowsyslog("Config test OK\n");
-
-	usleep(3000000);
-
-	motor_init();
-	//assert(0 == motor_test_hardware());
-	motor_test_hardware();
-
-	if (motor_test_motor())
-		lowsyslog("Motor is not connected or damaged\n");
-	else
-		lowsyslog("Motor is OK\n");
-
-	lowsyslog("Initialization done\n");
-	motor_beep(1000, 150);
-
 	enum motor_pwm_phase_manip manip_cmd[3] = {
 		MOTOR_PWM_MANIP_FLOATING,
 		MOTOR_PWM_MANIP_FLOATING,
@@ -204,5 +179,47 @@ int main(void)
 				manip_cmd[i] = MOTOR_PWM_MANIP_FLOATING;
 		}
 	}
+}
+
+void run_plot(void)
+{
+	motor_start(0.2, 0.5, false);
+	while (1) {
+		usleep(50000);
+		const uint32_t per = motor_get_comm_period_usec();
+		lowsyslog("$ %u\n", (unsigned)per);
+	}
+}
+
+int main(void)
+{
+	halInit();
+	chSysInit();
+	sdStart(&STDOUT_SD, NULL);
+
+	led_set_status(false);
+	led_set_error(false);
+	lowsyslog("\nPX4ESC: starting\n");
+
+	//config_test();
+	lowsyslog("Config test OK\n");
+
+	usleep(3000000);
+
+	motor_init();
+	//assert(0 == motor_test_hardware());
+	motor_test_hardware();
+
+	if (motor_test_motor())
+		lowsyslog("Motor is not connected or damaged\n");
+	else
+		lowsyslog("Motor is OK\n");
+
+	lowsyslog("Initialization done\n");
+	motor_beep(1000, 150);
+
+	//run_test_serial();
+	run_plot();
+
 	return 0;
 }
