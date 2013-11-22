@@ -57,10 +57,10 @@ struct motor_adc_sample
 
 /**
  * Full ADC sample of all channels takes:
- *    ceil(3 phases / 2 ADC) * one_sample_duration
- * Thus, optimal advance is one_sample_duration.
+ *    (ceil(3 phases / 2 ADC) * one_sample_duration) / 2
+ * Thus, optimal advance is one_sample_duration / 2.
  */
-#define MOTOR_ADC_SYNC_ADVANCE_NANOSEC  MOTOR_ADC_SAMPLE_DURATION_NANOSEC
+#define MOTOR_ADC_SYNC_ADVANCE_NANOSEC  (MOTOR_ADC_SAMPLE_DURATION_NANOSEC / 2)
 
 void motor_adc_init(void);
 

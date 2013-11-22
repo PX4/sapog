@@ -46,7 +46,7 @@
 /**
  * Duty cycle is limited to maintain the charge on the high side capacitor.
  */
-#define PWM_MIN_PULSE_NANOSEC   300
+#define PWM_MIN_PULSE_NANOSEC   200
 
 /**
  * Shoot-through test for IR2301S + IRLR7843:
@@ -54,20 +54,20 @@
  *   400ns - less than 1mA at 35kHz
  *   500ns - much less than 1mA
  */
-#define PWM_DEAD_TIME_NANOSEC   500
+#define PWM_DEAD_TIME_NANOSEC   400
 
 /**
  * PWM is used in center-aligned mode, so the frequency is defined as:
  *      f = pwm_clock / ((pwm_top + 1) * 2)
  *
  * For 72MHz clock, the PWM frequencies are:
- *      70312.5 Hz    @ 9 bit  (this is likely too high for ADC processing)
+ *      70312.5 Hz    @ 9 bit
  *      35156.25 Hz   @ 10 bit
  *      17578.125 Hz  @ 11 bit
  *       8789.0625 Hz @ 12 bit
  * Effective resolution is always one bit less (because of complementary PWM).
  */
-#define PWM_TRUE_RESOLUTION 10
+#define PWM_TRUE_RESOLUTION 9
 
 #define PWM_TOP        ((1 << PWM_TRUE_RESOLUTION) - 1)
 #define PWM_HALF_TOP   ((1 << PWM_TRUE_RESOLUTION) / 2)
@@ -164,14 +164,18 @@ static void init_timers(void)
 	 * 0%    /      \/
 	 *             A  B
 	 * Complementary PWM operates in range (50%, 100%], thus a FET commutation will never happen in range
-	 * between points A and B on the diagram above.
-	 * In order to increase the time between a FET commutation and subsequent ADC sample, ADC should be
-	 * triggered exactly at the point B.
-	 * However, regenerative braking can use PWM in range [0%, 50%], this is why we stick to the point
-	 * between A and B (CCR == 1).
-	 * ADC sync advance is not used in order to optimize the performance for normal mode (non breaking).
+	 * between points A and B on the diagram above (save the braking mode, but it's negligible).
+	 * ADC shall be triggered either at PWM top or PWM bottom in order to catch the moment when the instant
+	 * winding current matches with average winding current - this helps to eliminate the current ripple
+	 * caused by the PWM switching.
+	 * Thus we trigger ADC at the bottom minus advance.
+	 * Refer to "Synchronizing the On-Chip Analog-to-Digital Converter on 56F80x Devices" for some explanation.
 	 */
-	TIM4->CCR4 = 1;
+	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
+	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
+	assert_always(adc_trigger_advance_ticks_float >= 0);
+	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.1f));
+	TIM4->CCR4 = (uint16_t)adc_trigger_advance_ticks_float;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM3->EGR = TIM_EGR_UG;
@@ -209,7 +213,7 @@ void motor_pwm_init(void)
 	const float pwm_min_pulse_len = PWM_MIN_PULSE_NANOSEC / 1e9f;
 	const float pwm_min_pulse_ticks_float = pwm_min_pulse_len / pwm_clock_period;
 	assert_always(pwm_min_pulse_ticks_float >= 0);
-	assert_always(pwm_min_pulse_ticks_float < (PWM_TOP * 0.05f));
+	assert_always(pwm_min_pulse_ticks_float < (PWM_TOP * 0.1f));
 
 	const uint16_t pwm_min_pulse_ticks = (uint16_t)pwm_min_pulse_ticks_float;
 
@@ -221,7 +225,7 @@ void motor_pwm_init(void)
 	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
 	const float pwm_dead_time_ticks_float = pwm_dead_time / pwm_clock_period;
 	assert_always(pwm_dead_time_ticks_float >= 0);
-	assert_always(pwm_dead_time_ticks_float < (PWM_TOP * 0.05f));
+	assert_always(pwm_dead_time_ticks_float < (PWM_TOP * 0.1f));
 
 	// Dead time shall not be halved
 	_pwm_dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
