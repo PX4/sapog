@@ -48,13 +48,7 @@
  */
 #define PWM_MIN_PULSE_NANOSEC   50
 
-/**
- * Shoot-through test for IR2301S + IRLR7843:
- *   300ns - average shoot-through current is about 2mA at 35kHz
- *   400ns - less than 1mA at 35kHz
- *   500ns - much less than 1mA
- */
-#define PWM_DEAD_TIME_NANOSEC   400
+#define PWM_DEAD_TIME_NANOSEC   600
 
 /**
  * PWM mode is center-aligned, so the frequency is defined as:
@@ -178,7 +172,7 @@ static void init_timers(void)
 	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
 	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
 	assert_always(adc_trigger_advance_ticks_float >= 0);
-	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.1f));
+	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.2f));
 	TIM4->CCR4 = (uint16_t)adc_trigger_advance_ticks_float;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
@@ -229,7 +223,7 @@ void motor_pwm_init(void)
 	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
 	const float pwm_dead_time_ticks_float = pwm_dead_time / pwm_clock_period;
 	assert_always(pwm_dead_time_ticks_float >= 0);
-	assert_always(pwm_dead_time_ticks_float < (PWM_TOP * 0.1f));
+	assert_always(pwm_dead_time_ticks_float < (PWM_TOP * 0.2f));
 
 	// Dead time shall not be halved
 	_pwm_dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
