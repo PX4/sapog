@@ -240,6 +240,7 @@ void motor_pwm_init(void)
  * Assumes:
  *  - motor IRQs are disabled
  */
+__attribute__((optimize(3), always_inline))
 static void phase_reset_all_i(void)
 {
 	/*
@@ -274,6 +275,7 @@ static void phase_enable_i(int phase)
  *  - motor IRQs are disabled
  *  - phase resetted and disabled
  */
+__attribute__((optimize(3), always_inline))
 static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inverted)
 {
 	assert(phase >= 0 && phase < 3);
@@ -409,6 +411,7 @@ void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val)
 	}
 }
 
+__attribute__((optimize(3)))
 void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val)
 {
 	phase_reset_all_i();

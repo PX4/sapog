@@ -102,6 +102,7 @@ static uint64_t _raw_ticks = 0;
  * 2. Use advanced timer (advanced timers have independent IRQ vectors for overflow
  *    event and compare match).
  */
+__attribute__((optimize(3)))
 CH_FAST_IRQ_HANDLER(TIMX_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
@@ -183,6 +184,7 @@ uint64_t motor_timer_get_max_delay_hnsec(void)
 	return (_nanosec_per_tick * TICKS_PER_OVERFLOW) / 100;
 }
 
+__attribute__((optimize(3)))
 uint64_t motor_timer_hnsec(void)
 {
 	assert(_nanosec_per_tick > 0);  // Make sure the timer was initialized
@@ -226,6 +228,7 @@ uint64_t motor_timer_hnsec(void)
 	return (ticks + sample) * _nanosec_per_tick / 100;
 }
 
+__attribute__((optimize(3)))
 void motor_timer_set_relative(int delay_hnsec)
 {
 	delay_hnsec -= 1 * HNSEC_PER_USEC;

@@ -146,6 +146,7 @@ static inline uint32_t comm_period_to_erpm(uint32_t comm_period)
 	return HNSEC_PER_MINUTE / hnsec_per_rev;
 }
 
+__attribute__((optimize(3), always_inline))
 static inline void switch_commutation_step(void)
 {
 	// We need to keep the current step index
@@ -170,6 +171,7 @@ static inline void stop_from_isr(void)
 	motor_pwm_set_freewheeling();
 }
 
+__attribute__((optimize(3)))
 void motor_timer_callback(void)
 {
 	const uint64_t timestamp = motor_timer_hnsec();
@@ -238,6 +240,7 @@ void motor_timer_callback(void)
 	}
 }
 
+__attribute__((optimize(3), always_inline))
 static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timestamp)
 {
 	if (zc_timestamp < _state.prev_zc_timestamp)
@@ -266,6 +269,7 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	motor_adc_disable_from_isr();
 }
 
+__attribute__((optimize(3)))
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
 	if (_state.control_state != CS_BEFORE_ZC || sample->timestamp < _state.blank_time_deadline)
