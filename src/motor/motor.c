@@ -303,8 +303,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			 */
 			const int dt = MOTOR_ADC_SAMPLING_PERIOD_HNSEC;
 			const int dv = normalized_sample - _state.prev_adc_normalized_sample;
-			const int t_offset = abs((_state.prev_adc_normalized_sample * dt) / dv);
-			zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
+			if (dv == 0) {
+				zc_timestamp = sample->timestamp;
+			} else {
+				const int t_offset = abs((_state.prev_adc_normalized_sample * dt) / dv);
+				assert(t_offset >= 0);
+				zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
+			}
 		} else {
 			/*
 			 * We have no previous sample to interpolate with,

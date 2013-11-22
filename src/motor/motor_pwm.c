@@ -46,7 +46,7 @@
 /**
  * Duty cycle is limited to maintain the charge on the high side pump capacitor.
  */
-#define PWM_MIN_PULSE_NANOSEC   50
+#define PWM_MIN_PULSE_NANOSEC   200
 
 #define PWM_DEAD_TIME_NANOSEC   600
 
