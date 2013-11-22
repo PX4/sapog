@@ -44,9 +44,9 @@
 #define PWM_TIMER_FREQUENCY     STM32_TIMCLK1
 
 /**
- * Duty cycle is limited to maintain the charge on the high side capacitor.
+ * Duty cycle is limited to maintain the charge on the high side pump capacitor.
  */
-#define PWM_MIN_PULSE_NANOSEC   200
+#define PWM_MIN_PULSE_NANOSEC   50
 
 /**
  * Shoot-through test for IR2301S + IRLR7843:
@@ -57,26 +57,30 @@
 #define PWM_DEAD_TIME_NANOSEC   400
 
 /**
- * PWM is used in center-aligned mode, so the frequency is defined as:
+ * PWM mode is center-aligned, so the frequency is defined as:
  *      f = pwm_clock / ((pwm_top + 1) * 2)
  *
- * For 72MHz clock, the PWM frequencies are:
- *      70312.5 Hz    @ 9 bit
- *      35156.25 Hz   @ 10 bit
- *      17578.125 Hz  @ 11 bit
- *       8789.0625 Hz @ 12 bit
- * Effective resolution is always one bit less (because of complementary PWM).
+ * For 72 MHz clock:
+ *   PWM steps - Eff. steps - Frequency
+ *   512         256          70312.5
+ *   720         360          50000.0
+ *   800         400          45000.0
+ *   1024        512          35156.25
+ *   2048        1024         17578.125
+ *
+ * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2 * 2)
  */
-#define PWM_TRUE_RESOLUTION 9
+#define PWM_EFFECTIVE_STEPS   512
 
-#define PWM_TOP        ((1 << PWM_TRUE_RESOLUTION) - 1)
-#define PWM_HALF_TOP   ((1 << PWM_TRUE_RESOLUTION) / 2)
+#define PWM_STEPS      (PWM_EFFECTIVE_STEPS * 2)
+#define PWM_TOP        (PWM_STEPS - 1)
+#define PWM_HALF_TOP   (PWM_STEPS / 2)
 
 /**
  * Global constants
  */
-const uint32_t MOTOR_PWM_PERIOD_HNSEC          = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((PWM_TOP + 1) * 2));
-const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((PWM_TOP + 1) * 2));
+const uint32_t MOTOR_PWM_PERIOD_HNSEC          = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (PWM_STEPS * 2));
+const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (PWM_STEPS * 2));
 
 /**
  * PWM channel mapping

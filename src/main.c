@@ -218,8 +218,8 @@ int main(void)
 	lowsyslog("Initialization done\n");
 	motor_beep(1000, 150);
 
-	//run_test_serial();
-	run_plot();
+	run_test_serial();
+	//run_plot();
 
 	return 0;
 }
