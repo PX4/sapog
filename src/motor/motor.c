@@ -277,25 +277,16 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	const struct motor_pwm_commutation_step* const step = COMMUTATION_TABLE + _state.current_comm_step;
 
+	// Here we compute the floating phase voltage using neutral voltage as reference
 	const int neutral_voltage =
 		(sample->raw_phase_values[step->positive] + sample->raw_phase_values[step->negative]) / 2;
 	const int normalized_sample = sample->raw_phase_values[step->floating] - neutral_voltage;
 
-	/*
-	 * Assuming that dV near ZC is constant, voltage less than half of the PREVIOS sample
-	 * means that the NEXT sample will be past ZC.
-	 * Interpolation/extrapolation formula below allows to derive precise ZC time from
-	 * two subsequent ADC samples.
-	 */
-	int zc_abs_threshold = 0;
-	if (_state.prev_adc_normalized_sample != INVALID_ADC_SAMPLE_VAL)
-		zc_abs_threshold = abs(_state.prev_adc_normalized_sample / 4/*2*/);
-
+	// Detect our position with respect to zero crossing
 	const bool zc_polarity = _state.reverse_rotation
 		? !(_state.current_comm_step & 1) : (_state.current_comm_step & 1);
-
-	const bool zc_occurred = zc_polarity
-	        ? (normalized_sample > -zc_abs_threshold) : (normalized_sample < zc_abs_threshold);
+	const bool zc_occurred =
+		(zc_polarity && (normalized_sample >= 0)) || (!zc_polarity && (normalized_sample <= 0));
 
 	if (zc_occurred) {
 		// Sanity check. On low RPM we have a lot of noise on the floating phase.
@@ -320,6 +311,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 				zc_timestamp = sample->timestamp;
 			} else {
 				const int t_offset = abs((_state.prev_adc_normalized_sample * dt) / dv);
+				assert(t_offset >= 0);
 				zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
 			}
 		} else {
