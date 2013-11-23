@@ -54,6 +54,8 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
  */
 #define LOWEST_VALID_COMM_PERIOD   (MOTOR_PWM_PERIOD_HNSEC * 3)
 
+#define INVALID_ADC_SAMPLE_VAL     INT_MIN
+
 /**
  * Computes the timing advance in comm_period units
  */
@@ -117,7 +119,7 @@ static struct precomputed_params
 
 static void configure(void) // TODO: obtain the configuration from somewhere else
 {
-	_params.comm_blank_hnsec = 20 * HNSEC_PER_USEC;
+	_params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
 	_params.timing_advance_deg = 15;
 	_params.zc_failures_max = 50;
 	_params.zc_detects_min = 50;
@@ -226,7 +228,7 @@ void motor_timer_callback(void)
 	// Enable ADC sampling
 	motor_adc_enable_from_isr();
 
-	_state.prev_raw_bemf_sample = _state.neutral_voltage;    // Discard the previous step sample
+	_state.prev_raw_bemf_sample = INVALID_ADC_SAMPLE_VAL;    // Discard the previous step sample
 	_state.blank_time_deadline = timestamp + _params.comm_blank_hnsec;
 	_state.predicted_zc_timestamp =
 		timestamp + ((uint64_t)_state.comm_period * (uint64_t)_params.max_acceleration_per_step_64) / 64;
@@ -269,7 +271,7 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	motor_adc_disable_from_isr();
 }
 
-__attribute__((optimize(3)))
+//__attribute__((optimize(3)))
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
 	if (_state.control_state != CS_BEFORE_ZC || sample->timestamp < _state.blank_time_deadline)
@@ -289,7 +291,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 * Normalized Back EMF voltage
 	 */
 	const int current_bemf = sample->raw_phase_values[step->floating] - _state.neutral_voltage;
+
+	if (_state.prev_raw_bemf_sample == INVALID_ADC_SAMPLE_VAL) {
+		_state.prev_raw_bemf_sample = sample->raw_phase_values[step->floating];
+		return;
+	}
 	const int prev_bemf = _state.prev_raw_bemf_sample - _state.neutral_voltage;
+	_state.prev_raw_bemf_sample = sample->raw_phase_values[step->floating];
 
 	/*
 	 * Zero cross detection
@@ -298,10 +306,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		? !(_state.current_comm_step & 1) : (_state.current_comm_step & 1);
 	const bool zc_occurred = (zc_polarity && (current_bemf >= 0)) || (!zc_polarity && (current_bemf <= 0));
 
-	if (!zc_occurred) {
-		_state.prev_raw_bemf_sample = sample->raw_phase_values[step->floating];
+	if (!zc_occurred)
 		return;
-	}
 
 	if (sample->timestamp < _state.predicted_zc_timestamp)
 		return;
@@ -319,19 +325,16 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 * dt = t2 - t1
 	 * dV = V2 - V1
 	 * tz = t1 + abs((V1 * dt) / dV)
-	 *
-	 * V1 is not available after each commutation, but it is being
-	 * initialized with first ADC sample of the new comm period.
 	 */
 	const int dt = MOTOR_ADC_SAMPLING_PERIOD_HNSEC;
 	const int dv = current_bemf - prev_bemf;
 	uint64_t zc_timestamp = 0;
-	if (dv == 0) {
+	if (abs(dv) < 2) {
 		zc_timestamp = sample->timestamp;
 	} else {
 		const int t_offset = abs((prev_bemf * dt) / dv);
 		assert(t_offset >= 0);
-		assert(t_offset < dt * 3);
+		assert(t_offset < dt * 1000);
 		zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
 	}
 	handle_zero_crossing(sample->timestamp, zc_timestamp);
@@ -374,7 +377,8 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	const struct motor_adc_sample adc_sample = motor_adc_get_last_sample();
 	_state.neutral_voltage = (adc_sample.raw_phase_values[0] +
 		adc_sample.raw_phase_values[1] + adc_sample.raw_phase_values[2]) / 3;
-	_state.prev_raw_bemf_sample = _state.neutral_voltage;
+
+	_state.prev_raw_bemf_sample = INVALID_ADC_SAMPLE_VAL;
 
 	_state.control_state = CS_BEFORE_ZC;
 	motor_timer_set_relative(0);           // Go from here
