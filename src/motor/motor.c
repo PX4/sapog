@@ -271,7 +271,7 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	motor_adc_disable_from_isr();
 }
 
-//__attribute__((optimize(3)))
+__attribute__((optimize(3)))
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
 	if (_state.control_state != CS_BEFORE_ZC || sample->timestamp < _state.blank_time_deadline)
