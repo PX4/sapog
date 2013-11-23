@@ -65,6 +65,9 @@
 // TODO: Motor timer testpoint is temporarily allocated on the I2C SDA pin
 #define GPIO_PORT_TEST_MTIM     GPIOB
 #define GPIO_PIN_TEST_MTIM      11
+// TODO: Zero cross monitor testpoint is temporarily allocated on the PPM input pin
+#define GPIO_PORT_TEST_MZC      GPIOA
+#define GPIO_PIN_TEST_MZC       8
 
 /*
  * I/O ports initial setup, this configuration is established soon after reset
@@ -91,7 +94,8 @@
  */
 
 #define VAL_GPIOACRL            0xb8000008      // 7..0
-#define VAL_GPIOACRH            0x888b88b8      // 15..8
+// TODO: remove testpad output from PPM pin:
+#define VAL_GPIOACRH            0x888b88b3      // 15..8
 #define VAL_GPIOAODR            0x00000000
 
 #define VAL_GPIOBCRL            0xbb8222bb

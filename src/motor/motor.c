@@ -37,6 +37,7 @@
 #include <assert.h>
 #include <limits.h>
 #include "motor.h"
+#include "common.h"
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"
@@ -337,7 +338,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		assert(t_offset < dt * 1000);
 		zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
 	}
+	if (step->floating == 0)
+		TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
 	handle_zero_crossing(sample->timestamp, zc_timestamp);
+	TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
 }
 
 int motor_init(void)
