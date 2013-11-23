@@ -40,27 +40,18 @@
 
 __BEGIN_DECLS
 
+#define MOTOR_ADC_RESOLUTION  12
+
+extern const int MOTOR_ADC_SAMPLE_DURATION_NANOSEC;
+extern const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC;
+
+
 struct motor_adc_sample
 {
     uint64_t timestamp;
     int raw_phase_values[3];
 };
 
-#define MOTOR_ADC_RESOLUTION    12
-
-/**
- * Hardcoded for STM32
- * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
- *    (1 / 12M) * 14 = 1.17 usec
- */
-#define MOTOR_ADC_SAMPLE_DURATION_NANOSEC       1170
-
-/**
- * Full ADC sample of all channels takes:
- *    (ceil(3 phases / 2 ADC) * one_sample_duration) / 2
- * Thus, optimal advance is one_sample_duration / 2.
- */
-#define MOTOR_ADC_SYNC_ADVANCE_NANOSEC  (MOTOR_ADC_SAMPLE_DURATION_NANOSEC / 2)
 
 void motor_adc_init(void);
 

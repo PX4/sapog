@@ -172,7 +172,7 @@ static void init_timers(void)
 	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
 	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
 	assert_always(adc_trigger_advance_ticks_float >= 0);
-	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.2f));
+	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.4f));
 	TIM4->CCR4 = (uint16_t)adc_trigger_advance_ticks_float;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.

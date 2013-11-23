@@ -43,7 +43,25 @@
 #include "timer.h"
 
 
-static uint32_t _adc1_2_dma_buffer[2];
+#define NUM_SAMPLES_PER_ADC      6
+
+/**
+ * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
+ *    (1 / 12M) * 14 = 1.17 usec
+ */
+#define SAMPLE_DURATION_NANOSEC  1170
+
+#define FULL_SEQUENCE_DURATION   (SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC)
+
+const int MOTOR_ADC_SAMPLE_DURATION_NANOSEC = SAMPLE_DURATION_NANOSEC;
+
+/**
+ * ADC will be triggered at this time before the PWM extremum.
+ */
+const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = FULL_SEQUENCE_DURATION / 2;
+
+
+static uint32_t _adc1_2_dma_buffer[NUM_SAMPLES_PER_ADC];
 static struct motor_adc_sample _sample;
 
 
@@ -52,12 +70,21 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 
-	// Fix later maybe: Obtain the precise timestamp from PWM driver?
-	_sample.timestamp = motor_timer_hnsec() - ((MOTOR_ADC_SAMPLE_DURATION_NANOSEC * 2) / NSEC_PER_HNSEC);
+	_sample.timestamp = motor_timer_hnsec() - (FULL_SEQUENCE_DURATION / 2) / NSEC_PER_HNSEC;
 
-	_sample.raw_phase_values[0] = _adc1_2_dma_buffer[0] & 0xFFFF;
-	_sample.raw_phase_values[1] = _adc1_2_dma_buffer[1] & 0xFFFF;
-	_sample.raw_phase_values[2] = _adc1_2_dma_buffer[0] >> 16;
+#define SMPLADC1(num)     (_adc1_2_dma_buffer[num] & 0xFFFF)
+#define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
+	/*
+	 * ADC channel sampling:
+	 *   A B C A B C
+	 *   C A B C A B
+	 */
+	_sample.raw_phase_values[0] = (SMPLADC1(0) + SMPLADC2(1) + SMPLADC1(3) + SMPLADC2(4)) / 4;
+	_sample.raw_phase_values[1] = (SMPLADC1(1) + SMPLADC2(2) + SMPLADC1(4) + SMPLADC2(5)) / 4;
+	_sample.raw_phase_values[2] = (SMPLADC2(0) + SMPLADC1(2) + SMPLADC2(3) + SMPLADC1(5)) / 4;
+
+#undef SMPLADC1
+#undef SMPLADC2
 
 	motor_adc_sample_callback(&_sample);
 
@@ -85,7 +112,7 @@ static void enable(void)
 	// DMA
 	DMA1_Channel1->CCR = 0;  // Deinitialize
 	DMA1_Channel1->CMAR = (uint32_t)_adc1_2_dma_buffer;
-	DMA1_Channel1->CNDTR = 2;
+	DMA1_Channel1->CNDTR = sizeof(_adc1_2_dma_buffer) / 4;
 	DMA1_Channel1->CPAR = (uint32_t)&ADC1->DR;
 	DMA1_Channel1->CCR =
 		DMA_CCR1_PL_0 | DMA_CCR1_PL_1 |  // Max priority
@@ -113,16 +140,28 @@ static void enable(void)
 	ADC2->CR2 = ADC_CR2_ADON;
 	adc_calibrate(ADC2);
 
-	// ADC channels
-	ADC1->SQR1 = ADC_SQR1_L_0;                 // 2 channels
+	/*
+	 * ADC channel sampling:
+	 *   A B C A B C
+	 *   C A B C A B
+	 */
+	ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_2;
 	ADC1->SQR3 =
-		ADC_SQR3_SQ1_0 |                   // channel 1 (phase A)
-		ADC_SQR3_SQ2_1;                    // channel 2 (phase B)
+		ADC_SQR3_SQ1_0 |
+		ADC_SQR3_SQ2_1 |
+		ADC_SQR3_SQ3_0 | ADC_SQR3_SQ3_1 |
+		ADC_SQR3_SQ4_0 |
+		ADC_SQR3_SQ5_1 |
+		ADC_SQR3_SQ6_0 | ADC_SQR3_SQ6_1;
 
-	ADC2->SQR1 = ADC_SQR1_L_0;                 // 2 channels
+	ADC2->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_2;
 	ADC2->SQR3 =
-		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |  // channel 3 (phase C)
-		ADC_SQR3_SQ2_0 | ADC_SQR3_SQ2_1;   // channel 3 (phase C)
+		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |
+		ADC_SQR3_SQ2_0 |
+		ADC_SQR3_SQ3_1 |
+		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1 |
+		ADC_SQR3_SQ5_0 |
+		ADC_SQR3_SQ6_1;
 
 	// SMPR registers are not configured because they have right values by default
 
