@@ -437,7 +437,7 @@ uint32_t motor_get_comm_period_usec(void)
 	irq_primask_disable();
 	const uint32_t val = _state.comm_period;
 	irq_primask_enable();
-	return val;
+	return val / HNSEC_PER_USEC;
 }
 
 uint64_t motor_get_zc_failures_since_start(void)
