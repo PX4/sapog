@@ -117,7 +117,8 @@ CH_FAST_IRQ_HANDLER(TIMX_IRQHandler)
 		TIMX->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
 		TIMX->SR = ~TIM_SR_CC1IF;
 		// Callback must be called when the IRQ has been ACKed, not other way
-		motor_timer_callback();
+		const uint64_t timestamp = motor_timer_hnsec() - 5;
+		motor_timer_callback(timestamp);
 	}
 
 	TESTPAD_CLEAR(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);

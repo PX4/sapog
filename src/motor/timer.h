@@ -62,7 +62,7 @@ void motor_timer_cancel(void);
 /**
  * No OS API can be used from this callback!
  */
-extern void motor_timer_callback(void);
+extern void motor_timer_callback(uint64_t timestamp_hnsec);
 
 /**
  * Busy loop delay

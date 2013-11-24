@@ -172,9 +172,8 @@ static inline void stop_from_isr(void)
 }
 
 __attribute__((optimize(3)))
-void motor_timer_callback(void)
+void motor_timer_callback(uint64_t timestamp_hnsec)
 {
-	const uint64_t timestamp = motor_timer_hnsec();
 	if (_state.control_state == CS_IDLE)
 		return;
 
@@ -186,7 +185,7 @@ void motor_timer_callback(void)
 		// In this case we need to emulate the ZC detection
 		const uint32_t leeway =
 			_state.comm_period / 2 + TIMING_ADVANCE(_state.comm_period, _params.timing_advance_deg);
-		_state.prev_zc_timestamp = timestamp - leeway;
+		_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 
 		_state.zc_failures_since_start++;
 
@@ -227,7 +226,7 @@ void motor_timer_callback(void)
 	motor_adc_enable_from_isr();
 
 	_state.prev_bemf_sample = INVALID_ADC_SAMPLE_VAL;    // Discard the previous step sample
-	_state.blank_time_deadline = timestamp + _params.comm_blank_hnsec;
+	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
 
 	// Are we reached the stable operation mode
 	if (!_state.spinup_done) {
