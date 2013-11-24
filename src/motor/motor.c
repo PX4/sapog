@@ -417,8 +417,17 @@ enum motor_state motor_get_state(void)
 
 void motor_beep(int frequency, int duration_msec)
 {
-	if (_state.control_state == CS_IDLE)
+	if (_state.control_state == CS_IDLE) {
+		irq_primask_disable();
+		motor_adc_disable_from_isr();
+		irq_primask_enable();
+
 		motor_pwm_beep(frequency, duration_msec);
+
+		irq_primask_disable();
+		motor_adc_enable_from_isr();
+		irq_primask_enable();
+	}
 }
 
 uint32_t motor_get_electrical_rpm(void)
