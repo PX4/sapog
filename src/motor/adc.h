@@ -42,7 +42,8 @@ __BEGIN_DECLS
 
 #define MOTOR_ADC_RESOLUTION  12
 
-extern const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC;
+extern const int MOTOR_ADC_SAMPLE_DURATION_NANOSEC;
+extern const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC;
 
 
 struct motor_adc_sample

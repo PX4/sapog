@@ -43,7 +43,7 @@
 #include "timer.h"
 
 
-#define NUM_SAMPLES_PER_ADC      7
+#define NUM_SAMPLES_PER_ADC      6
 
 /**
  * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
@@ -51,7 +51,14 @@
  */
 #define SAMPLE_DURATION_NANOSEC  1170
 
-const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC = (SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / NSEC_PER_HNSEC;
+#define FULL_SEQUENCE_DURATION   (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1))
+
+const int MOTOR_ADC_SAMPLE_DURATION_NANOSEC = SAMPLE_DURATION_NANOSEC;
+
+/**
+ * ADC will be triggered at this time before the PWM extremum.
+ */
+const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = FULL_SEQUENCE_DURATION / 2;
 
 
 static uint32_t _adc1_2_dma_buffer[NUM_SAMPLES_PER_ADC];
@@ -63,15 +70,14 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 
-	_sample.timestamp =
-		motor_timer_hnsec() - ((SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / 2) / NSEC_PER_HNSEC;
+	_sample.timestamp = motor_timer_hnsec() - (FULL_SEQUENCE_DURATION / 2) / NSEC_PER_HNSEC;
 
 #define SMPLADC1(num)     (_adc1_2_dma_buffer[num] & 0xFFFF)
 #define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
 	/*
 	 * ADC channel sampling:
-	 *   A B C A B C VIN
-	 *   C A B C A B CUR
+	 *   A B C A B C
+	 *   C A B C A B
 	 */
 	_sample.raw_phase_values[0] = (SMPLADC1(0) + SMPLADC2(1) + SMPLADC1(3) + SMPLADC2(4)) / 4;
 	_sample.raw_phase_values[1] = (SMPLADC1(1) + SMPLADC2(2) + SMPLADC1(4) + SMPLADC2(5)) / 4;
@@ -136,17 +142,10 @@ static void enable(void)
 
 	/*
 	 * ADC channel sampling:
-	 *   A B C A B C VIN
-	 *   C A B C A B CUR
-	 *
-	 * Channel mapping:
-	 *   1 - A
-	 *   2 - B
-	 *   3 - C
-	 *   4 - VIN
-	 *   5 - CURRENT
+	 *   A B C A B C
+	 *   C A B C A B
 	 */
-	ADC1->SQR1 = ADC_SQR1_L_1 | ADC_SQR1_L_2;
+	ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_2;
 	ADC1->SQR3 =
 		ADC_SQR3_SQ1_0 |
 		ADC_SQR3_SQ2_1 |
@@ -154,10 +153,8 @@ static void enable(void)
 		ADC_SQR3_SQ4_0 |
 		ADC_SQR3_SQ5_1 |
 		ADC_SQR3_SQ6_0 | ADC_SQR3_SQ6_1;
-	ADC1->SQR2 =
-		ADC_SQR2_SQ7_2;
 
-	ADC2->SQR1 = ADC1->SQR1;
+	ADC2->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_2;
 	ADC2->SQR3 =
 		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |
 		ADC_SQR3_SQ2_0 |
@@ -165,15 +162,12 @@ static void enable(void)
 		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1 |
 		ADC_SQR3_SQ5_0 |
 		ADC_SQR3_SQ6_1;
-	ADC2->SQR2 =
-		ADC_SQR2_SQ7_2 | ADC_SQR2_SQ7_0;
 
 	// SMPR registers are not configured because they have right values by default
 
 	// ADC initialization
 	ADC1->CR1 = ADC_CR1_DUALMOD_1 | ADC_CR1_DUALMOD_2 | ADC_CR1_SCAN | ADC_CR1_EOCIE;
-	ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_DMA |
-		ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_2;
+	ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | MOTOR_ADC1_2_TRIGGER | ADC_CR2_DMA;
 
 	ADC2->CR1 = ADC_CR1_DUALMOD_1 | ADC_CR1_DUALMOD_2 | ADC_CR1_SCAN;
 	ADC2->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_2;
@@ -182,8 +176,6 @@ static void enable(void)
 	chSysDisable();
 	nvicEnableVector(ADC1_2_IRQn, MOTOR_IRQ_PRIORITY_MASK);
 	chSysEnable();
-
-	ADC1->CR2 |= ADC_CR2_SWSTART | ADC_CR2_CONT;
 }
 
 void motor_adc_init(void)
