@@ -95,7 +95,7 @@ static struct control_state
 	uint64_t zc_detects_since_start;
 
 	int prev_bemf_sample;
-	int neutral_voltage;
+	int phase_voltage[3];
 
 	struct motor_pwm_val pwm_val;
 	struct motor_pwm_val pwm_val_after_spinup;
@@ -111,7 +111,6 @@ static struct precomputed_params
 	unsigned int zc_detects_min;
 
 	int comm_period_lowpass_alpha_reciprocal;     // Reciprocal of lowpass alpha (0; 1]
-	int neutral_voltage_lowpass_alpha_reciprocal; // Ditto
 
 	uint32_t comm_period_max;
 } _params;
@@ -124,7 +123,6 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	_params.zc_detects_min = 50;
 
 	_params.comm_period_lowpass_alpha_reciprocal = 10;
-	_params.neutral_voltage_lowpass_alpha_reciprocal = 2;
 
 	_params.comm_period_max = erpm_to_comm_period(1000);
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
@@ -273,19 +271,32 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		return;
 
 	/*
-	 * Neutral voltage low pass filtering
+	 * Phase voltage low pass.
+	 * Number of ADC samples per commutation:
+	 *    samples_per_comm = comm_period / adc_sample_period
+	 * Number of samples between commutation and ZC:
+	 *    samples_before_zc = samples_per_comm / 2
+	 * We want to consider 1/X of all samples between commutation and ZC, so:
+	 *    alpha = samples_before_zc / X
 	 */
-	const struct motor_pwm_commutation_step* const step = COMMUTATION_TABLE + _state.current_comm_step;
-	const int avg_voltage =
-		(sample->raw_phase_values[step->positive] + sample->raw_phase_values[step->negative]) / 2;
-	_state.neutral_voltage =
-		(_state.neutral_voltage * _params.neutral_voltage_lowpass_alpha_reciprocal + avg_voltage) /
-		(_params.neutral_voltage_lowpass_alpha_reciprocal + 1);
+//	int alpha = (_state.comm_period / MOTOR_ADC_SAMPLING_PERIOD_HNSEC / 2) / 4;
+//	if (alpha > 20)
+//		alpha = 20;
+//	const int alpha_1 = alpha + 1;
+//
+//	for (int i = 0; i < 3; i++)
+//		_state.phase_voltage[i] = (_state.phase_voltage[i] * alpha + sample->raw_phase_values[i]) / alpha_1;
+	for (int i = 0; i < 3; i++)
+		_state.phase_voltage[i] = (_state.phase_voltage[i] * 3 + sample->raw_phase_values[i]) / 4;  // DEBUG
 
 	/*
 	 * Normalized Back EMF voltage
 	 */
-	const int current_bemf = sample->raw_phase_values[step->floating] - _state.neutral_voltage;
+	const struct motor_pwm_commutation_step* const step = COMMUTATION_TABLE + _state.current_comm_step;
+
+	const int neutral_voltage = (_state.phase_voltage[step->positive] + _state.phase_voltage[step->negative]) / 2;
+
+	const int current_bemf = sample->raw_phase_values[step->floating] - neutral_voltage;
 
 	if (_state.prev_bemf_sample == INVALID_ADC_SAMPLE_VAL) {
 		_state.prev_bemf_sample = current_bemf;
@@ -324,9 +335,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (abs(dv) < 2) {
 		zc_timestamp = sample->timestamp;
 	} else {
-		const int t_offset = abs((prev_bemf * dt) / dv);
+		int t_offset = abs((prev_bemf * dt) / dv);
 		assert(t_offset >= 0);
-		assert(t_offset < dt * 1000);
+		if (t_offset > dt * 10)
+			t_offset = dt * 10;
 		zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
 	}
 	if (step->floating == 0)
@@ -367,11 +379,6 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
 
 	_state.started_at = motor_timer_hnsec();
-
-	// TODO: initialize proper average during the initial rotor alignment
-	const struct motor_adc_sample adc_sample = motor_adc_get_last_sample();
-	_state.neutral_voltage = (adc_sample.raw_phase_values[0] +
-		adc_sample.raw_phase_values[1] + adc_sample.raw_phase_values[2]) / 3;
 
 	_state.prev_bemf_sample = INVALID_ADC_SAMPLE_VAL;
 
@@ -478,7 +485,6 @@ void motor_print_debug_info(void)
 	lowsyslog("Motor: Debug\n"
 		"  comm period        %u usec\n"
 		"  erpm               %u RPM\n"
-		"  neutral voltage    %i\n"
 		"  spinup done        %i\n"
 		"  zc immed failures  %u\n"
 		"  zc immed detects   %u\n"
@@ -486,7 +492,6 @@ void motor_print_debug_info(void)
 		"  zc detects         %u\n",
 		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
 		(unsigned)(comm_period_to_erpm(state_copy.comm_period)),
-		(int)state_copy.neutral_voltage,
 		(int)state_copy.spinup_done,
 		(unsigned)state_copy.immediate_zc_failures,
 		(unsigned)state_copy.immediate_zc_detects,

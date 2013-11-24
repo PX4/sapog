@@ -38,7 +38,6 @@
 #include <math.h>
 #include <stm32f10x.h>
 #include "pwm.h"
-#include "adc.h"
 #include "timer.h"
 
 #define PWM_TIMER_FREQUENCY     STM32_TIMCLK1
@@ -73,8 +72,7 @@
 /**
  * Global constants
  */
-const uint32_t MOTOR_PWM_PERIOD_HNSEC          = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (PWM_STEPS * 2));
-const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (PWM_STEPS * 2));
+const uint32_t MOTOR_PWM_PERIOD_HNSEC = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (PWM_STEPS * 2));
 
 /**
  * PWM channel mapping
@@ -149,31 +147,9 @@ static void init_timers(void)
 		TIM_CCMR2_OC3FE | TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_2 |
 		TIM_CCMR2_OC4FE | TIM_CCMR2_OC4PE | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_2;
 
-	// OC polarity (no inversion by default; all phases are disabled by default except ADC sync)
+	// OC polarity
 	TIM3->CCER = 0;
-	TIM4->CCER = TIM_CCER_CC4E; // ADC sync
-
-	/*
-	 * ADC synchronization
-	 *
-	 * 100%     /\      /
-	 * 75%     /  \    /
-	 * 25%    /    \  /
-	 * 0%    /      \/
-	 *             A  B
-	 * Complementary PWM operates in range (50%, 100%], thus a FET commutation will never happen in range
-	 * between points A and B on the diagram above (save the braking mode, but it's negligible).
-	 * ADC shall be triggered either at PWM top or PWM bottom in order to catch the moment when the instant
-	 * winding current matches with average winding current - this helps to eliminate the current ripple
-	 * caused by the PWM switching.
-	 * Thus we trigger ADC at the bottom minus advance.
-	 * Refer to "Synchronizing the On-Chip Analog-to-Digital Converter on 56F80x Devices" for some explanation.
-	 */
-	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
-	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
-	assert_always(adc_trigger_advance_ticks_float >= 0);
-	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.4f));
-	TIM4->CCR4 = (uint16_t)adc_trigger_advance_ticks_float;
+	TIM4->CCER = 0;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM3->EGR = TIM_EGR_UG;
