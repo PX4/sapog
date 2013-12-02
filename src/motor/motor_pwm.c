@@ -64,7 +64,7 @@
  *
  * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2 * 2)
  */
-#define PWM_EFFECTIVE_STEPS   512
+#define PWM_EFFECTIVE_STEPS   1024
 
 #define PWM_STEPS      (PWM_EFFECTIVE_STEPS * 2)
 #define PWM_TOP        (PWM_STEPS - 1)
@@ -426,7 +426,7 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 
 void motor_pwm_beep(int frequency, int duration_msec)
 {
-	static const int ENERGIZING_DURATION_USEC = 6;
+	static const int ENERGIZING_DURATION_USEC = 7;
 
 	if (frequency < 200)
 		frequency = 200;

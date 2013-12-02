@@ -50,11 +50,6 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 #define NUM_COMMUTATION_STEPS 6
 
 
-/**
- * Stall detection by abnormally high ERPM
- */
-#define LOWEST_VALID_COMM_PERIOD   (MOTOR_PWM_PERIOD_HNSEC * 3)
-
 #define INVALID_ADC_SAMPLE_VAL     INT_MIN
 
 /**
@@ -119,7 +114,7 @@ static struct precomputed_params
 static void configure(void) // TODO: obtain the configuration from somewhere else
 {
 	_params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
-	_params.timing_advance_deg = 15;
+	_params.timing_advance_deg = 10;
 	_params.zc_failures_max = 50;
 	_params.zc_detects_min = 50;
 
@@ -194,12 +189,6 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		_state.immediate_zc_failures++;
 		if (_state.immediate_zc_failures > _params.zc_failures_max) {
 			// No bounce no play
-			stop_from_isr();
-			return;
-		}
-
-		// Another stall detection heuristic - abnormally high RPM
-		if (_state.comm_period < LOWEST_VALID_COMM_PERIOD) {
 			stop_from_isr();
 			return;
 		}
@@ -325,8 +314,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		zc_timestamp = sample->timestamp;
 	} else {
 		const int t_offset = abs((prev_bemf * dt) / dv);
-		assert(t_offset >= 0);
-		assert(t_offset < dt * 1000);
+
+		// Invalid offset means that we missed this ZC, and most likely the prev_bemf_sample is invalid
+		if (t_offset < 0 || t_offset > dt * 2) {
+			_state.prev_bemf_sample = INVALID_ADC_SAMPLE_VAL;
+			return;
+		}
+
 		zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
 	}
 	if (step->floating == 0)
