@@ -49,6 +49,7 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 #define NUM_PHASES            3
 #define NUM_COMMUTATION_STEPS 6
 
+#define COMM_PERIOD_LOWPASS_MAX    100
 
 #define INVALID_ADC_SAMPLE_VAL     INT_MIN
 
@@ -244,8 +245,8 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 
 	const unsigned comm_period_base = (new_comm_period + _state.comm_period) / 2;
 	unsigned comm_period_lowpass = _params.comm_period_lowpass_base / comm_period_base;
-	if (comm_period_lowpass > 200)
-		comm_period_lowpass = 200;
+	if (comm_period_lowpass > COMM_PERIOD_LOWPASS_MAX)
+		comm_period_lowpass = COMM_PERIOD_LOWPASS_MAX;
 	_state.comm_period = (_state.comm_period * comm_period_lowpass + new_comm_period) / (comm_period_lowpass + 1);
 
 	_state.control_state = CS_PAST_ZC;
