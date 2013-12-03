@@ -206,7 +206,7 @@ int main(void)
 
 	usleep(3000000);
 
-	motor_init();
+	assert(0 == motor_init());
 	assert(0 == motor_test_hardware());
 	//motor_test_hardware();
 

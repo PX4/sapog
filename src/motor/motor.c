@@ -129,6 +129,8 @@ static struct precomputed_params
 	int spinup_num_steps;
 
 	uint32_t comm_period_max;
+
+	uint32_t adc_sampling_period;
 } _params;
 
 static void configure(void) // TODO: obtain the configuration from somewhere else
@@ -156,6 +158,8 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 
 	if (_params.spinup_comm_period_begin < _params.spinup_comm_period_end)
 		_params.spinup_comm_period_begin = _params.spinup_comm_period_end;
+
+	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 }
 
 static inline uint32_t erpm_to_comm_period(uint32_t erpm)
@@ -339,7 +343,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 * dV = V2 - V1
 	 * tz = t1 + abs((V1 * dt) / dV)
 	 */
-	const int dt = MOTOR_ADC_SAMPLING_PERIOD_HNSEC;
+	const int dt = _params.adc_sampling_period;
 	const int dv = current_bemf - prev_bemf;
 	uint64_t zc_timestamp = 0;
 	if (abs(dv) < 2) {
@@ -363,9 +367,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 int motor_init(void)
 {
-	motor_pwm_init();
+	const int ret = motor_pwm_init(30000); // TODO: configuration
+	if (ret)
+		return ret;
+
 	motor_timer_init();
 	motor_adc_init();
+
 	configure();
 	motor_stop();
 	return 0;

@@ -51,32 +51,6 @@
 #define PWM_DEAD_TIME_NANOSEC   600
 
 /**
- * PWM mode is center-aligned, so the frequency is defined as:
- *      f = pwm_clock / ((pwm_top + 1) * 2)
- *
- * For 72 MHz clock:
- *   PWM steps - Eff. steps - Frequency
- *   512         256          70312.5
- *   720         360          50000.0
- *   800         400          45000.0
- *   1024        512          35156.25
- *   2048        1024         17578.125
- *
- * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2 * 2)
- */
-#define PWM_EFFECTIVE_STEPS   600
-
-#define PWM_STEPS      (PWM_EFFECTIVE_STEPS * 2)
-#define PWM_TOP        (PWM_STEPS - 1)
-#define PWM_HALF_TOP   (PWM_STEPS / 2)
-
-/**
- * Global constants
- */
-const uint32_t MOTOR_PWM_PERIOD_HNSEC          = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (PWM_STEPS * 2));
-const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC = HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (PWM_STEPS * 2));
-
-/**
  * PWM channel mapping
  */
 static volatile uint16_t* const PWM_REG_HIGH[3] = {
@@ -116,13 +90,93 @@ static const uint16_t TIM3_LOW_CCER_EN[3] = {
 static const uint16_t TIM4_HIGH_CCER_EN_MASK = TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E;
 static const uint16_t TIM3_LOW_CCER_EN_MASK  = TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
 
+/**
+ * Local constants, initialized once
+ */
+static uint16_t _pwm_top;
+static uint16_t _pwm_half_top;
+
 static uint16_t _pwm_max;
 static uint16_t _pwm_min;
+
 static uint16_t _pwm_dead_time_ticks;
 
 
+static int init_constants(unsigned frequency)
+{
+	assert_always(_pwm_top == 0);   // Make sure it was not initialized already
+
+	/*
+	 * PWM top, derived from frequency
+	 */
+	if (frequency < MOTOR_PWM_MIN_FREQUENCY || frequency > MOTOR_PWM_MAX_FREQUENCY) {
+		return -1;
+	}
+
+	const int pwm_steps = PWM_TIMER_FREQUENCY / (2 * frequency);
+	if (pwm_steps > 65536) {
+		assert(0);
+		return -1;
+	}
+
+	_pwm_top = pwm_steps - 1;
+	_pwm_half_top = pwm_steps / 2;
+
+	const int effective_steps = pwm_steps / 2;
+	const float true_frequency = PWM_TIMER_FREQUENCY / (float)(pwm_steps * 2);
+	const unsigned adc_period_usec = motor_adc_sampling_period_hnsec() / HNSEC_PER_USEC;
+	lowsyslog("Motor: PWM freq: %f; Effective steps: %i; ADC period: %u usec\n",
+		true_frequency, effective_steps, adc_period_usec);
+
+	/*
+	 * PWM max - Limited by PWM_MIN_PULSE_NANOSEC
+	 */
+	const float pwm_clock_period = 1.f / PWM_TIMER_FREQUENCY;
+	const float pwm_min_pulse_len = PWM_MIN_PULSE_NANOSEC / 1e9f;
+	const float pwm_min_pulse_ticks_float = pwm_min_pulse_len / pwm_clock_period;
+	assert(pwm_min_pulse_ticks_float >= 0);
+	assert(pwm_min_pulse_ticks_float < (_pwm_top * 0.1f));
+
+	const uint16_t pwm_min_pulse_ticks = (uint16_t)pwm_min_pulse_ticks_float;
+
+	// We need to divide the min value by 2 since we're using the center-aligned PWM
+	_pwm_max = _pwm_top - (pwm_min_pulse_ticks / 2 + 1);
+
+	/*
+	 * PWM min - Limited by MOTOR_ADC_SAMPLE_WINDOW_NANOSEC
+	 */
+	const float pwm_adc_window_len = (MOTOR_ADC_SAMPLE_WINDOW_NANOSEC / 1e9f) * 2;
+	const float pwm_adc_window_ticks_float = pwm_adc_window_len / pwm_clock_period;
+	assert(pwm_adc_window_ticks_float >= 0);
+
+	// Same here - divide by 2
+	uint16_t pwm_half_adc_window_ticks = ((uint16_t)pwm_adc_window_ticks_float) / 2;
+	if (pwm_half_adc_window_ticks > _pwm_half_top)
+		pwm_half_adc_window_ticks = _pwm_half_top;
+
+	_pwm_min = pwm_half_adc_window_ticks;
+	assert(_pwm_min <= _pwm_half_top);
+
+	/*
+	 * PWM dead time
+	 */
+	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
+	const float pwm_dead_time_ticks_float = pwm_dead_time / pwm_clock_period;
+	assert(pwm_dead_time_ticks_float >= 0);
+	assert(pwm_dead_time_ticks_float < (_pwm_top * 0.2f));
+
+	// Dead time shall not be halved
+	_pwm_dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
+
+	lowsyslog("Motor: PWM range: [%u, %u]; Dead time: %u ticks\n",
+		(unsigned)_pwm_min, (unsigned)_pwm_max, (unsigned)_pwm_dead_time_ticks);
+	return 0;
+}
+
 static void init_timers(void)
 {
+	assert_always(_pwm_top > 0);   // Make sure it was initialized
+
 	chSysDisable();
 
 	// Enable and reset
@@ -135,7 +189,7 @@ static void init_timers(void)
 	chSysEnable();
 
 	// Reload value
-	TIM3->ARR = TIM4->ARR = PWM_TOP;
+	TIM3->ARR = TIM4->ARR = _pwm_top;
 
 	// Buffered update, center-aligned PWM
 	TIM3->CR1 = TIM4->CR1 = TIM_CR1_ARPE | TIM_CR1_CMS_0;
@@ -171,8 +225,8 @@ static void init_timers(void)
 	 */
 	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
 	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
-	assert_always(adc_trigger_advance_ticks_float >= 0);
-	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.4f));
+	assert(adc_trigger_advance_ticks_float >= 0);
+	assert(adc_trigger_advance_ticks_float < (_pwm_top * 0.4f));
 	TIM4->CCR4 = (uint16_t)adc_trigger_advance_ticks_float;
 	if (TIM4->CCR4 == 0)
 		TIM4->CCR4 = 1;
@@ -203,56 +257,22 @@ static void start_timers(void)
 	assert_always(TIM4->CR1 & TIM_CR1_CEN);
 }
 
-void motor_pwm_init(void)
+int motor_pwm_init(unsigned frequency)
 {
+	const int ret = init_constants(frequency);
+	if (ret)
+		return ret;
+
 	init_timers();
 	start_timers();
 
-	/*
-	 * PWM max - Limited by PWM_MIN_PULSE_NANOSEC
-	 */
-	const float pwm_clock_period = 1.f / PWM_TIMER_FREQUENCY;
-	const float pwm_min_pulse_len = PWM_MIN_PULSE_NANOSEC / 1e9f;
-	const float pwm_min_pulse_ticks_float = pwm_min_pulse_len / pwm_clock_period;
-	assert_always(pwm_min_pulse_ticks_float >= 0);
-	assert_always(pwm_min_pulse_ticks_float < (PWM_TOP * 0.1f));
-
-	const uint16_t pwm_min_pulse_ticks = (uint16_t)pwm_min_pulse_ticks_float;
-
-	// We need to divide the min value by 2 since we're using the center-aligned PWM
-	_pwm_max = PWM_TOP - (pwm_min_pulse_ticks / 2 + 1);
-
-	/*
-	 * PWM min - Limited by MOTOR_ADC_SAMPLE_WINDOW_NANOSEC
-	 */
-	const float pwm_adc_window_len = (MOTOR_ADC_SAMPLE_WINDOW_NANOSEC / 1e9f) * 2;
-	const float pwm_adc_window_ticks_float = pwm_adc_window_len / pwm_clock_period;
-	assert_always(pwm_adc_window_ticks_float >= 0);
-
-	// Same here - divide by 2
-	uint16_t pwm_half_adc_window_ticks = ((uint16_t)pwm_adc_window_ticks_float) / 2;
-	if (pwm_half_adc_window_ticks > PWM_HALF_TOP)
-		pwm_half_adc_window_ticks = PWM_HALF_TOP;
-
-	_pwm_min = pwm_half_adc_window_ticks;
-	assert_always(_pwm_min <= PWM_HALF_TOP);
-
-	/*
-	 * PWM dead time
-	 */
-	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
-	const float pwm_dead_time_ticks_float = pwm_dead_time / pwm_clock_period;
-	assert_always(pwm_dead_time_ticks_float >= 0);
-	assert_always(pwm_dead_time_ticks_float < (PWM_TOP * 0.2f));
-
-	// Dead time shall not be halved
-	_pwm_dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
-
-	lowsyslog("Motor: PWM range: [%u, %u]; Dead time: %u ticks\n",
-		(unsigned)_pwm_min, (unsigned)_pwm_max, (unsigned)_pwm_dead_time_ticks);
-
-	// This step is required to complete the initialization
 	motor_pwm_set_freewheeling();
+	return 0;
+}
+
+uint32_t motor_adc_sampling_period_hnsec(void)
+{
+	return HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (((int)_pwm_top + 1) * 2));
 }
 
 /**
@@ -329,7 +349,7 @@ static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inv
 		TIM4->CCER |= TIM4_HIGH_CCER_POL[phase];
 
 		// Inverted phase shall have greater PWM value than non-inverted one
-		if (pwm_val->normalized_duty_cycle > PWM_HALF_TOP)
+		if (pwm_val->normalized_duty_cycle > _pwm_half_top)
 			duty_cycle_low  -= _pwm_dead_time_ticks;
 		else
 			duty_cycle_high += _pwm_dead_time_ticks;
@@ -341,7 +361,7 @@ static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inv
 		// Normal - low PWM is inverted, high is not
 		TIM3->CCER |= TIM3_LOW_CCER_POL[phase];
 
-		if (pwm_val->normalized_duty_cycle > PWM_HALF_TOP)
+		if (pwm_val->normalized_duty_cycle > _pwm_half_top)
 			duty_cycle_high -= _pwm_dead_time_ticks;
 		else
 			duty_cycle_low  += _pwm_dead_time_ticks;
@@ -376,7 +396,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 		}
 		case MOTOR_PWM_MANIP_LOW:
 			*PWM_REG_HIGH[phase] = 0;
-			*PWM_REG_LOW[phase] = PWM_TOP;
+			*PWM_REG_LOW[phase] = _pwm_top;
 			break;
 		case MOTOR_PWM_MANIP_FLOATING:
 			// Nothing to do
@@ -453,9 +473,9 @@ void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val)
 	const float abs_duty_cycle = fabs(duty_cycle);
 	uint_fast16_t int_duty_cycle = 0;
 	if (abs_duty_cycle >= 1)
-		int_duty_cycle = PWM_TOP;
+		int_duty_cycle = _pwm_top;
 	else
-		int_duty_cycle = (uint_fast16_t)(abs_duty_cycle * PWM_TOP);
+		int_duty_cycle = (uint_fast16_t)(abs_duty_cycle * _pwm_top);
 
 	/*
 	 * Compute the complementary duty cycle
@@ -463,22 +483,22 @@ void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val)
 	 */
 	if (duty_cycle >= 0) {
 		// Forward mode
-		out_val->normalized_duty_cycle = PWM_TOP - ((PWM_TOP - int_duty_cycle) / 2);
+		out_val->normalized_duty_cycle = _pwm_top - ((_pwm_top - int_duty_cycle) / 2);
 
 		if (out_val->normalized_duty_cycle > _pwm_max)
 			out_val->normalized_duty_cycle = _pwm_max;
 
-		assert(out_val->normalized_duty_cycle >= PWM_HALF_TOP);
-		assert(out_val->normalized_duty_cycle <= PWM_TOP);
+		assert(out_val->normalized_duty_cycle >= _pwm_half_top);
+		assert(out_val->normalized_duty_cycle <= _pwm_top);
 	} else {
 		// Braking mode
-		out_val->normalized_duty_cycle = (PWM_TOP - int_duty_cycle) / 2;
+		out_val->normalized_duty_cycle = (_pwm_top - int_duty_cycle) / 2;
 
 		if (out_val->normalized_duty_cycle < _pwm_min)
 			out_val->normalized_duty_cycle = _pwm_min;
 
 		assert(out_val->normalized_duty_cycle >= 0);
-		assert(out_val->normalized_duty_cycle <= PWM_HALF_TOP);
+		assert(out_val->normalized_duty_cycle <= _pwm_half_top);
 	}
 }
 

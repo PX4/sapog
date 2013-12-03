@@ -34,18 +34,13 @@
 
 #pragma once
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <hal.h>
 #include <sys.h>
 
 __BEGIN_DECLS
 
-extern const uint32_t MOTOR_PWM_PERIOD_HNSEC;
-extern const uint32_t MOTOR_ADC_SAMPLING_PERIOD_HNSEC;
-
 #define MOTOR_ADC1_2_TRIGGER    (ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_2)
-
 
 struct motor_pwm_commutation_step
 {
@@ -67,7 +62,37 @@ enum motor_pwm_phase_manip
 	MOTOR_PWM_MANIP_HALF
 };
 
-void motor_pwm_init(void);
+/**
+ * Sanity constraints
+ */
+#define MOTOR_PWM_MIN_FREQUENCY   12000
+#define MOTOR_PWM_MAX_FREQUENCY   70000
+
+/**
+ * Initialize the PWM hardware.
+ *
+ * PWM mode is center-aligned, so the frequency is defined as:
+ *      f = pwm_clock / ((pwm_top + 1) * 2)
+ *
+ * For 72 MHz clock:
+ *   PWM steps - Eff. steps - Frequency
+ *   512         256          70312.5
+ *   720         360          50000.0
+ *   800         400          45000.0
+ *   1024        512          35156.25
+ *   2048        1024         17578.125
+ *
+ * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2 * 2)
+ *
+ * @param [in] frequency - PWM frequency, Hz
+ * @return 0 on success, anything else if the requested frequency is invalid
+ */
+int motor_pwm_init(unsigned frequency);
+
+/**
+ * ADC converstions are triggered by the PWM hardware, so this function is here
+ */
+uint32_t motor_adc_sampling_period_hnsec(void);
 
 /**
  * Direct phase control - for self-testing
