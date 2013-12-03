@@ -174,6 +174,8 @@ static void init_timers(void)
 	assert_always(adc_trigger_advance_ticks_float >= 0);
 	assert_always(adc_trigger_advance_ticks_float < (PWM_TOP * 0.4f));
 	TIM4->CCR4 = (uint16_t)adc_trigger_advance_ticks_float;
+	if (TIM4->CCR4 == 0)
+		TIM4->CCR4 = 1;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM3->EGR = TIM_EGR_UG;
