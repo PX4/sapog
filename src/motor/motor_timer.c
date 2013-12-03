@@ -281,3 +281,8 @@ void motor_timer_udelay(int usecs)
 		for (volatile int i = 0; i < 8; i++) { }
 	}
 }
+
+void motor_timer_hndelay(int hnsecs)
+{
+	motor_timer_udelay(hnsecs / HNSEC_PER_USEC);
+}

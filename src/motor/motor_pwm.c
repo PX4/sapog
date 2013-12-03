@@ -398,6 +398,37 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 	}
 }
 
+void motor_pwm_align(const int polarities[3], const struct motor_pwm_val* pwm_val)
+{
+	irq_primask_disable();
+	phase_reset_all_i();
+	irq_primask_enable();
+
+	const uint64_t dead_time_expiration = motor_timer_hnsec() + PWM_DEAD_TIME_NANOSEC / NSEC_PER_HNSEC;
+
+	for (int phase = 0; phase < 3; phase++) {
+		const int pol = polarities[phase];
+		assert(pol == 0 || pol == 1 || pol == -1);
+
+		irq_primask_disable();
+		if (pol > 0)
+			phase_set_i(phase, pwm_val, false);
+		else if (pol == 0)
+			phase_set_i(phase, pwm_val, true);
+		irq_primask_enable();
+	}
+
+	// Just in case
+	while (motor_timer_hnsec() <= dead_time_expiration) { }
+
+	irq_primask_disable();
+	for (int phase = 0; phase < 3; phase++) {
+		if (polarities[phase] >= 0)
+			phase_enable_i(phase);
+	}
+	irq_primask_enable();
+}
+
 void motor_pwm_set_freewheeling(void)
 {
 	irq_primask_disable();

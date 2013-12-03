@@ -55,7 +55,6 @@ int motor_init(void);
 
 /**
  * Start the motor.
- * This function returns immediately.
  * @param [in] spinup_duty_cycle Initial PWM duty cycle for initial alignment and spinup, (0; 1]
  * @param [in] normal_duty_cycle Normal PWM duty cycle that will be applied once the motor is started, (0; 1]
  * @param [in] reverse           Spin direction

@@ -68,5 +68,6 @@ extern void motor_timer_callback(uint64_t timestamp_hnsec);
  * Busy loop delay
  */
 void motor_timer_udelay(int usecs);
+void motor_timer_hndelay(int hnsecs);
 
 __END_DECLS

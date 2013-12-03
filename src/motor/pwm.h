@@ -74,6 +74,8 @@ void motor_pwm_init(void);
  */
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[3]);
 
+void motor_pwm_align(const int polarities[3], const struct motor_pwm_val* pwm_val);
+
 void motor_pwm_set_freewheeling(void);
 
 void motor_pwm_emergency(void);

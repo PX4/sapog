@@ -32,6 +32,7 @@
  *
  ****************************************************************************/
 
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -110,6 +111,11 @@ static struct precomputed_params
 	uint32_t comm_period_lowpass_base;
 	int neutral_voltage_lowpass_alpha_reciprocal;
 
+	uint32_t spinup_alignment_hnsec;
+	uint32_t spinup_comm_period_begin;
+	uint32_t spinup_comm_period_end;
+	int spinup_num_steps;
+
 	uint32_t comm_period_max;
 } _params;
 
@@ -124,9 +130,20 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	_params.comm_period_lowpass_base = 5000 * HNSEC_PER_USEC;
 	_params.neutral_voltage_lowpass_alpha_reciprocal = 2;
 
+	_params.spinup_alignment_hnsec   = 40000 * HNSEC_PER_USEC;
+	_params.spinup_comm_period_begin = 20000 * HNSEC_PER_USEC;
+	_params.spinup_comm_period_end   = 10000 * HNSEC_PER_USEC;
+	_params.spinup_num_steps = 2;
+
 	_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
+
+	if (_params.spinup_comm_period_end > _params.comm_period_max)
+		_params.spinup_comm_period_end = _params.comm_period_max;
+
+	if (_params.spinup_comm_period_begin < _params.spinup_comm_period_end)
+		_params.spinup_comm_period_begin = _params.spinup_comm_period_end;
 }
 
 static inline uint32_t erpm_to_comm_period(uint32_t erpm)
@@ -348,6 +365,61 @@ int motor_init(void)
 	return 0;
 }
 
+static void init_neutral_voltage(void)
+{
+	struct motor_adc_sample smpl;
+	enum motor_pwm_phase_manip manip_cmd[3];
+
+	// low
+	for (int i = 0 ; i < NUM_PHASES; i++)
+		manip_cmd[i] = MOTOR_PWM_MANIP_LOW;
+	motor_pwm_manip(manip_cmd);
+	smpl = motor_adc_get_last_sample();
+	const int low = (smpl.raw_phase_values[0] + smpl.raw_phase_values[1] + smpl.raw_phase_values[2]) / 3;
+
+	// high
+	for (int i = 0 ; i < NUM_PHASES; i++)
+		manip_cmd[i] = MOTOR_PWM_MANIP_HIGH;
+	motor_pwm_manip(manip_cmd);
+	smpl = motor_adc_get_last_sample();
+	const int high = (smpl.raw_phase_values[0] + smpl.raw_phase_values[1] + smpl.raw_phase_values[2]) / 3;
+
+	_state.neutral_voltage = (low + high) / 2;
+}
+
+static void spinup_align(void)
+{
+	const struct motor_pwm_commutation_step* const first_step = COMMUTATION_TABLE + _state.current_comm_step;
+
+	int polarities[3];
+	polarities[first_step->negative] = 0; // 0 - low, 1 - high, -1 - floating
+	polarities[first_step->positive] = 1;
+	polarities[first_step->floating] = -1;
+
+	motor_pwm_align(polarities, &_state.pwm_val);
+
+	//motor_timer_hndelay(_params.spinup_alignment_hnsec);
+	usleep(_params.spinup_alignment_hnsec / HNSEC_PER_USEC);
+}
+
+static void spinup_do_blind_comms(void)
+{
+	if (_params.spinup_num_steps <= 0)
+		return;
+
+	assert_always(_params.spinup_comm_period_begin >= _params.spinup_comm_period_end);
+	const uint32_t accel =
+		(_params.spinup_comm_period_begin - _params.spinup_comm_period_end) / _params.spinup_num_steps;
+
+	uint32_t current_comm_period = _params.spinup_comm_period_begin;
+	for (int i = 0; i < _params.spinup_num_steps; i++) {
+		switch_commutation_step();
+		//motor_timer_hndelay(current_comm_period);
+		usleep(current_comm_period / HNSEC_PER_USEC);
+		current_comm_period -= accel;
+	}
+}
+
 void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 {
 	assert(spinup_duty_cycle >= 0);
@@ -358,6 +430,9 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	if (spinup_duty_cycle <= 0 || normal_duty_cycle <= 0)
 		return;
 
+	/*
+	 * Initialize the control struct
+	 */
 	memset(&_state, 0, sizeof(_state));    // Mighty reset
 
 	motor_pwm_compute_pwm_val(spinup_duty_cycle, &_state.pwm_val);
@@ -365,21 +440,35 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 
 	_state.reverse_rotation = reverse;
 	_state.spinup_done = false;
-
-	_state.comm_period = _params.comm_period_max;
-	_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
-
 	_state.started_at = motor_timer_hnsec();
+	_state.current_comm_step = 0;
 
-	// TODO: initialize proper average during the initial rotor alignment
-	const struct motor_adc_sample adc_sample = motor_adc_get_last_sample();
-	_state.neutral_voltage = (adc_sample.raw_phase_values[0] +
-		adc_sample.raw_phase_values[1] + adc_sample.raw_phase_values[2]) / 3;
+	init_neutral_voltage();
 
+	/*
+	 * Align the rotor and perform blind commutations
+	 */
+	irq_primask_disable();
+	motor_adc_disable_from_isr();
+	irq_primask_enable();
+
+	spinup_align();
+
+	spinup_do_blind_comms();
+
+	irq_primask_disable();
+	motor_adc_enable_from_isr();
+	irq_primask_enable();
+
+	/*
+	 * Engage the closed-loop mode
+	 */
+	_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
+	_state.comm_period = _params.spinup_comm_period_end;
 	_state.prev_bemf_sample = INVALID_ADC_SAMPLE_VAL;
-
 	_state.control_state = CS_BEFORE_ZC;
-	motor_timer_set_relative(0);           // Go from here
+
+	motor_timer_set_relative(0);
 }
 
 void motor_stop(void)
