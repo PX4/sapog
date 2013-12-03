@@ -105,7 +105,8 @@ static struct precomputed_params
 	unsigned int zc_failures_max;
 	unsigned int zc_detects_min;
 
-	int comm_period_lowpass_alpha_reciprocal;     // Reciprocal of lowpass alpha (0; 1]
+	uint32_t comm_period_lowpass_base;
+//	int comm_period_lowpass_alpha_reciprocal;     // Reciprocal of lowpass alpha (0; 1]
 	int neutral_voltage_lowpass_alpha_reciprocal; // Ditto
 
 	uint32_t comm_period_max;
@@ -118,7 +119,8 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	_params.zc_failures_max = 50;
 	_params.zc_detects_min = 50;
 
-	_params.comm_period_lowpass_alpha_reciprocal = 10;
+	_params.comm_period_lowpass_base = 5000 * HNSEC_PER_USEC;
+//	_params.comm_period_lowpass_alpha_reciprocal = 10;
 	_params.neutral_voltage_lowpass_alpha_reciprocal = 2;
 
 	_params.comm_period_max = erpm_to_comm_period(1000);
@@ -237,8 +239,11 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	if (new_comm_period > _params.comm_period_max)
 	        new_comm_period = _params.comm_period_max;
 
-	_state.comm_period = (_state.comm_period * _params.comm_period_lowpass_alpha_reciprocal + new_comm_period) /
-		(_params.comm_period_lowpass_alpha_reciprocal + 1);
+	const unsigned comm_period_base = (new_comm_period + _state.comm_period) / 2;
+	unsigned comm_period_lowpass = _params.comm_period_lowpass_base / comm_period_base;
+	if (comm_period_lowpass > 200)
+		comm_period_lowpass = 200;
+	_state.comm_period = (_state.comm_period * comm_period_lowpass + new_comm_period) / (comm_period_lowpass + 1);
 
 	_state.control_state = CS_PAST_ZC;
 
@@ -432,14 +437,14 @@ uint32_t motor_get_electrical_rpm(void)
 	return comm_period_to_erpm(val);
 }
 
-uint32_t motor_get_comm_period_usec(void)
+uint32_t motor_get_comm_period_hnsec(void)
 {
 	if (motor_get_state() == MOTOR_STATE_IDLE)
 		return 0;
 	irq_primask_disable();
 	const uint32_t val = _state.comm_period;
 	irq_primask_enable();
-	return val / HNSEC_PER_USEC;
+	return val;
 }
 
 uint64_t motor_get_zc_failures_since_start(void)

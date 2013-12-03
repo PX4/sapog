@@ -183,10 +183,10 @@ void run_test_serial(void)
 
 void run_plot(void)
 {
-	motor_start(0.2, 0.5, false);
+	motor_start(0.2, 0.6, false);
 	while (1) {
 		usleep(50000);
-		const uint32_t per = motor_get_comm_period_usec();
+		const uint32_t per = motor_get_comm_period_hnsec();
 		lowsyslog("$ %u\n", (unsigned)per);
 	}
 }
@@ -207,8 +207,8 @@ int main(void)
 	usleep(3000000);
 
 	motor_init();
-	//assert(0 == motor_test_hardware());
-	motor_test_hardware();
+	assert(0 == motor_test_hardware());
+	//motor_test_hardware();
 
 	if (motor_test_motor())
 		lowsyslog("Motor is not connected or damaged\n");

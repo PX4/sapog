@@ -95,7 +95,7 @@ uint32_t motor_get_electrical_rpm(void);
  * Commutation period in microseconds
  * @return Comm period; 0 if the motor is not running
  */
-uint32_t motor_get_comm_period_usec(void);
+uint32_t motor_get_comm_period_hnsec(void);
 
 /**
  * Number of zero cross detection failures since the motor has started.
