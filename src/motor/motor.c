@@ -61,13 +61,25 @@ static uint32_t erpm_to_comm_period(uint32_t erpm);
 	(((uint64_t)comm_period * (uint64_t)degrees) / 64/*60*/)
 
 
-static const struct motor_pwm_commutation_step COMMUTATION_TABLE[NUM_COMMUTATION_STEPS] = {
-    {1, 0, 2}, // Positive, negative, floating
-    {1, 2, 0},
-    {0, 2, 1},
-    {0, 1, 2},
-    {2, 1, 0},
-    {2, 0, 1}
+/**
+ * Commutation tables
+ * Phase order: Positive, Negative, Floating
+ */
+static const struct motor_pwm_commutation_step COMMUTATION_TABLE_FORWARD[NUM_COMMUTATION_STEPS] = {
+	{1, 0, 2},
+	{1, 2, 0},
+	{0, 2, 1},
+	{0, 1, 2},
+	{2, 1, 0},
+	{2, 0, 1}
+};
+static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[NUM_COMMUTATION_STEPS] = {
+	{2, 0, 1},
+	{2, 1, 0},
+	{0, 1, 2},
+	{0, 2, 1},
+	{1, 2, 0},
+	{1, 0, 2}
 };
 
 
@@ -82,7 +94,7 @@ static struct control_state
 	uint32_t comm_period;
 
 	int current_comm_step;
-	bool reverse_rotation;
+	const struct motor_pwm_commutation_step* comm_table;
 
 	bool spinup_done;
 
@@ -166,17 +178,11 @@ __attribute__((optimize(3), always_inline))
 static inline void switch_commutation_step(void)
 {
 	// We need to keep the current step index
-	if (_state.reverse_rotation) {
-		_state.current_comm_step--;
-		if (_state.current_comm_step < 0)
-			_state.current_comm_step = NUM_COMMUTATION_STEPS - 1;
-
-	} else {
-		_state.current_comm_step++;
-		if (_state.current_comm_step >= NUM_COMMUTATION_STEPS)
-			_state.current_comm_step = 0;
-	}
-	motor_pwm_set_step_from_isr(COMMUTATION_TABLE + _state.current_comm_step, &_state.pwm_val);
+	_state.current_comm_step++;
+	if (_state.current_comm_step >= NUM_COMMUTATION_STEPS)
+		_state.current_comm_step = 0;
+	assert(_state.comm_table);
+	motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, &_state.pwm_val);
 }
 
 static inline void stop_from_isr(void)
@@ -290,7 +296,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	/*
 	 * Neutral voltage low pass filtering
 	 */
-	const struct motor_pwm_commutation_step* const step = COMMUTATION_TABLE + _state.current_comm_step;
+	assert(_state.comm_table);
+	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
 	const int avg_voltage =
 		(sample->raw_phase_values[step->positive] + sample->raw_phase_values[step->negative]) / 2;
 	_state.neutral_voltage =
@@ -312,8 +319,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	/*
 	 * Zero cross detection
 	 */
-	const bool zc_polarity = _state.reverse_rotation
-		? !(_state.current_comm_step & 1) : (_state.current_comm_step & 1);
+	const bool zc_polarity = _state.current_comm_step & 1;
 	const bool zc_occurred = (zc_polarity && (current_bemf >= 0)) || (!zc_polarity && (current_bemf <= 0));
 
 	if (!zc_occurred)
@@ -389,7 +395,8 @@ static void init_neutral_voltage(void)
 
 static void spinup_align(void)
 {
-	const struct motor_pwm_commutation_step* const first_step = COMMUTATION_TABLE + _state.current_comm_step;
+	assert(_state.comm_table);
+	const struct motor_pwm_commutation_step* const first_step = _state.comm_table + _state.current_comm_step;
 
 	int polarities[3];
 	polarities[first_step->negative] = 0; // 0 - low, 1 - high, -1 - floating
@@ -435,13 +442,13 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	 */
 	memset(&_state, 0, sizeof(_state));    // Mighty reset
 
-	motor_pwm_compute_pwm_val(spinup_duty_cycle, &_state.pwm_val);
-	motor_pwm_compute_pwm_val(normal_duty_cycle, &_state.pwm_val_after_spinup);
-
-	_state.reverse_rotation = reverse;
+	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
 	_state.spinup_done = false;
 	_state.started_at = motor_timer_hnsec();
 	_state.current_comm_step = 0;
+
+	motor_pwm_compute_pwm_val(spinup_duty_cycle, &_state.pwm_val);
+	motor_pwm_compute_pwm_val(normal_duty_cycle, &_state.pwm_val_after_spinup);
 
 	init_neutral_voltage();
 
