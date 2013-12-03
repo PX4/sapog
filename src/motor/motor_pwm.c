@@ -242,7 +242,6 @@ void motor_pwm_init(void)
  * Assumes:
  *  - motor IRQs are disabled
  */
-__attribute__((optimize(3), always_inline))
 static void phase_reset_all_i(void)
 {
 	/*
@@ -261,10 +260,28 @@ static void phase_reset_all_i(void)
 }
 
 /**
+ * Safely turns off one phase.
+ * Assumes:
+ *  - motor IRQs are disabled
+ */
+__attribute__((optimize(3), always_inline))
+static void phase_reset_i(int phase)
+{
+	assert(phase >= 0 && phase < 3);
+	// Disable inversions and outputs:
+	TIM3->CCER &= ~(TIM3_LOW_CCER_EN[phase]  | TIM3_LOW_CCER_POL[phase]);
+	TIM4->CCER &= ~(TIM4_HIGH_CCER_EN[phase] | TIM4_HIGH_CCER_POL[phase]);
+	// Reset PWM registers:
+	*PWM_REG_HIGH[phase] = 0;
+	*PWM_REG_LOW[phase] = 0;
+}
+
+/**
  * Turns the given phase on.
  * Assumes:
  *  - motor IRQs are disabled
  */
+__attribute__((optimize(3), always_inline))
 static void phase_enable_i(int phase)
 {
 	assert(phase >= 0 && phase < 3);
@@ -275,7 +292,6 @@ static void phase_enable_i(int phase)
 /**
  * Assumes:
  *  - motor IRQs are disabled
- *  - phase resetted and disabled
  */
 __attribute__((optimize(3), always_inline))
 static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inverted)
@@ -283,14 +299,14 @@ static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inv
 	assert(phase >= 0 && phase < 3);
 	assert(pwm_val);
 
-	// Make sure the phase is in default state
-	assert(!(TIM3->CCER & TIM3_LOW_CCER_POL[phase]));
-	assert(!(TIM4->CCER & TIM4_HIGH_CCER_POL[phase]));
-
 	uint_fast16_t duty_cycle_high = pwm_val->normalized_duty_cycle;
 	uint_fast16_t duty_cycle_low  = pwm_val->normalized_duty_cycle;
 
 	if (inverted) {
+		// Reset if necessary
+		if (TIM3->CCER & TIM3_LOW_CCER_POL[phase])
+			phase_reset_i(phase);
+
 		// Inverted - high PWM is inverted, low is not
 		TIM4->CCER |= TIM4_HIGH_CCER_POL[phase];
 
@@ -300,6 +316,10 @@ static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inv
 		else
 			duty_cycle_high += _pwm_dead_time_ticks;
 	} else {
+		// Reset if necessary
+		if (TIM4->CCER & TIM4_HIGH_CCER_POL[phase])
+			phase_reset_i(phase);
+
 		// Normal - low PWM is inverted, high is not
 		TIM3->CCER |= TIM3_LOW_CCER_POL[phase];
 
@@ -416,11 +436,10 @@ void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val)
 __attribute__((optimize(3)))
 void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val)
 {
-	phase_reset_all_i();
+	phase_reset_i(step->floating);
 
 	phase_set_i(step->positive, pwm_val, false);
 	phase_set_i(step->negative, pwm_val, true);
-	// Floating phase was configured with the reset call above
 
 	phase_enable_i(step->positive);
 	phase_enable_i(step->negative);
