@@ -208,7 +208,9 @@ void motor_pwm_init(void)
 	init_timers();
 	start_timers();
 
-	// PWM limits
+	/*
+	 * PWM max - Limited by PWM_MIN_PULSE_NANOSEC
+	 */
 	const float pwm_clock_period = 1.f / PWM_TIMER_FREQUENCY;
 	const float pwm_min_pulse_len = PWM_MIN_PULSE_NANOSEC / 1e9f;
 	const float pwm_min_pulse_ticks_float = pwm_min_pulse_len / pwm_clock_period;
@@ -219,9 +221,25 @@ void motor_pwm_init(void)
 
 	// We need to divide the min value by 2 since we're using the center-aligned PWM
 	_pwm_max = PWM_TOP - (pwm_min_pulse_ticks / 2 + 1);
-	_pwm_min = pwm_min_pulse_ticks / 2 + 1;
 
-	// PWM dead time
+	/*
+	 * PWM min - Limited by MOTOR_ADC_SAMPLE_WINDOW_NANOSEC
+	 */
+	const float pwm_adc_window_len = (MOTOR_ADC_SAMPLE_WINDOW_NANOSEC / 1e9f) * 2;
+	const float pwm_adc_window_ticks_float = pwm_adc_window_len / pwm_clock_period;
+	assert_always(pwm_adc_window_ticks_float >= 0);
+
+	// Same here - divide by 2
+	uint16_t pwm_half_adc_window_ticks = ((uint16_t)pwm_adc_window_ticks_float) / 2;
+	if (pwm_half_adc_window_ticks > PWM_HALF_TOP)
+		pwm_half_adc_window_ticks = PWM_HALF_TOP;
+
+	_pwm_min = pwm_half_adc_window_ticks;
+	assert_always(_pwm_min <= PWM_HALF_TOP);
+
+	/*
+	 * PWM dead time
+	 */
 	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
 	const float pwm_dead_time_ticks_float = pwm_dead_time / pwm_clock_period;
 	assert_always(pwm_dead_time_ticks_float >= 0);

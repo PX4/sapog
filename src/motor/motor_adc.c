@@ -59,6 +59,8 @@
 //const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = FULL_SEQUENCE_DURATION / 2;
 const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = 0;
 
+const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
+
 
 static uint32_t _adc1_2_dma_buffer[NUM_SAMPLES_PER_ADC];
 static struct motor_adc_sample _sample;
