@@ -105,8 +105,9 @@ static struct precomputed_params
 	unsigned int zc_failures_max;
 	unsigned int zc_detects_min;
 
+	int comm_period_shift_on_zc_failure;
 	uint32_t comm_period_lowpass_base;
-	int neutral_voltage_lowpass_alpha_reciprocal; // Ditto
+	int neutral_voltage_lowpass_alpha_reciprocal;
 
 	uint32_t comm_period_max;
 } _params;
@@ -118,6 +119,7 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	_params.zc_failures_max = 50;
 	_params.zc_detects_min = 50;
 
+	_params.comm_period_shift_on_zc_failure = 2;
 	_params.comm_period_lowpass_base = 5000 * HNSEC_PER_USEC;
 	_params.neutral_voltage_lowpass_alpha_reciprocal = 2;
 
@@ -172,7 +174,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	if (_state.control_state == CS_IDLE)
 		return;
 
-	motor_timer_set_relative(_state.comm_period);
+	uint32_t comm_period_on_zc_failure =
+		_state.comm_period + (_state.comm_period >> _params.comm_period_shift_on_zc_failure);
+
+	if (comm_period_on_zc_failure > _params.comm_period_max)
+		comm_period_on_zc_failure = _params.comm_period_max;
+
+	motor_timer_set_relative(comm_period_on_zc_failure);
 	switch_commutation_step();
 	//From this moment we have at least half of the commutation period before the next time critical event.
 
@@ -194,11 +202,8 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		}
 
 		// Slow down a bit
-		if (_state.spinup_done) {
-			_state.comm_period = _state.comm_period + _state.comm_period / 8; // TODO: make configurable
-			if (_state.comm_period > _params.comm_period_max)
-				_state.comm_period = _params.comm_period_max;
-		}
+		if (_state.spinup_done)
+			_state.comm_period = comm_period_on_zc_failure;
 	} else { // On successful ZC
 		_state.control_state = CS_BEFORE_ZC; // Waiting for the next ZC
 		_state.zc_detects_since_start++;
