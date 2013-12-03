@@ -46,7 +46,7 @@
 /**
  * Duty cycle is limited to maintain the charge on the high side pump capacitor.
  */
-#define PWM_MIN_PULSE_NANOSEC   200
+#define PWM_MIN_PULSE_NANOSEC   1200
 
 #define PWM_DEAD_TIME_NANOSEC   600
 
@@ -64,7 +64,7 @@
  *
  * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2 * 2)
  */
-#define PWM_EFFECTIVE_STEPS   1024
+#define PWM_EFFECTIVE_STEPS   600
 
 #define PWM_STEPS      (PWM_EFFECTIVE_STEPS * 2)
 #define PWM_TOP        (PWM_STEPS - 1)

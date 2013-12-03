@@ -106,7 +106,6 @@ static struct precomputed_params
 	unsigned int zc_detects_min;
 
 	uint32_t comm_period_lowpass_base;
-//	int comm_period_lowpass_alpha_reciprocal;     // Reciprocal of lowpass alpha (0; 1]
 	int neutral_voltage_lowpass_alpha_reciprocal; // Ditto
 
 	uint32_t comm_period_max;
@@ -120,7 +119,6 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	_params.zc_detects_min = 50;
 
 	_params.comm_period_lowpass_base = 5000 * HNSEC_PER_USEC;
-//	_params.comm_period_lowpass_alpha_reciprocal = 10;
 	_params.neutral_voltage_lowpass_alpha_reciprocal = 2;
 
 	_params.comm_period_max = erpm_to_comm_period(1000);
