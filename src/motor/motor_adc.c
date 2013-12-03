@@ -43,7 +43,10 @@
 #include "timer.h"
 
 
-#define NUM_SAMPLES_PER_ADC      6
+#define ADC_REF_VOLTAGE          3.3f
+#define ADC_RESOLUTION           12
+
+#define NUM_SAMPLES_PER_ADC      7
 
 /**
  * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
@@ -51,16 +54,16 @@
  */
 #define SAMPLE_DURATION_NANOSEC  1170
 
-#define FULL_SEQUENCE_DURATION   (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1))
-
 /**
- * ADC will be triggered at this time before the PWM extremum.
+ * ADC will be triggered at this time before the PWM mid cycle.
  */
-//const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = FULL_SEQUENCE_DURATION / 2;
+//const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1)) / 2;
 const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = 0;
 
 const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
 
+
+static float _shunt_resistance = 0;
 
 static uint32_t _adc1_2_dma_buffer[NUM_SAMPLES_PER_ADC];
 static struct motor_adc_sample _sample;
@@ -71,18 +74,22 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 
-	_sample.timestamp = motor_timer_hnsec() - (FULL_SEQUENCE_DURATION / 2) / NSEC_PER_HNSEC;
+	_sample.timestamp = motor_timer_hnsec() -
+		((SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / 2) / NSEC_PER_HNSEC;
 
 #define SMPLADC1(num)     (_adc1_2_dma_buffer[num] & 0xFFFF)
 #define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
 	/*
 	 * ADC channel sampling:
-	 *   A B C A B C
-	 *   C A B C A B
+	 *   A B C A B C VOLT
+	 *   C A B C A B CURR
 	 */
-	_sample.raw_phase_values[0] = (SMPLADC1(0) + SMPLADC2(1) + SMPLADC1(3) + SMPLADC2(4)) / 4;
-	_sample.raw_phase_values[1] = (SMPLADC1(1) + SMPLADC2(2) + SMPLADC1(4) + SMPLADC2(5)) / 4;
-	_sample.raw_phase_values[2] = (SMPLADC2(0) + SMPLADC1(2) + SMPLADC2(3) + SMPLADC1(5)) / 4;
+	_sample.phase_values[0] = (SMPLADC1(0) + SMPLADC2(1) + SMPLADC1(3) + SMPLADC2(4)) / 4;
+	_sample.phase_values[1] = (SMPLADC1(1) + SMPLADC2(2) + SMPLADC1(4) + SMPLADC2(5)) / 4;
+	_sample.phase_values[2] = (SMPLADC2(0) + SMPLADC1(2) + SMPLADC2(3) + SMPLADC1(5)) / 4;
+
+	_sample.input_voltage = SMPLADC1(6);
+	_sample.input_current = SMPLADC2(6);
 
 #undef SMPLADC1
 #undef SMPLADC2
@@ -143,10 +150,10 @@ static void enable(void)
 
 	/*
 	 * ADC channel sampling:
-	 *   A B C A B C
-	 *   C A B C A B
+	 *   A B C A B C VOLT
+	 *   C A B C A B CURR
 	 */
-	ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_2;
+	ADC1->SQR1 = ADC_SQR1_L_1 | ADC_SQR1_L_2;
 	ADC1->SQR3 =
 		ADC_SQR3_SQ1_0 |
 		ADC_SQR3_SQ2_1 |
@@ -154,8 +161,9 @@ static void enable(void)
 		ADC_SQR3_SQ4_0 |
 		ADC_SQR3_SQ5_1 |
 		ADC_SQR3_SQ6_0 | ADC_SQR3_SQ6_1;
+	ADC1->SQR2 = ADC_SQR2_SQ7_2;
 
-	ADC2->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_2;
+	ADC2->SQR1 = ADC1->SQR1;
 	ADC2->SQR3 =
 		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |
 		ADC_SQR3_SQ2_0 |
@@ -163,6 +171,7 @@ static void enable(void)
 		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1 |
 		ADC_SQR3_SQ5_0 |
 		ADC_SQR3_SQ6_1;
+	ADC2->SQR2 = ADC_SQR2_SQ7_2 | ADC_SQR2_SQ7_0;
 
 	// SMPR registers are not configured because they have right values by default
 
@@ -179,8 +188,10 @@ static void enable(void)
 	chSysEnable();
 }
 
-void motor_adc_init(void)
+int motor_adc_init(float shunt_resistance)
 {
+	_shunt_resistance = shunt_resistance;
+
 	chSysDisable();
 
 	RCC->AHBENR |= RCC_AHBENR_DMA1EN;  // Never disabled
@@ -195,6 +206,8 @@ void motor_adc_init(void)
 	chSysEnable();
 
 	enable();
+
+	return 0;
 }
 
 void motor_adc_enable_from_isr(void)
@@ -215,4 +228,18 @@ struct motor_adc_sample motor_adc_get_last_sample(void)
 	ret = _sample;
 	chSysEnable();
 	return ret;
+}
+
+float motor_adc_convert_input_voltage(int raw)
+{
+	static const float SCALE = (10.0f + 1.5f) / 1.5f; // Rtop = 10K, Rbot = 1.5K
+	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
+	return unscaled * SCALE;
+}
+
+float motor_adc_convert_input_current(int raw)
+{
+	static const float GAIN = 50.9f;
+	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
+	return unscaled / (_shunt_resistance * GAIN);
 }

@@ -125,6 +125,16 @@ int motor_test_motor(void);
 void motor_emergency(void);
 
 /**
+ * Returns input voltage and current.
+ * If the motor is running, sampling is synchronized with ZC and lowpass filters are applied.
+ * If the motor is not running, immediate values are taken.
+ * Higher-order low pass filter should be applied to these values anyway.
+ * @param [out] out_voltage Volts
+ * @param [out] out_current Amperes
+ */
+void motor_get_input_voltage_current(float* out_voltage, float* out_current);
+
+/**
  * Debug only.
  */
 void motor_print_debug_info(void);

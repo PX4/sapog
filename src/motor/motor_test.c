@@ -62,7 +62,7 @@ static int test_one_phase(int phase, bool level)
 	manip_cmd[phase] = level ? MOTOR_PWM_MANIP_HIGH : MOTOR_PWM_MANIP_LOW;
 	motor_pwm_manip(manip_cmd);
 	usleep(SAMPLE_DELAY_MS * 1000);
-	const int sample = motor_adc_get_last_sample().raw_phase_values[phase];
+	const int sample = motor_adc_get_last_sample().phase_values[phase];
 
 	manip_cmd[phase] = MOTOR_PWM_MANIP_FLOATING;
 	motor_pwm_manip(manip_cmd);
@@ -151,7 +151,7 @@ int motor_test_test_motor(void) // What an awkward name.
 	usleep(SAMPLE_DELAY_MS * 1000);
 	sample = motor_adc_get_last_sample();
 
-	if (sample.raw_phase_values[1] > threshold || sample.raw_phase_values[2] > threshold)
+	if (sample.phase_values[1] > threshold || sample.phase_values[2] > threshold)
 		result++;
 
 	/*
@@ -162,10 +162,10 @@ int motor_test_test_motor(void) // What an awkward name.
 	usleep(SAMPLE_DELAY_MS * 1000);
 	sample = motor_adc_get_last_sample();
 
-	if (abs(sample.raw_phase_values[0] - sample.raw_phase_values[1]) > threshold)
+	if (abs(sample.phase_values[0] - sample.phase_values[1]) > threshold)
 		result++;
 
-	if (abs(sample.raw_phase_values[0] - sample.raw_phase_values[2]) > threshold)
+	if (abs(sample.phase_values[0] - sample.phase_values[2]) > threshold)
 		result++;
 
 	motor_pwm_set_freewheeling();

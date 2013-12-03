@@ -106,6 +106,9 @@ static struct control_state
 	int prev_bemf_sample;
 	int neutral_voltage;
 
+	int input_voltage;
+	int input_current;
+
 	struct motor_pwm_val pwm_val;
 	struct motor_pwm_val pwm_val_after_spinup;
 
@@ -131,6 +134,8 @@ static struct precomputed_params
 	uint32_t comm_period_max;
 
 	uint32_t adc_sampling_period;
+
+	int input_volt_cur_lowpass_alpha_reciprocal;
 } _params;
 
 static void configure(void) // TODO: obtain the configuration from somewhere else
@@ -160,6 +165,8 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 		_params.spinup_comm_period_begin = _params.spinup_comm_period_end;
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
+
+	_params.input_volt_cur_lowpass_alpha_reciprocal = 100;
 }
 
 static inline uint32_t erpm_to_comm_period(uint32_t erpm)
@@ -291,6 +298,14 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	motor_adc_disable_from_isr();
 }
 
+__attribute__((optimize(3), always_inline))
+static void update_input_voltage_current(const struct motor_adc_sample* sample)
+{
+	const int alpha = _params.input_volt_cur_lowpass_alpha_reciprocal;
+	_state.input_voltage = (_state.input_voltage * alpha + sample->input_voltage) / (alpha + 1);
+	_state.input_current = (_state.input_current * alpha + sample->input_current) / (alpha + 1);
+}
+
 __attribute__((optimize(3)))
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
@@ -302,8 +317,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	assert(_state.comm_table);
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	const int avg_voltage =
-		(sample->raw_phase_values[step->positive] + sample->raw_phase_values[step->negative]) / 2;
+	const int avg_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 	_state.neutral_voltage =
 		(_state.neutral_voltage * _params.neutral_voltage_lowpass_alpha_reciprocal + avg_voltage) /
 		(_params.neutral_voltage_lowpass_alpha_reciprocal + 1);
@@ -311,7 +325,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	/*
 	 * Normalized Back EMF voltage
 	 */
-	const int current_bemf = sample->raw_phase_values[step->floating] - _state.neutral_voltage;
+	const int current_bemf = sample->phase_values[step->floating] - _state.neutral_voltage;
 
 	if (_state.prev_bemf_sample == INVALID_ADC_SAMPLE_VAL) {
 		_state.prev_bemf_sample = current_bemf;
@@ -359,46 +373,62 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 		zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
 	}
+
+	/*
+	 * Zero cross processing
+	 */
 	if (step->floating == 0)
 		TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
+
 	handle_zero_crossing(sample->timestamp, zc_timestamp);
+	update_input_voltage_current(sample);
+
 	TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
 }
 
 int motor_init(void)
 {
-	const int ret = motor_pwm_init(30000); // TODO: configuration
+	int ret = motor_pwm_init(30000); // TODO: configuration
 	if (ret)
 		return ret;
 
 	motor_timer_init();
-	motor_adc_init();
+
+	ret = motor_adc_init(0.0005);
+	if (ret)
+		return ret;
 
 	configure();
 	motor_stop();
 	return 0;
 }
 
-static void init_neutral_voltage(void)
+static void init_adc_filters(void)
 {
 	struct motor_adc_sample smpl;
 	enum motor_pwm_phase_manip manip_cmd[3];
 
-	// low
+	// Low phase
 	for (int i = 0 ; i < NUM_PHASES; i++)
 		manip_cmd[i] = MOTOR_PWM_MANIP_LOW;
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
-	const int low = (smpl.raw_phase_values[0] + smpl.raw_phase_values[1] + smpl.raw_phase_values[2]) / 3;
+	const int low = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
 
-	// high
+	// High phase
 	for (int i = 0 ; i < NUM_PHASES; i++)
 		manip_cmd[i] = MOTOR_PWM_MANIP_HIGH;
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
-	const int high = (smpl.raw_phase_values[0] + smpl.raw_phase_values[1] + smpl.raw_phase_values[2]) / 3;
+	const int high = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
 
+	// Phase neutral
+	motor_pwm_set_freewheeling();
 	_state.neutral_voltage = (low + high) / 2;
+
+	// Supply voltage and current
+	_state.input_voltage = smpl.input_voltage;
+	_state.input_current = smpl.input_current;
 }
 
 static void spinup_align(void)
@@ -458,7 +488,7 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	motor_pwm_compute_pwm_val(spinup_duty_cycle, &_state.pwm_val);
 	motor_pwm_compute_pwm_val(normal_duty_cycle, &_state.pwm_val_after_spinup);
 
-	init_neutral_voltage();
+	init_adc_filters();
 
 	/*
 	 * Align the rotor and perform blind commutations
@@ -585,6 +615,27 @@ void motor_emergency(void)
 	irq_primask_restore(irqstate);
 }
 
+void motor_get_input_voltage_current(float* out_voltage, float* out_current)
+{
+	int volt = 0, curr = 0;
+
+	if (motor_get_state() == MOTOR_STATE_IDLE) {
+		const struct motor_adc_sample smpl = motor_adc_get_last_sample();
+		volt = smpl.input_voltage;
+		curr = smpl.input_current;
+	} else {
+		irq_primask_disable();
+		volt = _state.input_voltage;
+		curr = _state.input_current;
+		irq_primask_enable();
+	}
+
+	if (out_voltage)
+		*out_voltage = motor_adc_convert_input_voltage(volt);
+	if (out_current)
+		*out_current = motor_adc_convert_input_current(curr);
+}
+
 void motor_print_debug_info(void)
 {
 	irq_primask_disable();
@@ -599,7 +650,8 @@ void motor_print_debug_info(void)
 		"  zc immed failures  %u\n"
 		"  zc immed detects   %u\n"
 		"  zc failures        %u\n"
-		"  zc detects         %u\n",
+		"  zc detects         %u\n"
+		"  voltage, current   %i %i\n",
 		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
 		(unsigned)(comm_period_to_erpm(state_copy.comm_period)),
 		(int)state_copy.neutral_voltage,
@@ -607,5 +659,6 @@ void motor_print_debug_info(void)
 		(unsigned)state_copy.immediate_zc_failures,
 		(unsigned)state_copy.immediate_zc_detects,
 		(unsigned)state_copy.zc_failures_since_start,
-		(unsigned)state_copy.zc_detects_since_start);
+		(unsigned)state_copy.zc_detects_since_start,
+		state_copy.input_voltage, state_copy.input_current);
 }

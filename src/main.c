@@ -135,10 +135,14 @@ void run_test_serial(void)
 
 	while (1) {
 		motor_print_debug_info();
+		float vtg, cur;
+		motor_get_input_voltage_current(&vtg, &cur);
+		lowsyslog("Voltage: %f V, current: %f A\n", vtg, cur);
 
 		struct motor_adc_sample sample = motor_adc_get_last_sample();
-		lowsyslog("%i %i %i\n",
-			sample.raw_phase_values[0], sample.raw_phase_values[1], sample.raw_phase_values[2]);
+		lowsyslog("%i %i %i | %i %i\n",
+			sample.phase_values[0], sample.phase_values[1], sample.phase_values[2],
+			sample.input_voltage, sample.input_current);
 
 		const int ch = sdGet(&STDOUT_SD);
 
