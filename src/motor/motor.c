@@ -117,14 +117,14 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 {
 	_params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
 	_params.timing_advance_deg = 10;
-	_params.zc_failures_max = 50;
+	_params.zc_failures_max = 30;
 	_params.zc_detects_min = 50;
 
-	_params.comm_period_shift_on_zc_failure = 2;
+	_params.comm_period_shift_on_zc_failure = 1;
 	_params.comm_period_lowpass_base = 5000 * HNSEC_PER_USEC;
 	_params.neutral_voltage_lowpass_alpha_reciprocal = 2;
 
-	_params.comm_period_max = erpm_to_comm_period(1000);
+	_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 }
@@ -187,8 +187,8 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	if (_state.control_state == CS_BEFORE_ZC) {  // ZC has timed out
 		// In this case we need to emulate the ZC detection
-		const uint32_t leeway =
-			_state.comm_period / 2 + TIMING_ADVANCE(_state.comm_period, _params.timing_advance_deg);
+		const uint32_t leeway = comm_period_on_zc_failure / 2 +
+			TIMING_ADVANCE(comm_period_on_zc_failure, _params.timing_advance_deg);
 		_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 
 		_state.zc_failures_since_start++;
