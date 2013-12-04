@@ -39,6 +39,7 @@
 #include <math.h>
 #include <unistd.h>
 #include "sys/sys.h"
+#include "console.h"
 #include "motor_lowlevel/motor.h"
 #include "motor_lowlevel/pwm.h"
 #include "motor_lowlevel/adc.h"
@@ -124,63 +125,6 @@ void config_test(void)
 	}
 }
 
-void run_test_serial(void)
-{
-	enum motor_pwm_phase_manip manip_cmd[3] = {
-		MOTOR_PWM_MANIP_FLOATING,
-		MOTOR_PWM_MANIP_FLOATING,
-		MOTOR_PWM_MANIP_FLOATING
-	};
-
-	while (1) {
-		motor_print_debug_info();
-		float vtg, cur;
-		motormgr_get_input_voltage_current(&vtg, &cur);
-		lowsyslog("Voltage: %f V, current: %f A, DC: %f, RPM: %u\n",
-			vtg, cur, motormgr_get_duty_cycle(), motormgr_get_rpm());
-
-		struct motor_adc_sample sample = motor_adc_get_last_sample();
-		lowsyslog("%i %i %i | %i %i\n",
-			sample.phase_values[0], sample.phase_values[1], sample.phase_values[2],
-			sample.input_voltage, sample.input_current);
-
-		const int ch = sdGet(&STDOUT_SD);
-
-		if (ch >= '0' && ch <= ('9' + 1)) {
-			const float duty_cycle = 0.1f * (ch - '0');
-			lowsyslog("Duty cycle: %.1f%%\n", duty_cycle * 100);
-			motormgr_set_duty_cycle(duty_cycle, 10000);
-			//motormgr_set_rpm(duty_cycle * 1000 * 10);
-		} else if (ch >= 'a' && ch <= 'c') {
-			motormgr_set_duty_cycle(0.0, 0);
-			const int phase_num = ch - 'a';
-			if (phase_num >= 0 && phase_num < 3) {
-				lowsyslog("Phase %i; enter the command (0 lo, 1 hi, 2 float, 3 half)\n", phase_num);
-				const int cmd = sdGet(&STDOUT_SD) - '0';
-
-				if (cmd >= 0 && cmd < 4) {
-					lowsyslog("Command %i\n", cmd);
-					manip_cmd[phase_num] = (enum motor_pwm_phase_manip)cmd;
-					motor_pwm_manip(manip_cmd);
-				}
-				lowsyslog("New state: %i, %i, %i\n", manip_cmd[0], manip_cmd[1], manip_cmd[2]);
-			}
-		} else if (ch == '+') {
-			motor_beep(1000, 150);
-			motor_beep(3000, 150);
-			motor_beep(7000, 150);
-		} else if (ch == '-') {
-			motor_beep(500, 1000);
-		} else if (ch == ' ') {
-			motormgr_set_duty_cycle(0.0, 0);
-			for (int i = 0; i < 3; i++)
-				manip_cmd[i] = MOTOR_PWM_MANIP_FLOATING;
-		}
-
-		led_set_error(motormgr_get_limit_mask());
-	}
-}
-
 void run_plot(void)
 {
 	motor_start(0.2, 0.6, false);
@@ -191,35 +135,68 @@ void run_plot(void)
 	}
 }
 
+int init(void)
+{
+	int res = 0;
+
+	res = config_init();
+	if (res)
+		return res;
+
+	res = motormgr_init();
+	if (res)
+		return res;
+
+	res = motor_test_hardware();
+	if (res)
+		return res;
+
+	if (motor_test_motor())
+		lowsyslog("Motor is not connected or damaged\n");
+	else
+		lowsyslog("Motor is OK\n");
+	return 0;
+}
+
+__attribute__((noreturn))
+void die(int status)
+{
+	lowsyslog("Now I am dead. %i\n", status);
+	motor_beep(500, 1000);
+	// Really there is nothing left to do; just sit there and beep sadly:
+	while (1) {
+		led_set_status(false);
+		led_set_error(true);
+		sleep(2);
+		motor_beep(500, 80);
+	}
+}
+
 int main(void)
 {
 	halInit();
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
-	led_set_status(false);
-	led_set_error(false);
+	usleep(300000);
 	lowsyslog("\nPX4ESC: starting\n");
 
-	//config_test();
-	lowsyslog("Config test OK\n");
+	const int init_status = init();
 
-	usleep(3000000);
+	console_init();
 
-	assert(0 == motormgr_init());
-	assert(0 == motor_test_hardware());
-	//motor_test_hardware();
+	if (init_status)
+		die(init_status);
 
-	if (motor_test_motor())
-		lowsyslog("Motor is not connected or damaged\n");
-	else
-		lowsyslog("Motor is OK\n");
-
-	lowsyslog("Initialization done\n");
 	motor_beep(1000, 150);
+	led_set_status(false);
+	led_set_error(false);
 
-	run_test_serial();
-	//run_plot();
+	while (1) {
+		// TODO: LED indication
+		usleep(10000);
+		led_set_error(motormgr_get_limit_mask());
+	}
 
 	return 0;
 }

@@ -46,6 +46,7 @@ MOTORMGR_CSRC = src/motor_manager/motormgr.c   \
                 src/motor_manager/rpmctl.c
 
 CSRC = src/main.c                       \
+       src/console.c                    \
        src/sys/board.c                  \
        src/sys/sys.c                    \
        src/config/config.c              \
