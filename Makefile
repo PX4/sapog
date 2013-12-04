@@ -36,19 +36,20 @@ PROJECT = px4esc
 # Sources
 #
 
-MOTOR_CSRC = src/motor/motor_pwm.c      \
-             src/motor/motor_timer.c    \
-             src/motor/motor_adc.c      \
-             src/motor/motor_test.c     \
-             src/motor/motor.c          \
-             src/motor/motorctl.c
+MOTOR_CSRC = src/motor_lowlevel/motor_pwm.c    \
+             src/motor_lowlevel/motor_timer.c  \
+             src/motor_lowlevel/motor_adc.c    \
+             src/motor_lowlevel/motor_test.c   \
+             src/motor_lowlevel/motor.c
+
+MOTORMGR_CSRC = src/motor_manager/motormgr.c
 
 CSRC = src/main.c                       \
        src/sys/board.c                  \
        src/sys/sys.c                    \
        src/config/config.c              \
        src/config/flash_storage.c       \
-       $(MOTOR_CSRC)
+       $(MOTOR_CSRC) $(MOTORMGR_CSRC)
 
 UINCDIR = src/sys src/config
 

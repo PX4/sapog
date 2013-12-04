@@ -34,9 +34,9 @@
 
 #include <math.h>
 #include <ch.h>
-#include "motorctl.h"
-#include "motor/motor.h"
-#include "motor/timer.h"
+#include "motormgr.h"
+#include "../motor_lowlevel/motor.h"
+#include "../motor_lowlevel/timer.h"
 
 #define IDLE_CONTROL_PERIOD_MSEC  10
 
@@ -71,7 +71,7 @@ struct rpm_pid_config
  */
 static struct state
 {
-	enum motorctl_mode mode;
+	enum motormgr_mode mode;
 	int limit_mask;
 
 	float dc_actual;
@@ -169,8 +169,8 @@ static void update_control_non_running(void)
 	const float spinup_dc = _params.spinup_voltage / _state.input_voltage;
 
 	const bool need_start =
-		(_state.mode == MOTORCTL_MODE_OPENLOOP && (_state.dc_openloop_setpoint >= spinup_dc)) ||
-		(_state.mode == MOTORCTL_MODE_RPM && (_state.rpm_setpoint >= _params.rpm_min));
+		(_state.mode == MOTORMGR_MODE_OPENLOOP && (_state.dc_openloop_setpoint >= spinup_dc)) ||
+		(_state.mode == MOTORMGR_MODE_RPM && (_state.rpm_setpoint >= _params.rpm_min));
 
 	if (need_start) {
 		_state.dc_actual = spinup_dc;
@@ -187,11 +187,11 @@ static float update_control_open_loop(uint32_t comm_period)
 		const float dc = (comm_period - c0) / (c1 - c0);
 
 		if (dc < _state.dc_openloop_setpoint) {
-			_state.limit_mask |= MOTORCTL_LIMIT_RPM;
+			_state.limit_mask |= MOTORMGR_LIMIT_RPM;
 			return dc;
 		}
 	}
-	_state.limit_mask &= ~MOTORCTL_LIMIT_RPM;
+	_state.limit_mask &= ~MOTORMGR_LIMIT_RPM;
 	if (_state.dc_openloop_setpoint > 0.0)
 		return _state.dc_openloop_setpoint;
 	else
@@ -239,10 +239,10 @@ static void update_control(uint32_t comm_period, float dt)
 	 * Primary control logic; can return NAN to stop the motor
 	 */
 	float new_duty_cycle = nan("");
-	if (_state.mode == MOTORCTL_MODE_OPENLOOP) {
+	if (_state.mode == MOTORMGR_MODE_OPENLOOP) {
 		new_duty_cycle = update_control_open_loop(comm_period);
 	}
-	else if (_state.mode == MOTORCTL_MODE_RPM) {
+	else if (_state.mode == MOTORMGR_MODE_RPM) {
 		new_duty_cycle = update_control_rpm(comm_period, dt);
 	}
 	else assert(0);
@@ -261,10 +261,10 @@ static void update_control(uint32_t comm_period, float dt)
 			step = -step;
 
 		new_duty_cycle = _state.dc_actual + step;
-		_state.limit_mask |= MOTORCTL_LIMIT_ACCEL;
+		_state.limit_mask |= MOTORMGR_LIMIT_ACCEL;
 	}
 	else {
-		_state.limit_mask &= ~MOTORCTL_LIMIT_ACCEL;
+		_state.limit_mask &= ~MOTORMGR_LIMIT_ACCEL;
 	}
 
 	/*
@@ -313,7 +313,7 @@ static msg_t control_thread(void* arg)
 	return 0;
 }
 
-int motorctl_init(void)
+int motormgr_init(void)
 {
 	int ret = motor_init();
 	if (ret)
@@ -336,11 +336,11 @@ int motorctl_init(void)
 	return 0;
 }
 
-void motorctl_set_duty_cycle(float dc)
+void motormgr_set_duty_cycle(float dc)
 {
 	chMtxLock(&_mutex);
 
-	_state.mode = MOTORCTL_MODE_OPENLOOP;
+	_state.mode = MOTORMGR_MODE_OPENLOOP;
 
 	if (dc < 0.0) dc = 0.0;
 	if (dc > 1.0) dc = 1.0;
@@ -352,11 +352,11 @@ void motorctl_set_duty_cycle(float dc)
 	chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS);
 }
 
-void motorctl_set_rpm(unsigned rpm)
+void motormgr_set_rpm(unsigned rpm)
 {
 	chMtxLock(&_mutex);
 
-	_state.mode = MOTORCTL_MODE_RPM;
+	_state.mode = MOTORMGR_MODE_RPM;
 
 	if (rpm > _params.rpm_max)
 		rpm = _params.rpm_max;
@@ -368,7 +368,7 @@ void motorctl_set_rpm(unsigned rpm)
 	chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS);
 }
 
-float motorctl_get_duty_cycle(void)
+float motormgr_get_duty_cycle(void)
 {
 	chMtxLock(&_mutex);
 	float ret = _state.dc_actual;
@@ -376,7 +376,7 @@ float motorctl_get_duty_cycle(void)
 	return ret;
 }
 
-unsigned motorctl_get_rpm(void)
+unsigned motormgr_get_rpm(void)
 {
 	chMtxLock(&_mutex);
 	uint32_t cp = motor_get_comm_period_hnsec();
@@ -385,15 +385,15 @@ unsigned motorctl_get_rpm(void)
 	return rpm;
 }
 
-enum motorctl_mode motorctl_get_mode(void)
+enum motormgr_mode motormgr_get_mode(void)
 {
 	chMtxLock(&_mutex);
-	enum motorctl_mode ret = _state.mode;
+	enum motormgr_mode ret = _state.mode;
 	chMtxUnlock();
 	return ret;
 }
 
-bool motorctl_is_running(void)
+bool motormgr_is_running(void)
 {
 	chMtxLock(&_mutex);
 	bool ret = motor_get_state() != MOTOR_STATE_IDLE;
@@ -401,7 +401,7 @@ bool motorctl_is_running(void)
 	return ret;
 }
 
-int motorctl_get_limit_mask(void)
+int motormgr_get_limit_mask(void)
 {
 	chMtxLock(&_mutex);
 	int ret = _state.limit_mask;
@@ -409,7 +409,7 @@ int motorctl_get_limit_mask(void)
 	return ret;
 }
 
-void motorctl_get_input_voltage_current(float* out_voltage, float* out_current)
+void motormgr_get_input_voltage_current(float* out_voltage, float* out_current)
 {
 	chMtxLock(&_mutex);
 

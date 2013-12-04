@@ -39,10 +39,10 @@
 #include <math.h>
 #include <unistd.h>
 #include "sys/sys.h"
-#include "motor/motor.h"
-#include "motor/pwm.h"
-#include "motor/adc.h"
-#include "motorctl.h"
+#include "motor_lowlevel/motor.h"
+#include "motor_lowlevel/pwm.h"
+#include "motor_lowlevel/adc.h"
+#include "motor_manager/motormgr.h"
 #include <config.h>
 
 static void led_set_status(bool state)
@@ -135,9 +135,9 @@ void run_test_serial(void)
 	while (1) {
 		motor_print_debug_info();
 		float vtg, cur;
-		motorctl_get_input_voltage_current(&vtg, &cur);
+		motormgr_get_input_voltage_current(&vtg, &cur);
 		lowsyslog("Voltage: %f V, current: %f A, DC: %f, RPM: %u\n",
-			vtg, cur, motorctl_get_duty_cycle(), motorctl_get_rpm());
+			vtg, cur, motormgr_get_duty_cycle(), motormgr_get_rpm());
 
 		struct motor_adc_sample sample = motor_adc_get_last_sample();
 		lowsyslog("%i %i %i | %i %i\n",
@@ -149,10 +149,10 @@ void run_test_serial(void)
 		if (ch >= '0' && ch <= ('9' + 1)) {
 			const float duty_cycle = 0.1f * (ch - '0');
 			lowsyslog("Duty cycle: %.1f%%\n", duty_cycle * 100);
-			motorctl_set_duty_cycle(duty_cycle);
-			//motorctl_set_rpm(duty_cycle * 1000 * 10);
+			motormgr_set_duty_cycle(duty_cycle);
+			//motormgr_set_rpm(duty_cycle * 1000 * 10);
 		} else if (ch >= 'a' && ch <= 'c') {
-			motorctl_set_duty_cycle(0.0);
+			motormgr_set_duty_cycle(0.0);
 			const int phase_num = ch - 'a';
 			if (phase_num >= 0 && phase_num < 3) {
 				lowsyslog("Phase %i; enter the command (0 lo, 1 hi, 2 float, 3 half)\n", phase_num);
@@ -172,12 +172,12 @@ void run_test_serial(void)
 		} else if (ch == '-') {
 			motor_beep(500, 1000);
 		} else if (ch == ' ') {
-			motorctl_set_duty_cycle(0.0);
+			motormgr_set_duty_cycle(0.0);
 			for (int i = 0; i < 3; i++)
 				manip_cmd[i] = MOTOR_PWM_MANIP_FLOATING;
 		}
 
-		led_set_error(motorctl_get_limit_mask());
+		led_set_error(motormgr_get_limit_mask());
 	}
 }
 
@@ -206,7 +206,7 @@ int main(void)
 
 	usleep(3000000);
 
-	assert(0 == motorctl_init());
+	assert(0 == motormgr_init());
 	assert(0 == motor_test_hardware());
 	//motor_test_hardware();
 

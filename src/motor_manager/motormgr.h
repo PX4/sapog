@@ -40,30 +40,30 @@
 
 __BEGIN_DECLS
 
-enum motorctl_mode
+enum motormgr_mode
 {
-	MOTORCTL_MODE_OPENLOOP,
-	MOTORCTL_MODE_RPM
+	MOTORMGR_MODE_OPENLOOP,
+	MOTORMGR_MODE_RPM
 };
 
-enum motorctl_limit_mask
+enum motormgr_limit_mask
 {
-	MOTORCTL_LIMIT_RPM = 1,
-	MOTORCTL_LIMIT_CURRENT = 2,
-	MOTORCTL_LIMIT_ACCEL = 4
+	MOTORMGR_LIMIT_RPM = 1,
+	MOTORMGR_LIMIT_CURRENT = 2,
+	MOTORMGR_LIMIT_ACCEL = 4
 };
 
-int motorctl_init(void);
+int motormgr_init(void);
 
-void motorctl_set_duty_cycle(float dc);
-void motorctl_set_rpm(unsigned rpm);
+void motormgr_set_duty_cycle(float dc);
+void motormgr_set_rpm(unsigned rpm);
 
-float motorctl_get_duty_cycle(void);
-unsigned motorctl_get_rpm(void);
+float motormgr_get_duty_cycle(void);
+unsigned motormgr_get_rpm(void);
 
-enum motorctl_mode motorctl_get_mode(void);
-bool motorctl_is_running(void);
-int motorctl_get_limit_mask(void);
-void motorctl_get_input_voltage_current(float* out_voltage, float* out_current);
+enum motormgr_mode motormgr_get_mode(void);
+bool motormgr_is_running(void);
+int motormgr_get_limit_mask(void);
+void motormgr_get_input_voltage_current(float* out_voltage, float* out_current);
 
 __END_DECLS
