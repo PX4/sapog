@@ -38,7 +38,7 @@
 #include "motor/motor.h"
 #include "motor/timer.h"
 
-#define CONTROL_PERIOD_USEC     1000
+#define IDLE_CONTROL_PERIOD_MSEC  10
 
 #define MIN_VALID_INPUT_VOLTAGE 4.0
 #define MAX_VALID_INPUT_VOLTAGE 40.0
@@ -50,6 +50,20 @@ static unsigned comm_period_to_rpm(uint32_t comm_period);
 static Mutex _mutex;
 static EVENTSOURCE_DECL(_setpoint_update_event);
 static WORKING_AREA(_wa_control_thread, 1024);
+
+
+struct rpm_pid_state
+{
+	float integrated;
+	float prev_error;
+};
+
+struct rpm_pid_config
+{
+	float p;
+	float d;
+	float i;
+};
 
 /*
  * TODO: setpoint update timeout
@@ -64,6 +78,7 @@ static struct state
 	float dc_openloop_setpoint;
 
 	unsigned rpm_setpoint;
+	struct rpm_pid_state rpm_pid;
 
 	float input_voltage;
 	float input_current;
@@ -84,6 +99,8 @@ static struct params
 	uint32_t comm_period_limit;
 	unsigned rpm_max;
 	unsigned rpm_min;
+
+	struct rpm_pid_config rpm_pid;
 } _params;
 
 
@@ -92,8 +109,8 @@ static void configure(void)
 	// TODO: configs
 	_params.spinup_voltage = 2.0;
 
-	_params.dc_step_max = 0.2;
-	_params.dc_slope = 1.0;
+	_params.dc_step_max = 0.3;
+	_params.dc_slope = 3.0;
 
 	_params.voltage_current_lowpass_tau = 1 / 0.5;
 
@@ -103,6 +120,10 @@ static void configure(void)
 	_params.comm_period_limit = motor_get_limit_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
 	_params.rpm_min = 500;
+
+	_params.rpm_pid.p = 0.001;
+	_params.rpm_pid.d = 1e-5;
+	_params.rpm_pid.i = 0.004;
 
 	lowsyslog("Motor control: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
@@ -133,6 +154,8 @@ static void stop(void)
 	_state.dc_actual = 0.0;
 	_state.dc_openloop_setpoint = 0.0;
 	_state.rpm_setpoint = 0;
+	_state.rpm_pid.integrated = 0.0;
+	_state.rpm_pid.prev_error = 0.0;
 }
 
 static void update_control_non_running(void)
@@ -144,28 +167,24 @@ static void update_control_non_running(void)
 
 	// Start if necessary
 	const float spinup_dc = _params.spinup_voltage / _state.input_voltage;
-	_state.dc_actual = spinup_dc;
-	_state.limit_mask = 0;
 
 	const bool need_start =
 		(_state.mode == MOTORCTL_MODE_OPENLOOP && (_state.dc_openloop_setpoint >= spinup_dc)) ||
 		(_state.mode == MOTORCTL_MODE_RPM && (_state.rpm_setpoint >= _params.rpm_min));
 
-	if (need_start)
+	if (need_start) {
+		_state.dc_actual = spinup_dc;
 		motor_start(spinup_dc, spinup_dc, _params.reverse);
+	}
 }
 
-static float update_control_open_loop(void)
+static float update_control_open_loop(uint32_t comm_period)
 {
-	const uint32_t cp = motor_get_comm_period_hnsec();
-	if (cp == 0)      // The motor just stopped
-		return nan("");
-
-	if (cp < _params.comm_period_limit) {
+	if (comm_period < _params.comm_period_limit) {
 		// Simple P controller
 		const float c1 = _params.comm_period_limit;
 		const float c0 = _params.comm_period_limit / 2;
-		const float dc = (cp - c0) / (c1 - c0);
+		const float dc = (comm_period - c0) / (c1 - c0);
 
 		if (dc < _state.dc_openloop_setpoint) {
 			_state.limit_mask |= MOTORCTL_LIMIT_RPM;
@@ -179,15 +198,39 @@ static float update_control_open_loop(void)
 		return nan("");
 }
 
-static float update_control_rpm(float dt)
+static float update_control_rpm(uint32_t comm_period, float dt)
 {
-	return nan(""); // TODO
+	/*
+	 * This PID is only a proof of concept, not intended for real use
+	 */
+	if (_state.rpm_setpoint < _params.rpm_min / 2)
+		return nan("");
+
+	const float pv = comm_period_to_rpm(comm_period);
+	const float sp = _state.rpm_setpoint;
+
+	const float error = sp - pv;
+	const float p = error * _params.rpm_pid.p;
+	const float i = _state.rpm_pid.integrated + error * dt * _params.rpm_pid.i;
+	const float d = (error - _state.rpm_pid.prev_error) * _params.rpm_pid.d;
+
+	_state.rpm_pid.prev_error = error;
+
+	float output = p + i + d;
+	if (output > 1.0) {
+		output = 1.0;
+	} else if (output < -1.0) {
+		output = -1.0;
+	} else if (_state.limit_mask == 0) {
+		_state.rpm_pid.integrated = i;
+	}
+	return output;
 }
 
-static void update_control(float dt)
+static void update_control(uint32_t comm_period, float dt)
 {
 	const enum motor_state motor_state = motor_get_state();
-	if (motor_state != MOTOR_STATE_RUNNING) {
+	if (motor_state != MOTOR_STATE_RUNNING || comm_period == 0) {
 		update_control_non_running();
 		return;
 	}
@@ -197,10 +240,10 @@ static void update_control(float dt)
 	 */
 	float new_duty_cycle = nan("");
 	if (_state.mode == MOTORCTL_MODE_OPENLOOP) {
-		new_duty_cycle = update_control_open_loop();
+		new_duty_cycle = update_control_open_loop(comm_period);
 	}
 	else if (_state.mode == MOTORCTL_MODE_RPM) {
-		new_duty_cycle = update_control_rpm(dt);
+		new_duty_cycle = update_control_rpm(comm_period, dt);
 	}
 	else assert(0);
 
@@ -239,12 +282,20 @@ static msg_t control_thread(void* arg)
 	uint64_t timestamp_hnsec = motor_timer_hnsec();
 
 	while (1) {
+		const uint32_t comm_period = motor_get_comm_period_hnsec();
+
+		unsigned control_period_ms = IDLE_CONTROL_PERIOD_MSEC;
+		if (comm_period > 0)
+			control_period_ms = comm_period / HNSEC_PER_MSEC;
+		if (control_period_ms < 1)
+			control_period_ms = 1;
+
 		/*
 		 * Make sure the event is set when the mutex is unlocked.
 		 * Otherwise this thread will take control, stumble upon the locked mutex, return the control
 		 * to the thread that holds the mutex, unlock the mutex, then proceed.
 		 */
-		chEvtWaitAnyTimeout(ALL_EVENTS, US2ST(CONTROL_PERIOD_USEC));
+		chEvtWaitAnyTimeout(ALL_EVENTS, MS2ST(control_period_ms));
 
 		chMtxLock(&_mutex);
 
@@ -253,7 +304,7 @@ static msg_t control_thread(void* arg)
 		timestamp_hnsec = new_timestamp_hnsec;
 
 		update_filters(dt);
-		update_control(dt);
+		update_control(comm_period, dt);
 
 		chMtxUnlock();
 	}
@@ -329,7 +380,7 @@ unsigned motorctl_get_rpm(void)
 {
 	chMtxLock(&_mutex);
 	uint32_t cp = motor_get_comm_period_hnsec();
-	unsigned rpm = comm_period_to_rpm(cp);
+	unsigned rpm = (cp > 0) ? comm_period_to_rpm(cp) : 0;
 	chMtxUnlock();
 	return rpm;
 }
@@ -376,6 +427,8 @@ void motorctl_get_input_voltage_current(float* out_voltage, float* out_current)
 static unsigned comm_period_to_rpm(uint32_t comm_period_hnsec)
 {
 	assert(_params.poles > 0);
+	if (comm_period_hnsec == 0)
+		return 0;
 	const uint32_t x = (120ULL * (uint64_t)HNSEC_PER_SEC) / (_params.poles * 6);
 	return x / comm_period_hnsec;
 }

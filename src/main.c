@@ -136,7 +136,8 @@ void run_test_serial(void)
 		motor_print_debug_info();
 		float vtg, cur;
 		motorctl_get_input_voltage_current(&vtg, &cur);
-		lowsyslog("Voltage: %f V, current: %f A, DC: %f\n", vtg, cur, motorctl_get_duty_cycle());
+		lowsyslog("Voltage: %f V, current: %f A, DC: %f, RPM: %u\n",
+			vtg, cur, motorctl_get_duty_cycle(), motorctl_get_rpm());
 
 		struct motor_adc_sample sample = motor_adc_get_last_sample();
 		lowsyslog("%i %i %i | %i %i\n",
@@ -149,6 +150,7 @@ void run_test_serial(void)
 			const float duty_cycle = 0.1f * (ch - '0');
 			lowsyslog("Duty cycle: %.1f%%\n", duty_cycle * 100);
 			motorctl_set_duty_cycle(duty_cycle);
+			//motorctl_set_rpm(duty_cycle * 1000 * 10);
 		} else if (ch >= 'a' && ch <= 'c') {
 			motorctl_set_duty_cycle(0.0);
 			const int phase_num = ch - 'a';
