@@ -117,7 +117,7 @@ static struct precomputed_params
 {
 	int neutral_voltage_lowpass_alpha_reciprocal;
 	uint32_t comm_period_lowpass_base;
-	int timing_advance_deg;
+	int timing_advance_deg64;
 
 	uint32_t spinup_alignment_hnsec;
 	uint32_t spinup_comm_period_begin;
@@ -159,7 +159,7 @@ static void configure(void)
 {
 	_params.neutral_voltage_lowpass_alpha_reciprocal = 1.0f / config_get("motor_neutral_volt_lowpass_alpha");
 	_params.comm_period_lowpass_base = config_get("motor_comm_period_lowpass_base_usec") * HNSEC_PER_USEC;
-	_params.timing_advance_deg       = config_get("motor_timing_advance_deg") * 64 / 60;
+	_params.timing_advance_deg64     = config_get("motor_timing_advance_deg") * 64 / 60;
 
 	_params.spinup_alignment_hnsec   = config_get("motor_spinup_alignment_usec")         * HNSEC_PER_USEC;
 	_params.spinup_comm_period_begin = config_get("motor_spinup_comm_period_begin_usec") * HNSEC_PER_USEC;
@@ -222,7 +222,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	if (_state.control_state == CS_BEFORE_ZC) {  // ZC has timed out
 		// In this case we need to emulate the ZC detection
 		const uint32_t leeway = comm_period_on_zc_failure / 2 +
-			TIMING_ADVANCE(comm_period_on_zc_failure, _params.timing_advance_deg);
+			TIMING_ADVANCE(comm_period_on_zc_failure, _params.timing_advance_deg64);
 		_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 
 		_state.zc_failures_since_start++;
@@ -286,7 +286,7 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	_state.control_state = CS_PAST_ZC;
 
 	const uint32_t advance =
-		_state.comm_period / 2 - TIMING_ADVANCE(_state.comm_period, _params.timing_advance_deg);
+		_state.comm_period / 2 - TIMING_ADVANCE(_state.comm_period, _params.timing_advance_deg64);
 
 	// Override the comm period deadline that was set at the last commutation switching
 	uint64_t deadline = zc_timestamp + advance;
