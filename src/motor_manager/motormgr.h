@@ -61,6 +61,8 @@ void motormgr_set_rpm(unsigned rpm, int ttl_ms);
 float motormgr_get_duty_cycle(void);
 unsigned motormgr_get_rpm(void);
 
+void motormgr_stop(void);
+
 enum motormgr_mode motormgr_get_mode(void);
 bool motormgr_is_running(void);
 int motormgr_get_limit_mask(void);

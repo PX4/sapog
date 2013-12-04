@@ -133,6 +133,7 @@ static void stop(void)
 	_state.dc_actual = 0.0;
 	_state.dc_openloop_setpoint = 0.0;
 	_state.rpm_setpoint = 0;
+	_state.setpoint_ttl_ms = 0;
 	rpmctl_reset();
 }
 
@@ -313,6 +314,13 @@ int motormgr_init(void)
 	assert_always(chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread),
 		HIGHPRIO, control_thread, NULL));
 	return 0;
+}
+
+void motormgr_stop(void)
+{
+	chMtxLock(&_mutex);
+	stop();
+	chMtxUnlock();
 }
 
 void motormgr_set_duty_cycle(float dc, int ttl_ms)
