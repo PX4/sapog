@@ -40,7 +40,8 @@ MOTOR_CSRC = src/motor/motor_pwm.c      \
              src/motor/motor_timer.c    \
              src/motor/motor_adc.c      \
              src/motor/motor_test.c     \
-             src/motor/motor.c
+             src/motor/motor.c          \
+             src/motor/motorctl.c
 
 CSRC = src/main.c                       \
        src/sys/board.c                  \

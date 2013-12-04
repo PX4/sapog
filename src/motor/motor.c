@@ -44,9 +44,6 @@
 #include "timer.h"
 #include "test.h"
 
-static uint32_t erpm_to_comm_period(uint32_t erpm);
-
-#define HNSEC_PER_MINUTE      (HNSEC_PER_SEC * 60)
 #define NUM_PHASES            3
 #define NUM_COMMUTATION_STEPS 6
 
@@ -167,22 +164,6 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
 	_params.input_volt_cur_lowpass_alpha_reciprocal = 100;
-}
-
-static inline uint32_t erpm_to_comm_period(uint32_t erpm)
-{
-	// erpm_to_comm_period = lambda erpm: ((10000000 * 60) / erpm) / 6
-	const uint64_t hnsec_per_rev = HNSEC_PER_MINUTE / erpm;
-	return hnsec_per_rev / NUM_COMMUTATION_STEPS;
-}
-
-static inline uint32_t comm_period_to_erpm(uint32_t comm_period)
-{
-	// comm_period_to_erpm = lambda cp: (10000000 * 60) / (cp * 6)
-	if (comm_period == 0)
-		return 0;
-	const uint64_t hnsec_per_rev = comm_period * NUM_COMMUTATION_STEPS;
-	return HNSEC_PER_MINUTE / hnsec_per_rev;
 }
 
 __attribute__((optimize(3), always_inline))
@@ -567,14 +548,6 @@ void motor_beep(int frequency, int duration_msec)
 	}
 }
 
-uint32_t motor_get_electrical_rpm(void)
-{
-	irq_primask_disable();
-	const uint32_t val = _state.comm_period;
-	irq_primask_enable();
-	return comm_period_to_erpm(val);
-}
-
 uint32_t motor_get_comm_period_hnsec(void)
 {
 	if (motor_get_state() == MOTOR_STATE_IDLE)
@@ -636,6 +609,12 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 		*out_current = motor_adc_convert_input_current(curr);
 }
 
+uint32_t motor_get_limit_comm_period_hnsec(void)
+{
+	// Ensure some number of ADC samples per comm period
+	return motor_adc_sampling_period_hnsec() * 5;
+}
+
 void motor_print_debug_info(void)
 {
 	irq_primask_disable();
@@ -644,7 +623,6 @@ void motor_print_debug_info(void)
 
 	lowsyslog("Motor: Debug\n"
 		"  comm period        %u usec\n"
-		"  erpm               %u RPM\n"
 		"  neutral voltage    %i\n"
 		"  spinup done        %i\n"
 		"  zc immed failures  %u\n"
@@ -653,7 +631,6 @@ void motor_print_debug_info(void)
 		"  zc detects         %u\n"
 		"  voltage, current   %i %i\n",
 		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
-		(unsigned)(comm_period_to_erpm(state_copy.comm_period)),
 		(int)state_copy.neutral_voltage,
 		(int)state_copy.spinup_done,
 		(unsigned)state_copy.immediate_zc_failures,

@@ -85,12 +85,6 @@ enum motor_state motor_get_state(void);
 void motor_beep(int frequency, int duration_msec);
 
 /**
- * Magnetic field RPM. Can be used to compute the mechanical RPM.
- * @return Field RPM; 0 if the motor is not running.
- */
-uint32_t motor_get_electrical_rpm(void);
-
-/**
  * Commutation period in microseconds
  * @return Comm period; 0 if the motor is not running
  */
@@ -133,6 +127,11 @@ void motor_emergency(void);
  * @param [out] out_current Amperes
  */
 void motor_get_input_voltage_current(float* out_voltage, float* out_current);
+
+/**
+ * Minimum safe comm period. Depends on PWM frequency.
+ */
+uint32_t motor_get_limit_comm_period_hnsec(void);
 
 /**
  * Debug only.

@@ -1,7 +1,7 @@
 /****************************************************************************
  *
  *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Pavel Kirienko (pavel.kirienko@gmail.com)
+ *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,41 +34,36 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <sys.h>
 
 __BEGIN_DECLS
 
-#define HNSEC_PER_USEC      10
-#define HNSEC_PER_MSEC      10000
-#define HNSEC_PER_SEC       10000000
-#define HNSEC_PER_MINUTE    (HNSEC_PER_SEC * 60)
-#define NSEC_PER_HNSEC      100
+enum motorctl_mode
+{
+	MOTORCTL_MODE_OPENLOOP,
+	MOTORCTL_MODE_RPM
+};
 
-void motor_timer_init(void);
+enum motorctl_limit_mask
+{
+	MOTORCTL_LIMIT_RPM = 1,
+	MOTORCTL_LIMIT_CURRENT = 2,
+	MOTORCTL_LIMIT_ACCEL = 4
+};
 
-/**
- * Minimal maintainable RPM depends on this parameter.
- */
-uint64_t motor_timer_get_max_delay_hnsec(void);
+int motorctl_init(void);
 
-/**
- * Returns the current timestamp in hectonanoseconds (10^-7).
- */
-uint64_t motor_timer_hnsec(void);
+void motorctl_set_duty_cycle(float dc);
+void motorctl_set_rpm(unsigned rpm);
 
-void motor_timer_set_relative(int delay_hnsec);
-void motor_timer_cancel(void);
+float motorctl_get_duty_cycle(void);
+unsigned motorctl_get_rpm(void);
 
-/**
- * No OS API can be used from this callback!
- */
-extern void motor_timer_callback(uint64_t timestamp_hnsec);
-
-/**
- * Busy loop delay
- */
-void motor_timer_udelay(int usecs);
-void motor_timer_hndelay(int hnsecs);
+enum motorctl_mode motorctl_get_mode(void);
+bool motorctl_is_running(void);
+int motorctl_get_limit_mask(void);
+void motorctl_get_input_voltage_current(float* out_voltage, float* out_current);
 
 __END_DECLS
