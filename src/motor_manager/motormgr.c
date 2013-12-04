@@ -53,9 +53,6 @@ static EVENTSOURCE_DECL(_setpoint_update_event);
 static WORKING_AREA(_wa_control_thread, 1024);
 
 
-/*
- * TODO: check the voltage/current readings before starting
- */
 static struct state
 {
 	enum motormgr_mode mode;
