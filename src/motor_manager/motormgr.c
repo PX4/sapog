@@ -240,8 +240,10 @@ static void update_control(uint32_t comm_period, float dt)
 
 static void update_setpoint_ttl(int dt_ms)
 {
-	if (_state.setpoint_ttl_ms <= 0)
+	const enum motor_state motor_state = motor_get_state();
+	if (_state.setpoint_ttl_ms <= 0 || motor_state == MOTOR_STATE_IDLE)
 		return;
+
 	_state.setpoint_ttl_ms -= dt_ms;
 	if (_state.setpoint_ttl_ms <= 0) {
 		stop();
