@@ -34,6 +34,7 @@
 
 #include <math.h>
 #include <ch.h>
+#include <config.h>
 #include "motormgr.h"
 #include "rpmctl.h"
 #include "../motor_lowlevel/motor.h"
@@ -72,7 +73,6 @@ static struct state
 static struct params
 {
 	float spinup_voltage;
-
 	float dc_step_max;
 	float dc_slope;
 
@@ -87,22 +87,32 @@ static struct params
 } _params;
 
 
+CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         2.0,    0.1,     30.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.3,    0.01,    2.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_slope",               3.0,    0.1,     1000.0)
+
+CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 0.5,    0.1,     100.0)
+
+CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
+CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
+
+CONFIG_PARAM_INT("motormgr_rpm_min",                  500,    50,      5000)
+
+
 static void configure(void)
 {
-	// TODO: configs
-	_params.spinup_voltage = 2.0;
+	_params.spinup_voltage = config_get("motormgr_spinup_voltage");
+	_params.dc_step_max    = config_get("motormgr_dc_step_max");
+	_params.dc_slope       = config_get("motormgr_dc_slope");
 
-	_params.dc_step_max = 0.3;
-	_params.dc_slope = 3.0;
+	_params.voltage_current_lowpass_tau = 1.0f / config_get("motormgr_volt_curr_lowpass_freq");
 
-	_params.voltage_current_lowpass_tau = 1 / 0.5;
-
-	_params.poles = 14;
-	_params.reverse = false;
+	_params.poles = config_get("motormgr_num_poles");
+	_params.reverse = config_get("motormgr_reverse");
 
 	_params.comm_period_limit = motor_get_limit_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
-	_params.rpm_min = 500;
+	_params.rpm_min = config_get("motormgr_rpm_min");
 
 	lowsyslog("Motor manager: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }

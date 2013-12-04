@@ -32,6 +32,7 @@
  *
  ****************************************************************************/
 
+#include <config.h>
 #include "rpmctl.h"
 
 
@@ -49,11 +50,16 @@ static struct params
 } _params;
 
 
+CONFIG_PARAM_FLOAT("rpmctl_p",  0.001,    0.0,     1.0)
+CONFIG_PARAM_FLOAT("rpmctl_d",  1e-8,     0.0,     1.0)
+CONFIG_PARAM_FLOAT("rpmctl_i",  0.004,    0.0,     10.0)
+
+
 int rpmctl_init(void)
 {
-	_params.p = 0.001;
-	_params.d = 1e-8;
-	_params.i = 0.004;
+	_params.p = config_get("rpmctl_p");
+	_params.d = config_get("rpmctl_d");
+	_params.i = config_get("rpmctl_i");
 	return 0;
 }
 

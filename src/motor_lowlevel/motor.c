@@ -134,6 +134,7 @@ static struct precomputed_params
 	uint32_t adc_sampling_period;
 } _params;
 
+
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
 // Most important parameters
