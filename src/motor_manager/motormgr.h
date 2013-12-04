@@ -55,8 +55,8 @@ enum motormgr_limit_mask
 
 int motormgr_init(void);
 
-void motormgr_set_duty_cycle(float dc);
-void motormgr_set_rpm(unsigned rpm);
+void motormgr_set_duty_cycle(float dc, int ttl_ms);
+void motormgr_set_rpm(unsigned rpm, int ttl_ms);
 
 float motormgr_get_duty_cycle(void);
 unsigned motormgr_get_rpm(void);

@@ -54,7 +54,6 @@ static WORKING_AREA(_wa_control_thread, 1024);
 
 
 /*
- * TODO: setpoint update timeout
  * TODO: check the voltage/current readings before starting
  */
 static struct state
@@ -66,6 +65,8 @@ static struct state
 	float dc_openloop_setpoint;
 
 	unsigned rpm_setpoint;
+
+	int setpoint_ttl_ms;
 
 	float input_voltage;
 	float input_current;
@@ -106,7 +107,7 @@ static void configure(void)
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
 	_params.rpm_min = 500;
 
-	lowsyslog("Motor control: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
+	lowsyslog("Motor manager: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
 
 static float lowpass(float xold, float xnew, float tau, float dt)
@@ -239,6 +240,17 @@ static void update_control(uint32_t comm_period, float dt)
 	motor_set_duty_cycle(_state.dc_actual);
 }
 
+static void update_setpoint_ttl(int dt_ms)
+{
+	if (_state.setpoint_ttl_ms <= 0)
+		return;
+	_state.setpoint_ttl_ms -= dt_ms;
+	if (_state.setpoint_ttl_ms <= 0) {
+		stop();
+		lowsyslog("Motor manager: Setpoint TTL expired, stop\n");
+	}
+}
+
 static msg_t control_thread(void* arg)
 {
 	EventListener listener;
@@ -265,10 +277,12 @@ static msg_t control_thread(void* arg)
 		chMtxLock(&_mutex);
 
 		const uint64_t new_timestamp_hnsec = motor_timer_hnsec();
-		const float dt = (new_timestamp_hnsec - timestamp_hnsec) / (float)HNSEC_PER_SEC;
+		const uint32_t dt_hnsec = new_timestamp_hnsec - timestamp_hnsec;
+		const float dt = dt_hnsec / (float)HNSEC_PER_SEC;
 		timestamp_hnsec = new_timestamp_hnsec;
 
 		update_filters(dt);
+		update_setpoint_ttl(dt_hnsec / HNSEC_PER_MSEC);
 		update_control(comm_period, dt);
 
 		chMtxUnlock();
@@ -291,7 +305,7 @@ int motormgr_init(void)
 
 	init_filters();
 	if (_state.input_voltage < MIN_VALID_INPUT_VOLTAGE || _state.input_voltage > MAX_VALID_INPUT_VOLTAGE) {
-		lowsyslog("Motor control: invalid input voltage: %f\n", _state.input_voltage);
+		lowsyslog("Motor manager: Invalid input voltage: %f\n", _state.input_voltage);
 		return -1;
 	}
 
@@ -301,11 +315,10 @@ int motormgr_init(void)
 
 	assert_always(chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread),
 		HIGHPRIO, control_thread, NULL));
-
 	return 0;
 }
 
-void motormgr_set_duty_cycle(float dc)
+void motormgr_set_duty_cycle(float dc, int ttl_ms)
 {
 	chMtxLock(&_mutex);
 
@@ -314,6 +327,7 @@ void motormgr_set_duty_cycle(float dc)
 	if (dc < 0.0) dc = 0.0;
 	if (dc > 1.0) dc = 1.0;
 	_state.dc_openloop_setpoint = dc;
+	_state.setpoint_ttl_ms = ttl_ms;
 
 	chMtxUnlock();
 
@@ -321,7 +335,7 @@ void motormgr_set_duty_cycle(float dc)
 	chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS);
 }
 
-void motormgr_set_rpm(unsigned rpm)
+void motormgr_set_rpm(unsigned rpm, int ttl_ms)
 {
 	chMtxLock(&_mutex);
 
@@ -330,6 +344,7 @@ void motormgr_set_rpm(unsigned rpm)
 	if (rpm > _params.rpm_max)
 		rpm = _params.rpm_max;
 	_state.rpm_setpoint = rpm;
+	_state.setpoint_ttl_ms = ttl_ms;
 
 	chMtxUnlock();
 
