@@ -37,6 +37,7 @@
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
+#include <config.h>
 #include "motor.h"
 #include "common.h"
 #include "adc.h"
@@ -114,44 +115,63 @@ static struct control_state
 
 static struct precomputed_params
 {
-	int comm_blank_hnsec;
-	int timing_advance_deg;
-	unsigned int zc_failures_max;
-	unsigned int zc_detects_min;
-
-	int comm_period_shift_on_zc_failure;
-	uint32_t comm_period_lowpass_base;
 	int neutral_voltage_lowpass_alpha_reciprocal;
+	uint32_t comm_period_lowpass_base;
+	int timing_advance_deg;
 
 	uint32_t spinup_alignment_hnsec;
 	uint32_t spinup_comm_period_begin;
 	uint32_t spinup_comm_period_end;
 	int spinup_num_steps;
 
+	unsigned int zc_failures_max;
+	unsigned int zc_detects_min;
+	int comm_period_shift_on_zc_failure;
 	uint32_t comm_period_max;
+	int comm_blank_hnsec;
+	int input_volt_cur_lowpass_alpha_reciprocal;
 
 	uint32_t adc_sampling_period;
-
-	int input_volt_cur_lowpass_alpha_reciprocal;
 } _params;
 
-static void configure(void) // TODO: obtain the configuration from somewhere else
+CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
+// Most important parameters
+CONFIG_PARAM_FLOAT("motor_neutral_volt_lowpass_alpha", 0.5,   1e-3,  1.0)
+CONFIG_PARAM_INT("motor_comm_period_lowpass_base_usec",5000,  0,     50000)
+CONFIG_PARAM_INT("motor_timing_advance_deg",           10,    0,     60)
+// Spinup settings
+CONFIG_PARAM_INT("motor_spinup_alignment_usec",        40000, 0,     600000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 100,   100000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  10000, 100,   100000)
+CONFIG_PARAM_INT("motor_spinup_num_steps",             2,     0,     10)
+// Something not so important
+CONFIG_PARAM_INT("motor_zc_failures_to_stop",          30,    1,     500)
+CONFIG_PARAM_INT("motor_zc_detects_to_start",          50,    1,     500)
+CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 1,     0,     8)
+CONFIG_PARAM_INT("motor_comm_period_max_usec",         20000, 1000,  100000)
+CONFIG_PARAM_INT("motor_comm_blank_usec",              30,    1,     100)
+CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_alpha",    0.01,  1e-3,  1.0)
+
+
+static void configure(void)
 {
-	_params.comm_blank_hnsec = 30 * HNSEC_PER_USEC;
-	_params.timing_advance_deg = 10;
-	_params.zc_failures_max = 30;
-	_params.zc_detects_min = 50;
+	_params.neutral_voltage_lowpass_alpha_reciprocal = 1.0f / config_get("motor_neutral_volt_lowpass_alpha");
+	_params.comm_period_lowpass_base = config_get("motor_comm_period_lowpass_base_usec") * HNSEC_PER_USEC;
+	_params.timing_advance_deg       = config_get("motor_timing_advance_deg") * 64 / 60;
 
-	_params.comm_period_shift_on_zc_failure = 1;
-	_params.comm_period_lowpass_base = 5000 * HNSEC_PER_USEC;
-	_params.neutral_voltage_lowpass_alpha_reciprocal = 2;
+	_params.spinup_alignment_hnsec   = config_get("motor_spinup_alignment_usec")         * HNSEC_PER_USEC;
+	_params.spinup_comm_period_begin = config_get("motor_spinup_comm_period_begin_usec") * HNSEC_PER_USEC;
+	_params.spinup_comm_period_end   = config_get("motor_spinup_comm_period_end_usec")   * HNSEC_PER_USEC;
+	_params.spinup_num_steps         = config_get("motor_spinup_num_steps");
 
-	_params.spinup_alignment_hnsec   = 40000 * HNSEC_PER_USEC;
-	_params.spinup_comm_period_begin = 20000 * HNSEC_PER_USEC;
-	_params.spinup_comm_period_end   = 10000 * HNSEC_PER_USEC;
-	_params.spinup_num_steps = 2;
+	_params.zc_failures_max                 = config_get("motor_zc_failures_to_stop");
+	_params.zc_detects_min                  = config_get("motor_zc_detects_to_start");
+	_params.comm_period_shift_on_zc_failure = config_get("motor_deceleration_rate_on_zc_miss");
+	_params.comm_period_max                 = config_get("motor_comm_period_max_usec") * HNSEC_PER_USEC;
+	_params.comm_blank_hnsec                = config_get("motor_comm_blank_usec") * HNSEC_PER_USEC;
+	_params.input_volt_cur_lowpass_alpha_reciprocal = 1.0f / config_get("motor_volt_curr_lowpass_alpha");
 
-	_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 
@@ -162,8 +182,6 @@ static void configure(void) // TODO: obtain the configuration from somewhere els
 		_params.spinup_comm_period_begin = _params.spinup_comm_period_end;
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
-
-	_params.input_volt_cur_lowpass_alpha_reciprocal = 100;
 }
 
 __attribute__((optimize(3), always_inline))
@@ -369,13 +387,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 int motor_init(void)
 {
-	int ret = motor_pwm_init(30000); // TODO: configuration
+	int ret = motor_pwm_init(config_get("motor_pwm_frequency"));
 	if (ret)
 		return ret;
 
 	motor_timer_init();
 
-	ret = motor_adc_init(0.0005);
+	ret = motor_adc_init(config_get("motor_current_shunt_mohm") * 1000.0f);
 	if (ret)
 		return ret;
 
