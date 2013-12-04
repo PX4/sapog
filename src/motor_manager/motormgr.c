@@ -35,6 +35,7 @@
 #include <math.h>
 #include <ch.h>
 #include "motormgr.h"
+#include "rpmctl.h"
 #include "../motor_lowlevel/motor.h"
 #include "../motor_lowlevel/timer.h"
 
@@ -52,19 +53,6 @@ static EVENTSOURCE_DECL(_setpoint_update_event);
 static WORKING_AREA(_wa_control_thread, 1024);
 
 
-struct rpm_pid_state
-{
-	float integrated;
-	float prev_error;
-};
-
-struct rpm_pid_config
-{
-	float p;
-	float d;
-	float i;
-};
-
 /*
  * TODO: setpoint update timeout
  * TODO: check the voltage/current readings before starting
@@ -78,7 +66,6 @@ static struct state
 	float dc_openloop_setpoint;
 
 	unsigned rpm_setpoint;
-	struct rpm_pid_state rpm_pid;
 
 	float input_voltage;
 	float input_current;
@@ -99,8 +86,6 @@ static struct params
 	uint32_t comm_period_limit;
 	unsigned rpm_max;
 	unsigned rpm_min;
-
-	struct rpm_pid_config rpm_pid;
 } _params;
 
 
@@ -120,10 +105,6 @@ static void configure(void)
 	_params.comm_period_limit = motor_get_limit_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
 	_params.rpm_min = 500;
-
-	_params.rpm_pid.p = 0.001;
-	_params.rpm_pid.d = 1e-5;
-	_params.rpm_pid.i = 0.004;
 
 	lowsyslog("Motor control: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
@@ -154,8 +135,7 @@ static void stop(void)
 	_state.dc_actual = 0.0;
 	_state.dc_openloop_setpoint = 0.0;
 	_state.rpm_setpoint = 0;
-	_state.rpm_pid.integrated = 0.0;
-	_state.rpm_pid.prev_error = 0.0;
+	rpmctl_reset();
 }
 
 static void update_control_non_running(void)
@@ -200,31 +180,16 @@ static float update_control_open_loop(uint32_t comm_period)
 
 static float update_control_rpm(uint32_t comm_period, float dt)
 {
-	/*
-	 * This PID is only a proof of concept, not intended for real use
-	 */
 	if (_state.rpm_setpoint < _params.rpm_min / 2)
 		return nan("");
 
-	const float pv = comm_period_to_rpm(comm_period);
-	const float sp = _state.rpm_setpoint;
-
-	const float error = sp - pv;
-	const float p = error * _params.rpm_pid.p;
-	const float i = _state.rpm_pid.integrated + error * dt * _params.rpm_pid.i;
-	const float d = (error - _state.rpm_pid.prev_error) * _params.rpm_pid.d;
-
-	_state.rpm_pid.prev_error = error;
-
-	float output = p + i + d;
-	if (output > 1.0) {
-		output = 1.0;
-	} else if (output < -1.0) {
-		output = -1.0;
-	} else if (_state.limit_mask == 0) {
-		_state.rpm_pid.integrated = i;
-	}
-	return output;
+	const struct rpmctl_input input = {
+		_state.limit_mask,
+		dt,
+		(float)comm_period_to_rpm(comm_period),
+		_state.rpm_setpoint
+	};
+	return rpmctl_update(&input);
 }
 
 static void update_control(uint32_t comm_period, float dt)
@@ -329,6 +294,10 @@ int motormgr_init(void)
 		lowsyslog("Motor control: invalid input voltage: %f\n", _state.input_voltage);
 		return -1;
 	}
+
+	ret = rpmctl_init();
+	if (ret)
+		return ret;
 
 	assert_always(chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread),
 		HIGHPRIO, control_thread, NULL));

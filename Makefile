@@ -42,7 +42,8 @@ MOTOR_CSRC = src/motor_lowlevel/motor_pwm.c    \
              src/motor_lowlevel/motor_test.c   \
              src/motor_lowlevel/motor.c
 
-MOTORMGR_CSRC = src/motor_manager/motormgr.c
+MOTORMGR_CSRC = src/motor_manager/motormgr.c   \
+                src/motor_manager/rpmctl.c
 
 CSRC = src/main.c                       \
        src/sys/board.c                  \
