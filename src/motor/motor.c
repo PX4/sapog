@@ -523,10 +523,8 @@ void motor_set_duty_cycle(float duty_cycle)
 
 enum motor_state motor_get_state(void)
 {
-	irq_primask_disable();
 	const enum control_state_id csid = _state.control_state;
 	const bool spinup_done = _state.spinup_done;
-	irq_primask_enable();
 
 	if (csid == CS_IDLE)
 		return MOTOR_STATE_IDLE;
@@ -552,9 +550,8 @@ uint32_t motor_get_comm_period_hnsec(void)
 {
 	if (motor_get_state() == MOTOR_STATE_IDLE)
 		return 0;
-	irq_primask_disable();
+
 	const uint32_t val = _state.comm_period;
-	irq_primask_enable();
 	return val;
 }
 
@@ -597,10 +594,8 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 		volt = smpl.input_voltage;
 		curr = smpl.input_current;
 	} else {
-		irq_primask_disable();
 		volt = _state.input_voltage;
 		curr = _state.input_current;
-		irq_primask_enable();
 	}
 
 	if (out_voltage)
