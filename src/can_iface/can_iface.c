@@ -57,37 +57,43 @@ static int _motor_command_ttl_ms;
 static void cb_esc_command(CanasInstance* ci, CanasParamCallbackArgs* args)
 {
 	// TODO: Redundancy resolver
-	float thrust = 0.0f;
+	float sp = 0.0f;
 
 	switch (args->message.data.type) {
 	case CANAS_DATATYPE_USHORT:
-		thrust = args->message.data.container.USHORT / 65535.0f;
+		sp = args->message.data.container.USHORT / 65535.0f;
 		break;
 	case CANAS_DATATYPE_FLOAT:
-		thrust = args->message.data.container.FLOAT;
+		sp = args->message.data.container.FLOAT;
 		break;
 	default:
 		return;  // Too bad, ignore
 	}
 
-	motormgr_set_duty_cycle(thrust, _motor_command_ttl_ms);
+	motormgr_set_duty_cycle(sp, _motor_command_ttl_ms);
 }
 
 // ---------
 
+static void publish_rpm(void)
+{
+	const unsigned rpm = motormgr_get_rpm();
+	CanasMessageData msgd;
+	msgd.type = CANAS_DATATYPE_USHORT;
+	msgd.container.USHORT = (rpm > 0xFFFF) ? 0xFFFF : rpm;
+	canasParamPublish(&_canas, CANAS_UAV_ROTOR_RPM_1 + _self_esc_id - 1, &msgd, 0);
+}
+
 void canif_1hz_callback(void)
 {
+	if (!motormgr_is_running())
+		publish_rpm();
 }
 
 void canif_10hz_callback(void)
 {
-	const unsigned rpm = motormgr_get_rpm();
-
-	CanasMessageData msgd;
-	msgd.type = CANAS_DATATYPE_USHORT;
-	msgd.container.USHORT = (rpm > 0xFFFF) ? 0xFFFF : rpm;
-
-	canasParamPublish(&_canas, CANAS_UAV_ROTOR_RPM_1 + _self_esc_id - 1, &msgd, 0);
+	if (motormgr_is_running())
+		publish_rpm();
 }
 
 #define CHECKERR(x, msg) if ((x) != 0) { lowsyslog("Canas: Init failed (%i): " msg "\n", (int)(x)); return (x); } \
