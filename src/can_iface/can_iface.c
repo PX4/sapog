@@ -51,8 +51,8 @@ void canif_1hz_callback(void)
 {
 	// TEST
 	CanasMessageData msgd;
-	msgd.type = CANAS_DATATYPE_CHAR;
-	msgd.container.CHAR = 42;
+	msgd.type = CANAS_DATATYPE_ULONG;
+	msgd.container.ULONG = (uint32_t)(sys_timestamp_usec() / 1000);
 	int res = canasParamPublish(&_canas, CANAS_NOD_DEF_RADIO_HEIGHT, &msgd, 0);
 	lowsyslog("Published %i 0x%x\n", res, canYieldErrors(0));
 }

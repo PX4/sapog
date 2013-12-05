@@ -36,6 +36,7 @@
 
 #include <ch.h>
 #include <hal.h>
+#include <stdint.h>
 #include <chprintf.h>
 #include "irq.h"
 
@@ -79,3 +80,5 @@ extern const char *dbg_panic_msg;
  * Application emergency termination hook
  */
 extern void application_halt_hook(void);
+
+uint64_t sys_timestamp_usec(void);

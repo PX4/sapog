@@ -81,15 +81,10 @@ static void* impl_malloc(CanasInstance* pi, int size)
 	return chCoreAlloc(size);
 }
 
-static uint64_t timestamp_usec(void)
-{
-	return chTimeNow() * (1000000 / CH_FREQUENCY);
-}
-
 static uint64_t impl_timestamp(CanasInstance* pi)
 {
 	assert(pi);
-	return timestamp_usec();
+	return sys_timestamp_usec();
 }
 
 // ---------
@@ -126,13 +121,13 @@ static msg_t canas_thread(void* arg)
 	CanasInstance* ci = (CanasInstance*)arg;
 	assert(ci);
 
-	uint64_t prev_cb_1hz = timestamp_usec();
-	uint64_t prev_cb_10hz = timestamp_usec();
+	uint64_t prev_cb_1hz = sys_timestamp_usec();
+	uint64_t prev_cb_10hz = prev_cb_1hz;
 
 	while (1) {
 		blocking_poll_read_update(ci, UPDATE_INTERVAL_USEC);
 
-		const uint64_t current_timestamp = timestamp_usec();
+		const uint64_t current_timestamp = sys_timestamp_usec();
 
 		if (current_timestamp - prev_cb_1hz > 1000000) {
 			prev_cb_1hz = current_timestamp;

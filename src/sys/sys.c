@@ -42,10 +42,25 @@
 const char *dbg_panic_msg;
 #endif
 
+static uint64_t _timestamp_usec = 0;
+
+
 void system_tick_hook(void)
 {
+	const int period_usec = 1000000 / CH_FREQUENCY;
+
+	_timestamp_usec += period_usec;
+
 	extern void canTimerEmulIncrementIrq(int usec);
-	canTimerEmulIncrementIrq(1000000 / CH_FREQUENCY);
+	canTimerEmulIncrementIrq(period_usec);
+}
+
+uint64_t sys_timestamp_usec(void)
+{
+	chSysDisable();
+	const volatile uint64_t val = _timestamp_usec;
+	chSysEnable();
+	return val;
 }
 
 static void writepoll(const char* str)
