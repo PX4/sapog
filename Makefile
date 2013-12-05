@@ -45,17 +45,32 @@ MOTOR_CSRC = src/motor_lowlevel/motor_pwm.c    \
 MOTORMGR_CSRC = src/motor_manager/motormgr.c   \
                 src/motor_manager/rpmctl.c
 
+include canaerospace.mk
+include canaerospace/drivers/stm32/rules.mk
+
+SPL_SRC = spl/src/stm32f10x_can.c  \
+          spl/src/stm32f10x_rcc.c  \
+          spl/src/stm32f10x_tim.c
+
+CANIF_CSRC = src/can_iface/can_iface.c   \
+             src/can_iface/can_binding.c
+
 CSRC = src/main.c                       \
        src/console.c                    \
        src/sys/board.c                  \
        src/sys/sys.c                    \
        src/config/config.c              \
        src/config/flash_storage.c       \
-       $(MOTOR_CSRC) $(MOTORMGR_CSRC)
+       $(MOTOR_CSRC) $(MOTORMGR_CSRC)   \
+       $(CANAS_SRC) $(CAN_SRC)          \
+       $(CANIF_CSRC) $(SPL_SRC)
 
-UINCDIR = src/sys src/config
+UINCDIR = src/sys       \
+          src/config    \
+          spl/inc       \
+          $(CANAS_INC) $(CAN_INC)
 
-UDEFS = -DHRT_TIMER_NUMBER=1
+UDEFS = $(CANAS_DEF) $(CAN_DEF) -DCAN_CHIBIOS=1 -DCAN_TIMER_EMULATED=1
 
 #
 # OS configuration
@@ -98,7 +113,7 @@ ifneq ($(RELEASE),0)
     USE_OPT += -O2 -fomit-frame-pointer
 else
     DDEFS += -DDEBUG
-    USE_OPT += -O0 -g3
+    USE_OPT += -O1
 endif
 
 #

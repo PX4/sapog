@@ -32,90 +32,13 @@
  *
  ****************************************************************************/
 
-#include "sys.h"
-#include <stm32f10x.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <assert.h>
+#pragma once
 
-#if !CH_DBG_ENABLED
-const char *dbg_panic_msg;
-#endif
+__BEGIN_DECLS
 
-void system_tick_hook(void)
-{
-	extern void canTimerEmulIncrementIrq(int usec);
-	canTimerEmulIncrementIrq(1000000 / CH_FREQUENCY);
-}
+int canif_binding_init(CanasInstance* ci);
 
-static void writepoll(const char* str)
-{
-	for (const char *p = str; *p; p++) {
-		while (!(USART1->SR & USART_SR_TXE)) { }
-		USART1->DR = *p;
-	}
-}
+extern void canif_1hz_callback(void);
+extern void canif_10hz_callback(void);
 
-void system_halt_hook(void)
-{
-	application_halt_hook();
-
-	port_disable();
-	writepoll("\nPANIC [");
-	const Thread *pthread = chThdSelf();
-	if (pthread && pthread->p_name)
-		writepoll(pthread->p_name);
-	writepoll("] ");
-
-	if (dbg_panic_msg != NULL)
-		writepoll(dbg_panic_msg);
-	writepoll("\n");
-}
-
-__attribute__((weak))
-void application_halt_hook(void)
-{
-}
-
-void __assert_func(const char* file, int line, const char* func, const char* expr)
-{
-	port_disable();
-
-	char buf[128]; // We don't care about possible stack overflow because going to die anyway
-	snprintf(buf, sizeof(buf), "%s:%i at %s(..): %s", file, line, func, expr);
-	dbg_panic_msg = buf;
-
-	chSysHalt();
-	while (1) { }
-}
-
-void _exit(int status)
-{
-	(void) status;
-	chSysHalt();
-	while (1) { }
-}
-
-pid_t _getpid(void)
-{
-	return 1;
-}
-
-void _kill(pid_t id)
-{
-	(void) id;
-}
-
-/// From unistd
-int usleep(useconds_t useconds)
-{
-	chThdSleepMicroseconds(useconds);
-	return 0;
-}
-
-/// From unistd
-unsigned sleep(unsigned int seconds)
-{
-	chThdSleepSeconds(seconds);
-	return 0;
-}
+__END_DECLS
