@@ -263,6 +263,8 @@ static void update_setpoint_ttl(int dt_ms)
 
 static msg_t control_thread(void* arg)
 {
+	chRegSetThreadName("motormgr");
+
 	EventListener listener;
 	chEvtRegisterMask(&_setpoint_update_event, &listener, ALL_EVENTS);
 
