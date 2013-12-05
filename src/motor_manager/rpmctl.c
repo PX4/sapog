@@ -32,7 +32,7 @@
  *
  ****************************************************************************/
 
-#include <config.h>
+#include <config/config.h>
 #include "rpmctl.h"
 
 

@@ -38,7 +38,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <shell.h>
-#include <config.h>
+#include <config/config.h>
 #include "console.h"
 #include "motor_lowlevel/motor.h"
 #include "motor_lowlevel/pwm.h"

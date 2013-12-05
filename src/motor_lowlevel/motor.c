@@ -37,7 +37,7 @@
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
-#include <config.h>
+#include <config/config.h>
 #include "motor.h"
 #include "common.h"
 #include "adc.h"

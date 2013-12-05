@@ -34,31 +34,60 @@
 
 #include <ch.h>
 #include <assert.h>
-#include <config.h>
+#include <config/config.h>
 #include <can_driver.h>
 #include <canaerospace/canaerospace.h>
-#include <canaerospace/param_id/nod_default.h>
+#include <canaerospace/param_id/uav.h>
+#include <motor_manager/motormgr.h>
 #include "can_iface.h"
 #include "can_binding.h"
 
 
+CONFIG_PARAM_BOOL("canas_interlacing",               true) // Well, this is pointless if there is no iface redundancy
 CONFIG_PARAM_INT("canas_num_redund_chans_to_listen", 3,    1,     4)
+CONFIG_PARAM_INT("canas_esc_id",                     1,    1,     8)
+CONFIG_PARAM_INT("canas_motor_command_ttl_ms",       500,  50,    120000)
 
 static CanasInstance _canas;
+static int _self_esc_id;
+static int _motor_command_ttl_ms;
 
+// --- canaerospace callbacks ---
+
+static void cb_esc_command(CanasInstance* ci, CanasParamCallbackArgs* args)
+{
+	// TODO: Redundancy resolver
+	float thrust = 0.0f;
+
+	switch (args->message.data.type) {
+	case CANAS_DATATYPE_USHORT:
+		thrust = args->message.data.container.USHORT / 65535.0f;
+		break;
+	case CANAS_DATATYPE_FLOAT:
+		thrust = args->message.data.container.FLOAT;
+		break;
+	default:
+		return;  // Too bad, ignore
+	}
+
+	motormgr_set_duty_cycle(thrust, _motor_command_ttl_ms);
+}
+
+// ---------
 
 void canif_1hz_callback(void)
 {
-	// TEST
-	CanasMessageData msgd;
-	msgd.type = CANAS_DATATYPE_ULONG;
-	msgd.container.ULONG = (uint32_t)(sys_timestamp_usec() / 1000);
-	int res = canasParamPublish(&_canas, CANAS_NOD_DEF_RADIO_HEIGHT, &msgd, 0);
-	lowsyslog("Published %i 0x%x\n", res, canYieldErrors(0));
 }
 
 void canif_10hz_callback(void)
 {
+	const unsigned rpm = motormgr_get_rpm();
+
+	CanasMessageData msgd;
+	msgd.type = CANAS_DATATYPE_USHORT;
+	msgd.container.USHORT = (rpm > 0xFFFF) ? 0xFFFF : rpm;
+
+	canasParamPublish(&_canas, CANAS_UAV_ROTOR_RPM_1 + _self_esc_id - 1, &msgd, 0);
 }
 
 #define CHECKERR(x, msg) if ((x) != 0) { lowsyslog("Canas: Init failed (%i): " msg "\n", (int)(x)); return (x); } \
@@ -68,12 +97,20 @@ int canif_init(void)
 	int res = canif_binding_init(&_canas);
 	CHECKERR(res, "Low level");
 
-	const int redund_chans_to_listen = config_get("canas_num_redund_chans_to_listen");
-	(void)redund_chans_to_listen;
+	const int redund_chan_count   = config_get("canas_num_redund_chans_to_listen");
+	const bool enable_interlacing = config_get("canas_interlacing");
+	_self_esc_id                  = config_get("canas_esc_id");
+	_motor_command_ttl_ms         = config_get("canas_motor_command_ttl_ms");
 
-	// TEST
-	res = canasParamAdvertise(&_canas, CANAS_NOD_DEF_RADIO_HEIGHT, false);
-	CHECKERR(res, "Test adv");
+	/*
+	 * Pub/sub
+	 */
+	res = canasParamSubscribe(&_canas, CANAS_UAV_ESC_COMMAND_1 + _self_esc_id - 1,
+		redund_chan_count, cb_esc_command, NULL);
+	CHECKERR(res, "Sub: command");
+
+	res = canasParamAdvertise(&_canas, CANAS_UAV_ROTOR_RPM_1 + _self_esc_id - 1, enable_interlacing);
+	CHECKERR(res, "Pub: RPM");
 
 	lowsyslog("Canas: Init OK\n");
 	return 0;

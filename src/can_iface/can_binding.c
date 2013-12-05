@@ -34,7 +34,7 @@
 
 #include <ch.h>
 #include <assert.h>
-#include <config.h>
+#include <config/config.h>
 #include <can_driver.h>
 #include <canaerospace/canaerospace.h>
 #include <canaerospace/services/std_identification.h>

@@ -34,7 +34,7 @@
 
 #include <math.h>
 #include <ch.h>
-#include <config.h>
+#include <config/config.h>
 #include "motormgr.h"
 #include "rpmctl.h"
 #include "../motor_lowlevel/motor.h"
@@ -158,8 +158,8 @@ static void update_control_non_running(void)
 	const float spinup_dc = _params.spinup_voltage / _state.input_voltage;
 
 	const bool need_start =
-		(_state.mode == MOTORMGR_MODE_OPENLOOP && (_state.dc_openloop_setpoint >= spinup_dc)) ||
-		(_state.mode == MOTORMGR_MODE_RPM && (_state.rpm_setpoint >= _params.rpm_min));
+		(_state.mode == MOTORMGR_MODE_OPENLOOP && (_state.dc_openloop_setpoint > 0)) ||
+		(_state.mode == MOTORMGR_MODE_RPM && (_state.rpm_setpoint > 0));
 
 	if (need_start) {
 		_state.dc_actual = spinup_dc;
@@ -169,6 +169,13 @@ static void update_control_non_running(void)
 
 static float update_control_open_loop(uint32_t comm_period)
 {
+	const float spinup_dc = _params.spinup_voltage / _state.input_voltage;
+
+	if (_state.dc_openloop_setpoint <= 0)
+		return nan("");
+	if (_state.dc_openloop_setpoint < spinup_dc)
+		_state.dc_openloop_setpoint = spinup_dc;
+
 	if (comm_period < _params.comm_period_limit) {
 		// Simple P controller
 		const float c1 = _params.comm_period_limit;
@@ -181,16 +188,15 @@ static float update_control_open_loop(uint32_t comm_period)
 		}
 	}
 	_state.limit_mask &= ~MOTORMGR_LIMIT_RPM;
-	if (_state.dc_openloop_setpoint > 0.0)
-		return _state.dc_openloop_setpoint;
-	else
-		return nan("");
+	return _state.dc_openloop_setpoint;
 }
 
 static float update_control_rpm(uint32_t comm_period, float dt)
 {
-	if (_state.rpm_setpoint < _params.rpm_min / 2)
+	if (_state.rpm_setpoint <= 0)
 		return nan("");
+	if (_state.rpm_setpoint < _params.rpm_min)
+		_state.rpm_setpoint = _params.rpm_min;
 
 	const struct rpmctl_input input = {
 		_state.limit_mask,

@@ -38,7 +38,7 @@
 #include <errno.h>
 #include <math.h>
 #include <unistd.h>
-#include <config.h>
+#include <config/config.h>
 #include "sys/sys.h"
 #include "console.h"
 #include "motor_lowlevel/motor.h"

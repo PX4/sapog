@@ -65,8 +65,8 @@ CSRC = src/main.c                       \
        $(CANAS_SRC) $(CAN_SRC)          \
        $(CANIF_CSRC) $(SPL_SRC)
 
-UINCDIR = src/sys       \
-          src/config    \
+UINCDIR = src           \
+          src/sys       \
           spl/inc       \
           $(CANAS_INC) $(CAN_INC)
 
