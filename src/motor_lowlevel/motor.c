@@ -148,7 +148,7 @@ CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  10000, 100,   100000)
 CONFIG_PARAM_INT("motor_spinup_num_steps",             2,     0,     10)
 // Something not so important
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          30,    1,     500)
-CONFIG_PARAM_INT("motor_zc_detects_to_start",          50,    1,     500)
+CONFIG_PARAM_INT("motor_zc_detects_to_start",          70,    1,     500)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 1,     0,     8)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         20000, 1000,  100000)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              30,    1,     100)

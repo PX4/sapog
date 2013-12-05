@@ -50,9 +50,9 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("rpmctl_p",  0.001,    0.0,     1.0)
+CONFIG_PARAM_FLOAT("rpmctl_p",  0.0005,    0.0,     1.0)
 CONFIG_PARAM_FLOAT("rpmctl_d",  1e-8,     0.0,     1.0)
-CONFIG_PARAM_FLOAT("rpmctl_i",  0.004,    0.0,     10.0)
+CONFIG_PARAM_FLOAT("rpmctl_i",  0.003,    0.0,     10.0)
 
 
 int rpmctl_init(void)
