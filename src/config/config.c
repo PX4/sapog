@@ -43,7 +43,7 @@
 #include "config.h"
 
 #ifndef CONFIG_PARAMS_MAX
-#  define CONFIG_PARAMS_MAX     32
+#  define CONFIG_PARAMS_MAX     40
 #endif
 
 
@@ -162,7 +162,7 @@ static void reinitialize_defaults(const char* reason)
 
 int config_init(void)
 {
-	assert_always(_num_params < CONFIG_PARAMS_MAX);  // being paranoid
+	assert_always(_num_params <= CONFIG_PARAMS_MAX);  // being paranoid
 	assert_always(!_frozen);
 	_frozen = true;
 
