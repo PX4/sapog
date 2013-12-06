@@ -142,10 +142,10 @@ CONFIG_PARAM_FLOAT("motor_neutral_volt_lowpass_alpha", 0.5,   1e-3,  1.0)
 CONFIG_PARAM_INT("motor_comm_period_lowpass_base_usec",5000,  0,     50000)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           10,    0,     60)
 // Spinup settings
-CONFIG_PARAM_INT("motor_spinup_alignment_usec",        40000, 0,     600000)
+CONFIG_PARAM_INT("motor_spinup_alignment_usec",        300000,0,     600000)
 CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 100,   100000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  10000, 100,   100000)
-CONFIG_PARAM_INT("motor_spinup_num_steps",             2,     0,     10)
+CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  15000, 100,   100000)
+CONFIG_PARAM_INT("motor_spinup_num_steps",             1,     0,     10)
 // Something not so important
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          30,    1,     500)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          70,    1,     500)
