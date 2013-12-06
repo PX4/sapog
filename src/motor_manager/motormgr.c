@@ -87,16 +87,16 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.5,    0.1,     30.0)
+CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.2,    0.1,     30.0)
 CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.1,    0.01,    2.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_slope",               2.0,    0.1,     100.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_slope",               1.5,    0.1,     100.0)
 
 CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 0.5,    0.1,     100.0)
 
 CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
 CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
 
-CONFIG_PARAM_INT("motormgr_rpm_min",                  500,    50,      5000)
+CONFIG_PARAM_INT("motormgr_rpm_min",                  700,    50,      5000)
 
 
 static void configure(void)
@@ -256,7 +256,7 @@ static void update_control(uint32_t comm_period, float dt)
 static void update_setpoint_ttl(int dt_ms)
 {
 	const enum motor_state motor_state = motor_get_state();
-	if (_state.setpoint_ttl_ms <= 0 || motor_state == MOTOR_STATE_IDLE)
+	if (_state.setpoint_ttl_ms <= 0 || motor_state != MOTOR_STATE_RUNNING)
 		return;
 
 	_state.setpoint_ttl_ms -= dt_ms;

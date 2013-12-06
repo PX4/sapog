@@ -46,7 +46,7 @@
 CONFIG_PARAM_BOOL("canas_interlacing",               true) // Well, this is pointless if there is no iface redundancy
 CONFIG_PARAM_INT("canas_num_redund_chans_to_listen", 3,    1,     4)
 CONFIG_PARAM_INT("canas_esc_id",                     1,    1,     8)
-CONFIG_PARAM_INT("canas_motor_command_ttl_ms",       500,  50,    120000)
+CONFIG_PARAM_INT("canas_motor_command_ttl_ms",       700,  50,    120000)
 
 static CanasInstance _canas;
 static int _self_esc_id;
