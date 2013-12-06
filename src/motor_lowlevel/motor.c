@@ -55,7 +55,7 @@
 /**
  * Computes the timing advance in comm_period units
  */
-#define TIMING_ADVANCE(comm_period, degrees) \
+#define TIMING_ADVANCE64(comm_period, degrees) \
 	(((uint64_t)comm_period * (uint64_t)degrees) / 64/*60*/)
 
 
@@ -222,7 +222,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	if (_state.control_state == CS_BEFORE_ZC) {  // ZC has timed out
 		// In this case we need to emulate the ZC detection
 		const uint32_t leeway = comm_period_on_zc_failure / 2 +
-			TIMING_ADVANCE(comm_period_on_zc_failure, _params.timing_advance_deg64);
+			TIMING_ADVANCE64(comm_period_on_zc_failure, _params.timing_advance_deg64);
 		_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 
 		_state.zc_failures_since_start++;
@@ -286,7 +286,7 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	_state.control_state = CS_PAST_ZC;
 
 	const uint32_t advance =
-		_state.comm_period / 2 - TIMING_ADVANCE(_state.comm_period, _params.timing_advance_deg64);
+		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, _params.timing_advance_deg64);
 
 	// Override the comm period deadline that was set at the last commutation switching
 	uint64_t deadline = zc_timestamp + advance;
