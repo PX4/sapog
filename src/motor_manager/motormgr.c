@@ -87,9 +87,9 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         2.0,    0.1,     30.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.3,    0.01,    2.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_slope",               3.0,    0.1,     1000.0)
+CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.5,    0.1,     30.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.1,    0.01,    2.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_slope",               2.0,    0.1,     100.0)
 
 CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 0.5,    0.1,     100.0)
 
@@ -209,8 +209,7 @@ static float update_control_rpm(uint32_t comm_period, float dt)
 
 static void update_control(uint32_t comm_period, float dt)
 {
-	const enum motor_state motor_state = motor_get_state();
-	if (motor_state != MOTOR_STATE_RUNNING || comm_period == 0) {
+	if (comm_period == 0 || motor_get_state() != MOTOR_STATE_RUNNING) {
 		update_control_non_running();
 		return;
 	}
@@ -277,13 +276,19 @@ static msg_t control_thread(void* arg)
 	uint64_t timestamp_hnsec = motor_timer_hnsec();
 
 	while (1) {
+		/*
+		 * Control loop period adapts to comm period.
+		 */
 		const uint32_t comm_period = motor_get_comm_period_hnsec();
 
 		unsigned control_period_ms = IDLE_CONTROL_PERIOD_MSEC;
 		if (comm_period > 0)
 			control_period_ms = comm_period / HNSEC_PER_MSEC;
+
 		if (control_period_ms < 1)
 			control_period_ms = 1;
+		else if (control_period_ms > IDLE_CONTROL_PERIOD_MSEC)
+			control_period_ms = IDLE_CONTROL_PERIOD_MSEC;
 
 		/*
 		 * Make sure the event is set when the mutex is unlocked.
