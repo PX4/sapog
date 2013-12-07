@@ -75,9 +75,8 @@ static void cb_esc_command(CanasInstance* ci, CanasParamCallbackArgs* args)
 
 // ---------
 
-static void publish_rpm(void)
+static void publish_rpm(unsigned rpm)
 {
-	const unsigned rpm = motormgr_get_rpm();
 	CanasMessageData msgd;
 	msgd.type = CANAS_DATATYPE_USHORT;
 	msgd.container.USHORT = (rpm > 0xFFFF) ? 0xFFFF : rpm;
@@ -87,13 +86,13 @@ static void publish_rpm(void)
 void canif_1hz_callback(void)
 {
 	if (!motormgr_is_running())
-		publish_rpm();
+		publish_rpm(0);      // Publish 0 if the motor is starting
 }
 
 void canif_10hz_callback(void)
 {
 	if (motormgr_is_running())
-		publish_rpm();
+		publish_rpm(motormgr_get_rpm());
 }
 
 #define CHECKERR(x, msg) if ((x) != 0) { lowsyslog("Canas: Init failed (%i): " msg "\n", (int)(x)); return (x); } \
