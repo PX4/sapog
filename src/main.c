@@ -114,6 +114,7 @@ int init(void)
 __attribute__((noreturn))
 void die(int status)
 {
+	usleep(100000);
 	lowsyslog("Now I am dead. %i\n", status);
 	motor_beep(500, 1000);
 	// Really there is nothing left to do; just sit there and beep sadly:
