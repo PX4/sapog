@@ -40,6 +40,7 @@
 
 typedef uint32_t irqstate_t;
 
+__attribute__((optimize(3), always_inline))
 static inline irqstate_t irq_primask_save(void)
 {
 	const irqstate_t primask = __get_PRIMASK();
@@ -47,18 +48,21 @@ static inline irqstate_t irq_primask_save(void)
 	return primask;
 }
 
+__attribute__((optimize(3), always_inline))
 static inline void irq_primask_restore(irqstate_t state)
 {
 	assert(state == 1 || state == 0);
 	__set_PRIMASK(state);
 }
 
+__attribute__((optimize(3), always_inline))
 static inline void irq_primask_disable(void)
 {
 	assert(__get_PRIMASK() == 0);  // Make sure PRIMASK is not set
 	__set_PRIMASK(1);
 }
 
+__attribute__((optimize(3), always_inline))
 static inline void irq_primask_enable(void) {
 	__set_PRIMASK(0);
 }
