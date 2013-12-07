@@ -148,12 +148,12 @@ CONFIG_PARAM_INT("motor_timing_advance_deg",           10,    0,     60)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lowpass_alpha", 1.0,   1e-3,  1.0)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_alignment_usec",        300000,0,     900000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",30000, 100,   100000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 100,   100000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 10000, 90000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 10000, 60000)
 CONFIG_PARAM_INT("motor_spinup_num_steps",             1,     0,     10)
 // Something not so important
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
-CONFIG_PARAM_INT("motor_zc_failures_to_stop",          30,    1,     500)
+CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    1,     500)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   1,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         20000, 1000,  100000)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              30,    1,     100)
@@ -236,7 +236,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			TIMING_ADVANCE64(comm_period_on_zc_failure, _params.timing_advance_deg64);
 		_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 
-		_state.zc_failures_since_start++;
+		// There may be some ZC failures during spinup, it's OK but we don't want to count them
+		if (_state.spinup_done)
+			_state.zc_failures_since_start++;
 
 		// Stall detection
 		_state.immediate_zc_detects = 0;
@@ -477,7 +479,7 @@ static void spinup_align(void)
 
 	motor_pwm_align(polarities, &_state.pwm_val);
 
-	//motor_timer_hndelay(_params.spinup_alignment_hnsec);
+	// Strict timing is not required here, so usleep() is OK
 	usleep(_params.spinup_alignment_hnsec / HNSEC_PER_USEC);
 }
 
@@ -493,8 +495,8 @@ static void spinup_do_blind_comms(void)
 	uint32_t current_comm_period = _params.spinup_comm_period_begin;
 	for (int i = 0; i < _params.spinup_num_steps; i++) {
 		switch_commutation_step();
-		//motor_timer_hndelay(current_comm_period);
-		usleep(current_comm_period / HNSEC_PER_USEC);
+		// usleep() is not precise enough for the spinup commutations, so we use busyloop:
+		motor_timer_hndelay(current_comm_period);
 		current_comm_period -= accel;
 	}
 }

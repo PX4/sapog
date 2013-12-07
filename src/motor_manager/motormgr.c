@@ -87,7 +87,7 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.2,    0.1,     30.0)
+CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.8,    0.1,     30.0)
 CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.1,    0.01,    2.0)
 CONFIG_PARAM_FLOAT("motormgr_dc_slope",               1.5,    0.1,     100.0)
 
