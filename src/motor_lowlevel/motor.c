@@ -382,8 +382,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	/*
 	 * Zero cross processing
 	 */
-	if (step->floating == 0)
+	if (step->floating == 0) {
 		TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
+	}
 
 	handle_zero_crossing(sample->timestamp, zc_timestamp);
 	update_input_voltage_current(sample);

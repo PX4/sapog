@@ -103,7 +103,7 @@ INCDIR = $(PORTINC) $(KERNINC) $(HALINC) $(PLATFORMINC) $(CHIBIOS)/os/various
 # Build configuration
 #
 
-USE_OPT = -falign-functions=16 --std=c99 -Wno-unused-parameter -U__STRICT_ANSI__
+USE_OPT = -falign-functions=16 --std=c99 -fno-strict-aliasing -Wno-unused-parameter -U__STRICT_ANSI__
 USE_COPT =
 USE_CPPOPT = -fno-rtti
 
