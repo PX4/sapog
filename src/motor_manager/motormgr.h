@@ -55,17 +55,55 @@ enum motormgr_limit_mask
 
 int motormgr_init(void);
 
+/**
+ * Sets the duty cycle. Control mode will be OPENLOOP.
+ * TTL is the amount of time to keep this setpoint before stopping the motor if no new setpoints were set.
+ * @param [in] dc     Duty cycle [0.0; 1.0]
+ * @param [in] ttl_ms TTL in milliseconds
+ */
 void motormgr_set_duty_cycle(float dc, int ttl_ms);
+
+/**
+ * Sets the RPM setpoint. Control mode will be RPM.
+ * TTL is the amount of time to keep this setpoint before stopping the motor if no new setpoints were set.
+ * @param [in] rpm    RPM setpoint
+ * @param [in] ttl_ms TTL in milliseconds
+ */
 void motormgr_set_rpm(unsigned rpm, int ttl_ms);
 
+/**
+ * Returns current duty cycle.
+ */
 float motormgr_get_duty_cycle(void);
+
+/**
+ * Returns current RPM.
+ */
 unsigned motormgr_get_rpm(void);
 
+/**
+ * Stops the motor.
+ */
 void motormgr_stop(void);
 
 enum motormgr_mode motormgr_get_mode(void);
+
+/**
+ * Returns the motor state.
+ * @return True if the motor is running; false if starting or not running.
+ */
 bool motormgr_is_running(void);
+
+/**
+ * Returns the bitmask of currently active limits.
+ */
 int motormgr_get_limit_mask(void);
+
+/**
+ * Returns filtered input voltage and current.
+ * @param [out] out_voltage Volts
+ * @param [out] out_current Amperes
+ */
 void motormgr_get_input_voltage_current(float* out_voltage, float* out_current);
 
 __END_DECLS

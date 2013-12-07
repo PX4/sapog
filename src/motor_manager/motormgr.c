@@ -410,7 +410,7 @@ enum motormgr_mode motormgr_get_mode(void)
 bool motormgr_is_running(void)
 {
 	chMtxLock(&_mutex);
-	bool ret = motor_get_state() != MOTOR_STATE_IDLE;
+	bool ret = motor_get_state() == MOTOR_STATE_RUNNING;
 	chMtxUnlock();
 	return ret;
 }
