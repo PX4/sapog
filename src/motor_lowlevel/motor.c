@@ -134,6 +134,8 @@ static struct precomputed_params
 	uint32_t adc_sampling_period;
 } _params;
 
+static bool _initialization_confirmed = false;
+
 
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
@@ -409,6 +411,12 @@ int motor_init(void)
 	return 0;
 }
 
+void motor_confirm_initialization(void)
+{
+	assert(!_initialization_confirmed);
+	_initialization_confirmed = true;
+}
+
 static void init_adc_filters(void)
 {
 	struct motor_adc_sample smpl;
@@ -477,6 +485,9 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	assert(normal_duty_cycle >= 0);
 
 	motor_stop();                          // Just in case
+
+	if (!_initialization_confirmed)
+		return; // Go home you're drunk
 
 	if (spinup_duty_cycle <= 0 || normal_duty_cycle <= 0)
 		return;

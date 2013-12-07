@@ -54,6 +54,13 @@ enum motor_state
 int motor_init(void);
 
 /**
+ * Safety feature.
+ * This function must be called when all the required software logic was initialized successfully;
+ * otherwise the motor controller will refuse to start.
+ */
+void motor_confirm_initialization(void);
+
+/**
  * Start the motor.
  * @param [in] spinup_duty_cycle Initial PWM duty cycle for initial alignment and spinup, (0; 1]
  * @param [in] normal_duty_cycle Normal PWM duty cycle that will be applied once the motor is started, (0; 1]

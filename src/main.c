@@ -142,6 +142,7 @@ int main(void)
 		die(init_status);
 
 	motor_beep(1000, 150);
+	motor_confirm_initialization();
 	led_set_status(false);
 	led_set_error(false);
 
