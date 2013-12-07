@@ -68,25 +68,62 @@ struct config_param
 		config_register_param(&GLUE(_config_local_param_, __LINE__));     \
 	}
 
+/**
+ * Parameter declaration macros.
+ * Each parameters will be defined in one place; then it can be accessed through config_get("param-name").
+ */
 #define CONFIG_PARAM_FLOAT(name, default_, min, max)  CONFIG_PARAM_RAW_(name, default_, min, max, CONFIG_TYPE_FLOAT)
 #define CONFIG_PARAM_INT(name, default_, min, max)    CONFIG_PARAM_RAW_(name, default_, min, max, CONFIG_TYPE_INT)
 #define CONFIG_PARAM_BOOL(name, default_)             CONFIG_PARAM_RAW_(name, default_, 0,   1,   CONFIG_TYPE_BOOL)
 
 
+/**
+ * Internal logic; shall never be called explicitly.
+ */
 void config_register_param(const struct config_param* param);
 
+/**
+ * Returns 0 if everything is OK, even if the configuration could not be restored (this is not an error).
+ * Returns negative errno in case of unrecoverable fault.
+ */
 int config_init(void);
 
+/**
+ * Saves the config into the non-volatile memory.
+ * Will enter a huge critical section, so it shall never be called concurrently with hard real time processes.
+ */
 int config_save(void);
 
+/**
+ * Erases the configuration from the non-volatile memory; current parameter values will not be affected.
+ * Same warning as for @ref config_save()
+ */
 int config_erase(void);
 
+/**
+ * @param [in] index Non-negative parameter index
+ * @return Name, or NULL if the index is out of range
+ */
 const char* config_name_by_index(int index);
 
+/**
+ * @param [in] name  Parameter name
+ * @param [in] value Parameter value
+ * @return 0 if the parameter does exist and the value is valid, negative errno otherwise.
+ */
 int config_set(const char* name, float value);
 
+/**
+ * @param [in]  name Parameter name
+ * @param [out] out  Parameter descriptor
+ * @return Returns 0 if the parameter does exist, negative errno otherwise.
+ */
 int config_get_descr(const char* name, struct config_param* out);
 
+/**
+ * @param [in] name Parameter name
+ * @return The parameter value if it does exist, quiet NAN otherwise.
+ */
 float config_get(const char* name);
 
 __END_DECLS
