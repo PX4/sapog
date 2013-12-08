@@ -45,12 +45,11 @@
 #include "timer.h"
 #include "test.h"
 
-#define NUM_PHASES            3
-#define NUM_COMMUTATION_STEPS 6
+#define NUM_PHASES                 3
+#define NUM_COMMUTATION_STEPS      6
 
 #define COMM_PERIOD_LOWPASS_MAX    100
-
-#define INVALID_ADC_SAMPLE_VAL     INT_MIN
+#define NUM_BEMF_SAMPLES           6
 
 /**
  * Computes the timing advance in comm_period units
@@ -81,7 +80,7 @@ static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[NUM_COM
 };
 
 
-enum control_state_id { CS_IDLE, CS_BEFORE_ZC, CS_PAST_ZC };
+enum control_state_id { CS_IDLE, CS_BEFORE_ZC, CS_PAST_ZC, CS_FAILED_ZC };
 
 static struct control_state
 {
@@ -98,10 +97,20 @@ static struct control_state
 
 	unsigned int immediate_zc_failures;
 	unsigned int immediate_zc_detects;
+
 	uint64_t zc_failures_since_start;
 	uint64_t zc_detects_since_start;
+	uint64_t zc_failed_solutions;
+	int zc_samples_per_solution;
+	int zc_prev_samples[NUM_BEMF_SAMPLES];
+	int zc_prev_fitted_samples[NUM_BEMF_SAMPLES];
+	int zc_slope;
 
-	int prev_bemf_sample;
+	int bemf_samples[NUM_BEMF_SAMPLES];
+	uint64_t bemf_timestamps[NUM_BEMF_SAMPLES];
+	int num_bemf_samples_acquired;
+	int num_bemf_samples_past_zc;
+
 	int neutral_voltage;
 	int integrated_bemf_voltage;
 
@@ -146,6 +155,7 @@ CONFIG_PARAM_INT("motor_comm_period_lowpass_base_usec",10000, 0,     50000)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           10,    0,     60)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lowpass_alpha", 1.0,   1e-3,  1.0)
+CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100) // Correct blank time is vital for LSF approx
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_alignment_usec",        300000,0,     900000)
 CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 10000, 90000)
@@ -156,7 +166,6 @@ CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    1,     500)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   1,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         20000, 1000,  100000)
-CONFIG_PARAM_INT("motor_comm_blank_usec",              30,    1,     100)
 CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_alpha",    0.02,  1e-3,  1.0)
 
 
@@ -196,7 +205,9 @@ static void configure(void)
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 }
 
-__attribute__((optimize(3), always_inline))
+// --- Hard real time code below ---
+//#pragma GCC optimize 3
+
 static inline void switch_commutation_step(void)
 {
 	// We need to keep the current step index
@@ -214,7 +225,6 @@ static inline void stop_from_isr(void)
 	motor_pwm_set_freewheeling();
 }
 
-__attribute__((optimize(3)))
 void motor_timer_callback(uint64_t timestamp_hnsec)
 {
 	if (_state.control_state == CS_IDLE)
@@ -230,7 +240,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	switch_commutation_step();
 	//From this moment we have at least half of the commutation period before the next time critical event.
 
-	if (_state.control_state == CS_BEFORE_ZC) {  // ZC has timed out
+	if (_state.control_state != CS_PAST_ZC) {  // ZC has timed out
 		// In this case we need to emulate the ZC detection
 		const uint32_t leeway = comm_period_on_zc_failure / 2 +
 			TIMING_ADVANCE64(comm_period_on_zc_failure, _params.timing_advance_deg64);
@@ -253,7 +263,6 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		if (_state.spinup_done)
 			_state.comm_period = comm_period_on_zc_failure;
 	} else { // On successful ZC
-		_state.control_state = CS_BEFORE_ZC; // Waiting for the next ZC
 		_state.zc_detects_since_start++;
 
 		// Stall detection update
@@ -263,11 +272,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 				_state.immediate_zc_failures = 0;
 		}
 	}
+	_state.control_state = CS_BEFORE_ZC; // Waiting for the next ZC
 
 	// Enable ADC sampling
 	motor_adc_enable_from_isr();
 
-	_state.prev_bemf_sample = INVALID_ADC_SAMPLE_VAL;    // Discard the previous step sample
+	_state.num_bemf_samples_acquired = 0;
+	_state.num_bemf_samples_past_zc = 0;
 	_state.integrated_bemf_voltage = 0;
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
 
@@ -280,8 +291,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	}
 }
 
-__attribute__((optimize(3), always_inline))
-static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timestamp)
+static void handle_zero_cross(uint64_t current_timestamp, uint64_t zc_timestamp)
 {
 	if (zc_timestamp < _state.prev_zc_timestamp)
 		zc_timestamp = _state.prev_zc_timestamp;
@@ -312,7 +322,6 @@ static void handle_zero_crossing(uint64_t current_timestamp, uint64_t zc_timesta
 	motor_adc_disable_from_isr();
 }
 
-__attribute__((optimize(3), always_inline))
 static void update_input_voltage_current(const struct motor_adc_sample* sample)
 {
 	const int alpha = _params.input_volt_cur_lowpass_alpha_reciprocal;
@@ -320,101 +329,178 @@ static void update_input_voltage_current(const struct motor_adc_sample* sample)
 	_state.input_current = (_state.input_current * alpha + sample->input_current) / (alpha + 1);
 }
 
-__attribute__((optimize(3)))
-void motor_adc_sample_callback(const struct motor_adc_sample* sample)
+static void add_bemf_sample(int bemf, uint64_t timestamp)
 {
-	if (_state.control_state != CS_BEFORE_ZC || sample->timestamp < _state.blank_time_deadline)
-		return;
+	int insertion_index = 0;
 
-	/*
-	 * Neutral voltage low pass filtering
-	 */
-	assert(_state.comm_table);
+	if (_state.num_bemf_samples_acquired < NUM_BEMF_SAMPLES) {
+		insertion_index = _state.num_bemf_samples_acquired;
+		_state.num_bemf_samples_acquired++;
+	} else {
+		insertion_index = NUM_BEMF_SAMPLES - 1;
+		// Move all samples one step to the left (hope the compiler will replace this with memmove())
+		for (int i = 0; i < insertion_index; i++) {
+			_state.bemf_samples[i] = _state.bemf_samples[i + 1];
+			_state.bemf_timestamps[i] = _state.bemf_timestamps[i + 1];
+		}
+	}
+
+	_state.bemf_samples[insertion_index] = bemf;
+	_state.bemf_timestamps[insertion_index] = timestamp;
+}
+
+static void update_neutral_voltage(const struct motor_adc_sample* sample)
+{
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
 	const int avg_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 	_state.neutral_voltage =
 		(_state.neutral_voltage * _params.neutral_voltage_lowpass_alpha_reciprocal + avg_voltage) /
 		(_params.neutral_voltage_lowpass_alpha_reciprocal + 1);
+}
 
+static bool is_past_zc(int bemf)
+{
+	const bool zc_polarity = _state.current_comm_step & 1;
+	return (zc_polarity && (bemf >= 0)) || (!zc_polarity && (bemf <= 0));
+}
+
+static bool bemf_integrate_and_check(int bemf)
+{
 	/*
-	 * Normalized Back EMF voltage
-	 */
-	const int current_bemf = sample->phase_values[step->floating] - _state.neutral_voltage;
-
-	if (_state.prev_bemf_sample == INVALID_ADC_SAMPLE_VAL) {
-		_state.prev_bemf_sample = current_bemf;
-		return;
-	}
-	const int prev_bemf = _state.prev_bemf_sample;
-	_state.prev_bemf_sample = current_bemf;
-
-	/*
-	 * Back EMF integration
 	 * Ref. "BLDC Sensorless Algorithm Tuning"
-	 * We don't use BEMF integration to detect ZC, but rather as a mere heuristic
+	 * BEMF integration is not used to detect ZC, but rather as a mere heuristic
 	 * to decide whether an observed ZC is valid or just a noise.
 	 */
 	const int integrated_bemf_threshold = _state.neutral_voltage * _params.integrated_bemf_threshold_pct128 / 128;
 
-	if (abs(_state.integrated_bemf_voltage) < integrated_bemf_threshold) {
-		_state.integrated_bemf_voltage += current_bemf;
+	if (abs(_state.integrated_bemf_voltage) <= integrated_bemf_threshold)
+		_state.integrated_bemf_voltage += bemf;
 
-		if (abs(_state.integrated_bemf_voltage) < integrated_bemf_threshold)
-			return;
+	return abs(_state.integrated_bemf_voltage) > integrated_bemf_threshold;
+}
+
+static void solve_least_squares(int n, int x[], int y[], int64_t mult, int64_t* out_slope, int64_t* out_yintercept)
+{
+	assert(n > 1 && mult > 0 && out_slope && out_yintercept);
+
+	int64_t sum_x = 0, sum_y = 0, sum_xy = 0, sum_xx = 0;
+
+	for (int i = 0; i < n; i++) {
+		sum_x += x[i];
+		sum_y += y[i];
+		sum_xy += x[i] * y[i];
+		sum_xx += x[i] * x[i];
 	}
 
-	/*
-	 * Zero cross detection
-	 */
-	const bool zc_polarity = _state.current_comm_step & 1;
-	const bool zc_occurred = (zc_polarity && (current_bemf >= 0)) || (!zc_polarity && (current_bemf <= 0));
+	const int64_t a = sum_x * sum_y - n * sum_xy;
+	const int64_t b = sum_x * sum_x - n * sum_xx;
 
-	if (!zc_occurred)
+	if (b == 0)
+		return; // Garbage in - garbage out
+
+	const int64_t slope = mult * a / b;
+
+	*out_slope = slope;
+	*out_yintercept = (mult * sum_y - slope * sum_x) / n;
+}
+
+static uint64_t solve_zero_cross_approximation(void)
+{
+	static const int MULT = 65536;
+
+	// Some stat
+	_state.zc_samples_per_solution = _state.num_bemf_samples_acquired;
+	memmove(_state.zc_prev_samples, _state.bemf_samples, _state.num_bemf_samples_acquired * 4);
+
+	// Large X numbers may cause overflow, so we fold them to the left
+	int data_x[NUM_BEMF_SAMPLES];
+	for (int i = 0; i < _state.num_bemf_samples_acquired; i++) {
+		data_x[i] = _state.bemf_timestamps[i] - _state.bemf_timestamps[0];
+		assert(data_x[i] >= 0);
+	}
+
+	// Linear fitting
+	int64_t slope = 0, yintercept = 0;
+	solve_least_squares(_state.num_bemf_samples_acquired, data_x, _state.bemf_samples, MULT, &slope, &yintercept);
+
+	_state.zc_slope = slope;
+
+	// Solve the simple linear equation for x where y is 0
+	// x = (y - b) / a
+	const int x = -yintercept / slope;
+
+	for (int i = 0; i < _state.num_bemf_samples_acquired; i++)
+		_state.zc_prev_fitted_samples[i] = (slope * data_x[i] + yintercept) / MULT;
+
+	// TODO: check the fitting covariance
+	// Sanity check, because really noisy measurements may lead to unpredictable results
+	if (x < 0 || x > (int)(_params.adc_sampling_period * _state.num_bemf_samples_acquired * 4))
+		return 0;
+	return _state.bemf_timestamps[0] + x;
+}
+
+void motor_adc_sample_callback(const struct motor_adc_sample* sample)
+{
+	if (_state.control_state != CS_BEFORE_ZC || sample->timestamp < _state.blank_time_deadline)
+		return;
+	assert(_state.comm_table);
+
+	update_neutral_voltage(sample);
+
+	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
+	const int bemf = sample->phase_values[step->floating] - _state.neutral_voltage;
+	add_bemf_sample(bemf, sample->timestamp);
+
+	if (!bemf_integrate_and_check(bemf))
 		return;
 
 	/*
-	 * Zero cross interpolation
-	 * References:
-	 *  - "3-phase Sensorless BLDC Motor Control Development Kit with MC9S12G128 MCU"
-	 *  - "BLDC Sensorless Reference Design Using MC56F8006"
-	 *
-	 * V1, V2 - voltage readings
-	 * t1, t2 - their timestamps
-	 * tz     - ZC timestamp
-	 *
-	 * dt = t2 - t1
-	 * dV = V2 - V1
-	 * tz = t1 + abs((V1 * dt) / dV)
+	 * Is there enough samples collected?
 	 */
-	const int dt = _params.adc_sampling_period;
-	const int dv = current_bemf - prev_bemf;
-	uint64_t zc_timestamp = 0;
-	if (abs(dv) < 2) {
-		zc_timestamp = sample->timestamp;
-	} else {
-		const int t_offset = abs((prev_bemf * dt) / dv);
+	bool enough_samples = false;
+	if (is_past_zc(bemf)) {
+		// Number of samples past ZC we can safely await without hitting the next commutation deadline
+		int max_samples_past_zc = (_state.comm_period / _params.adc_sampling_period) / 8 + 1;
+		if (max_samples_past_zc > NUM_BEMF_SAMPLES / 2)
+			max_samples_past_zc = NUM_BEMF_SAMPLES / 2;
 
-		// Invalid offset means that we missed this ZC, and most likely the prev_bemf_sample is invalid
-		if (t_offset < 0 || t_offset > dt * 2) {
-			_state.prev_bemf_sample = INVALID_ADC_SAMPLE_VAL;
-			return;
+		_state.num_bemf_samples_past_zc++;
+		enough_samples =
+			_state.num_bemf_samples_past_zc >= max_samples_past_zc &&
+			_state.num_bemf_samples_acquired > 1;
+
+		if (step->floating == 0) {
+			TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
 		}
-
-		zc_timestamp = sample->timestamp - dt + (uint64_t)t_offset;
+	} else {
+		_state.num_bemf_samples_past_zc = 0;
 	}
+
+	if (!enough_samples)
+		return;
 
 	/*
-	 * Zero cross processing
+	 * Find the exact ZC position using the collected samples
 	 */
-	if (step->floating == 0) {
-		TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
+	const uint64_t zc_timestamp = solve_zero_cross_approximation();
+	if (zc_timestamp == 0) {
+		// Sorry Mario
+		_state.control_state = CS_FAILED_ZC;
+		_state.num_bemf_samples_acquired = 0;
+		_state.num_bemf_samples_past_zc = 0;
+		if (_state.spinup_done)
+			_state.zc_failed_solutions++;
+		TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
+		return;
 	}
-
-	handle_zero_crossing(sample->timestamp, zc_timestamp);
-	update_input_voltage_current(sample);
-
 	TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC);
+
+	handle_zero_cross(sample->timestamp, zc_timestamp);
+	update_input_voltage_current(sample);
 }
+
+// --- End of hard real time code ---
+#pragma GCC reset_options
 
 int motor_init(void)
 {
@@ -549,7 +635,6 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	 */
 	_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
 	_state.comm_period = _params.spinup_comm_period_end;
-	_state.prev_bemf_sample = INVALID_ADC_SAMPLE_VAL;
 	_state.control_state = CS_BEFORE_ZC;
 
 	motor_timer_set_relative(0);
@@ -677,18 +762,22 @@ void motor_print_debug_info(void)
 	lowsyslog("Motor: Debug\n"
 		"  comm period        %u usec\n"
 		"  neutral voltage    %i\n"
-		"  spinup done        %i\n"
-		"  zc immed failures  %u\n"
-		"  zc immed detects   %u\n"
 		"  zc failures        %u\n"
-		"  zc detects         %u\n"
+		"  zc spls in sol     %i\n"
+		"  zc spls            %i %i %i %i %i %i\n"
+		"  zc fitted spls     %i %i %i %i %i %i\n"
+		"  zc sol failures    %u\n"
+		"  zc slope           %f\n"
 		"  voltage, current   %i %i\n",
 		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
 		(int)state_copy.neutral_voltage,
-		(int)state_copy.spinup_done,
-		(unsigned)state_copy.immediate_zc_failures,
-		(unsigned)state_copy.immediate_zc_detects,
 		(unsigned)state_copy.zc_failures_since_start,
-		(unsigned)state_copy.zc_detects_since_start,
+		_state.zc_samples_per_solution,
+		_state.zc_prev_samples[0], _state.zc_prev_samples[1], _state.zc_prev_samples[2],
+		_state.zc_prev_samples[3], _state.zc_prev_samples[4], _state.zc_prev_samples[5],
+		_state.zc_prev_fitted_samples[0], _state.zc_prev_fitted_samples[1], _state.zc_prev_fitted_samples[2],
+		_state.zc_prev_fitted_samples[3], _state.zc_prev_fitted_samples[4], _state.zc_prev_fitted_samples[5],
+		(unsigned)_state.zc_failed_solutions,
+		_state.zc_slope / 8192.f,
 		state_copy.input_voltage, state_copy.input_current);
 }

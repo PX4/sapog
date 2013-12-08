@@ -113,7 +113,7 @@ ifneq ($(RELEASE),0)
     USE_OPT += -O2 -fomit-frame-pointer
 else
     DDEFS += -DDEBUG
-    USE_OPT += -O1
+    USE_OPT += -O1 -g3
 endif
 
 #

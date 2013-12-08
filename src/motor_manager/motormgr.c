@@ -163,6 +163,8 @@ static void update_control_non_running(void)
 
 	if (need_start) {
 		_state.dc_actual = spinup_dc;
+		// DEBUG:
+		motor_print_debug_info();
 		motor_start(spinup_dc, spinup_dc, _params.reverse);
 	}
 }
