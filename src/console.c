@@ -252,6 +252,11 @@ static void cmd_sp(BaseSequentialStream *chp, int argc, char *argv[])
 	}
 }
 
+static void cmd_md(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	motor_print_debug_info();
+}
+
 #define COMMAND(cmd)    {#cmd, cmd_##cmd},
 static const ShellCommand _commands[] =
 {
@@ -262,6 +267,7 @@ static const ShellCommand _commands[] =
 	COMMAND(stat)
 	COMMAND(test)
 	COMMAND(sp)
+	COMMAND(md)
 	{NULL, NULL}
 };
 
