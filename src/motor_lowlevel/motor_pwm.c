@@ -514,44 +514,75 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 	phase_enable_i(step->negative);
 }
 
+static void beep_once(int high_phase, int energizing_duration_usec)
+{
+	assert(high_phase >= 0 && high_phase < 3);
+
+	const int low_phases[2] = {
+		(high_phase == 0) ? 1 : 0,
+		(high_phase == 2) ? 1 : 2
+	};
+
+	// The whole thing is executed in the critical section, no joke.
+	chSysSuspend();
+
+	// Set the low phases to low level; high phase will be floating
+	irq_primask_disable();
+	{
+		phase_reset_all_i();
+		*PWM_REG_LOW[low_phases[0]] = _pwm_top;
+		*PWM_REG_LOW[low_phases[1]] = _pwm_top;
+		phase_enable_i(low_phases[0]);
+		phase_enable_i(low_phases[1]);
+	}
+	irq_primask_enable();
+
+	motor_timer_hndelay(PWM_DEAD_TIME_NANOSEC / NSEC_PER_HNSEC);
+
+	// Now it is safe to engage the high phase
+	irq_primask_disable();
+	{
+		*PWM_REG_HIGH[high_phase] = _pwm_top;
+		phase_enable_i(high_phase);
+	}
+	irq_primask_enable();
+
+	motor_timer_udelay(energizing_duration_usec);
+
+	// Return the high phase to low level
+	*PWM_REG_HIGH[high_phase] = 0;
+	motor_timer_hndelay(PWM_DEAD_TIME_NANOSEC / NSEC_PER_HNSEC);
+	*PWM_REG_LOW[high_phase] = _pwm_top;
+
+	chSysEnable();
+}
+
 void motor_pwm_beep(int frequency, int duration_msec)
 {
-	static const int ENERGIZING_DURATION_USEC = 7;
+	static const int ENERGIZING_DURATION_USEC = 2;
 
-	if (frequency < 200)
-		frequency = 200;
-	if (duration_msec < 1)
-		duration_msec = 1;
+	motor_pwm_set_freewheeling();
 
-	// 1 is always low, 0 and 2 are alternating
-	enum motor_pwm_phase_manip manip_cmd[3] = {
-		MOTOR_PWM_MANIP_FLOATING,
-		MOTOR_PWM_MANIP_LOW,
-		MOTOR_PWM_MANIP_FLOATING
-	};
-	motor_pwm_manip(manip_cmd);
+	frequency = (frequency < 200)   ? 200   : frequency;
+	frequency = (frequency > 10000) ? 10000 : frequency;
 
-	const int half_period_usec = (1000000 / frequency) / 2;
+	duration_msec = (duration_msec < 1)    ? 1    : duration_msec;
+	duration_msec = (duration_msec > 5000) ? 5000 : duration_msec;
+
+	const int idle_time = (1000000 / frequency) / 2 - ENERGIZING_DURATION_USEC;
+	assert(idle_time > ENERGIZING_DURATION_USEC);
+
 	const uint64_t end_time = motor_timer_hnsec() + duration_msec * HNSEC_PER_MSEC;
 
 	while (end_time > motor_timer_hnsec()) {
-		// 0
-		manip_cmd[0] = MOTOR_PWM_MANIP_HIGH;
-		motor_pwm_manip(manip_cmd);
-		motor_timer_udelay(ENERGIZING_DURATION_USEC);
+		beep_once(0, ENERGIZING_DURATION_USEC);
+		motor_timer_udelay(idle_time);
 
-		manip_cmd[0] = MOTOR_PWM_MANIP_FLOATING;
-		motor_pwm_manip(manip_cmd);
-		motor_timer_udelay(half_period_usec);
+		beep_once(1, ENERGIZING_DURATION_USEC);
+		motor_timer_udelay(idle_time);
 
-		// 2
-		manip_cmd[2] = MOTOR_PWM_MANIP_HIGH;
-		motor_pwm_manip(manip_cmd);
-		motor_timer_udelay(ENERGIZING_DURATION_USEC);
-
-		manip_cmd[2] = MOTOR_PWM_MANIP_FLOATING;
-		motor_pwm_manip(manip_cmd);
-		motor_timer_udelay(half_period_usec);
+		beep_once(2, ENERGIZING_DURATION_USEC);
+		motor_timer_udelay(idle_time);
 	}
 
 	motor_pwm_set_freewheeling();
