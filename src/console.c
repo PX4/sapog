@@ -206,7 +206,7 @@ static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])
 	puts("Hardware test...");
 	int res = motor_test_hardware();
 	if (res)
-		lowsyslog("FAILED %i", res);
+		lowsyslog("FAILED %i\n", res);
 	else
 		puts("OK");
 
