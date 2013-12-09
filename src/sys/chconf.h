@@ -63,6 +63,6 @@ void system_tick_hook(void);
 #endif
 
 #define PORT_IDLE_THREAD_STACK_SIZE    64
-#define PORT_INT_REQUIRED_STACK        128
+#define PORT_INT_REQUIRED_STACK        256
 
 #include "../../chibios/os/kernel/templates/chconf.h"

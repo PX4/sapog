@@ -67,7 +67,7 @@ enum motor_pwm_phase_manip
  * Sanity constraints
  */
 #define MOTOR_PWM_MIN_FREQUENCY   12000
-#define MOTOR_PWM_MAX_FREQUENCY   70000
+#define MOTOR_PWM_MAX_FREQUENCY   64000
 
 /**
  * Initialize the PWM hardware.
