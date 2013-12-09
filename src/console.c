@@ -153,11 +153,11 @@ static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])
 		return;
 	}
 
-	int freq = 1000;
+	int freq = 500;
 	if (argc > 0)
 		freq = atoi(argv[0]);
 
-	int duration = 200;
+	int duration = 300;
 	if (argc > 1)
 		duration = atoi(argv[1]);
 

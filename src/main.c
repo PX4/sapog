@@ -116,13 +116,13 @@ void die(int status)
 {
 	usleep(100000);
 	lowsyslog("Now I am dead. %i\n", status);
-	motor_beep(500, 1000);
+	motor_beep(100, 1000);
 	// Really there is nothing left to do; just sit there and beep sadly:
 	while (1) {
 		led_set_status(false);
 		led_set_error(true);
 		sleep(2);
-		motor_beep(500, 80);
+		motor_beep(100, 100);
 	}
 }
 
@@ -142,7 +142,10 @@ int main(void)
 	if (init_status)
 		die(init_status);
 
-	motor_beep(1000, 150);
+	motor_beep(500, 150);
+	usleep(150 * 1000);
+	motor_beep(500, 150);
+
 	motor_confirm_initialization();
 	led_set_status(false);
 	led_set_error(false);
