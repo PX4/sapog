@@ -562,7 +562,7 @@ int motor_init(void)
 
 	motor_timer_init();
 
-	ret = motor_adc_init(config_get("motor_current_shunt_mohm") * 1000.0f);
+	ret = motor_adc_init(config_get("motor_current_shunt_mohm") / 1000.0f);
 	if (ret)
 		return ret;
 
