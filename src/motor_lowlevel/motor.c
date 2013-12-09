@@ -407,7 +407,7 @@ static bool bemf_integrate_and_check(const int bemf)
 }
 
 /// Fixed point multiplier
-#define LEAST_SQUARES_MULT   65536
+#define LEAST_SQUARES_MULT   (1 << 17)
 
 static void solve_least_squares(const int n, const int x[], const int y[], int64_t* out_slope, int64_t* out_yintercept)
 {

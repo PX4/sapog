@@ -73,10 +73,10 @@ static struct state
 static struct params
 {
 	float spinup_voltage;
+
+	float dc_min_voltage;
 	float dc_step_max;
 	float dc_slope;
-
-	float voltage_current_lowpass_tau;
 
 	int poles;
 	bool reverse;
@@ -84,28 +84,32 @@ static struct params
 	uint32_t comm_period_limit;
 	unsigned rpm_max;
 	unsigned rpm_min;
+
+	float voltage_current_lowpass_tau;
 } _params;
 
 
-CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         2.0,    0.1,     30.0)
+CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         2.0,    0.5,     20.0)
+
+CONFIG_PARAM_FLOAT("motormgr_dc_min_voltage",         1.1,    0.5,     10.0)
 CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.1,    0.01,    2.0)
 CONFIG_PARAM_FLOAT("motormgr_dc_slope",               1.5,    0.1,     100.0)
-
-CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 0.5,    0.1,     100.0)
 
 CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
 CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
 
-CONFIG_PARAM_INT("motormgr_rpm_min",                  700,    50,      5000)
+CONFIG_PARAM_INT("motormgr_rpm_min",                  800,    50,      5000)
+
+CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 0.5,    0.1,     100.0)
 
 
 static void configure(void)
 {
-	_params.spinup_voltage = config_get("motormgr_spinup_voltage");
+	_params.spinup_voltage = config_get("motormgr_spinup_voltage"); // spinup/min voltages are unrelated
+
+	_params.dc_min_voltage = config_get("motormgr_dc_min_voltage");
 	_params.dc_step_max    = config_get("motormgr_dc_step_max");
 	_params.dc_slope       = config_get("motormgr_dc_slope");
-
-	_params.voltage_current_lowpass_tau = 1.0f / config_get("motormgr_volt_curr_lowpass_freq");
 
 	_params.poles = config_get("motormgr_num_poles");
 	_params.reverse = config_get("motormgr_reverse");
@@ -113,6 +117,8 @@ static void configure(void)
 	_params.comm_period_limit = motor_get_limit_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
 	_params.rpm_min = config_get("motormgr_rpm_min");
+
+	_params.voltage_current_lowpass_tau = 1.0f / config_get("motormgr_volt_curr_lowpass_freq");
 
 	lowsyslog("Motor manager: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
@@ -171,12 +177,12 @@ static void update_control_non_running(void)
 
 static float update_control_open_loop(uint32_t comm_period)
 {
-	const float spinup_dc = _params.spinup_voltage / _state.input_voltage;
+	const float min_dc = _params.dc_min_voltage / _state.input_voltage;
 
 	if (_state.dc_openloop_setpoint <= 0)
 		return nan("");
-	if (_state.dc_openloop_setpoint < spinup_dc)
-		_state.dc_openloop_setpoint = spinup_dc;
+	if (_state.dc_openloop_setpoint < min_dc)
+		_state.dc_openloop_setpoint = min_dc;
 
 	if (comm_period < _params.comm_period_limit) {
 		// Simple P controller
