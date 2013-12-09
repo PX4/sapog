@@ -146,6 +146,8 @@ static struct precomputed_params
 	uint32_t spinup_comm_period_end;
 	int spinup_num_steps;
 
+	int motor_bemf_window_len_denom;
+	int bemf_valid_range_pct128;
 	int integrated_bemf_threshold_pct128;
 	unsigned int zc_failures_max;
 	unsigned int zc_detects_min;
@@ -173,6 +175,8 @@ CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 10000, 90000)
 CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 10000, 60000)
 CONFIG_PARAM_INT("motor_spinup_num_steps",             1,     0,     10)
 // Something not so important
+CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
+CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    1,     500)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   1,     1000)
@@ -186,13 +190,15 @@ static void configure(void)
 	_params.comm_period_shift_on_zc_failure = config_get("motor_deceleration_rate_on_zc_miss");
 	_params.timing_advance_deg64            = config_get("motor_timing_advance_deg") * 64 / 60;
 	_params.neutral_voltage_lowpass_alpha_reciprocal =
-		(int)(1.0f / config_get("motor_neutral_volt_lowpass_alpha")) - 1;
+		(int)(1.0f / config_get("motor_neutral_volt_lowpass_alpha") + 0.5f) - 1;
 
 	_params.spinup_alignment_hnsec   = config_get("motor_spinup_alignment_usec")         * HNSEC_PER_USEC;
 	_params.spinup_comm_period_begin = config_get("motor_spinup_comm_period_begin_usec") * HNSEC_PER_USEC;
 	_params.spinup_comm_period_end   = config_get("motor_spinup_comm_period_end_usec")   * HNSEC_PER_USEC;
 	_params.spinup_num_steps         = config_get("motor_spinup_num_steps");
 
+	_params.motor_bemf_window_len_denom      = 100.0f / config_get("motor_bemf_window_pct") + 0.5f;
+	_params.bemf_valid_range_pct128          = config_get("motor_bemf_valid_range_pct") * 128 / 100;
 	_params.integrated_bemf_threshold_pct128 = config_get("motor_zc_integral_threshold_pct") * 128 / 100;
 	_params.zc_failures_max  = config_get("motor_zc_failures_to_stop");
 	_params.zc_detects_min   = config_get("motor_zc_detects_to_start");
@@ -214,6 +220,9 @@ static void configure(void)
 		_params.spinup_comm_period_begin = _params.spinup_comm_period_end;
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
+
+	lowsyslog("Motor: Config: BEMF window denom: %i, Neutral LP: %i\n",
+		_params.motor_bemf_window_len_denom, _params.neutral_voltage_lowpass_alpha_reciprocal);
 }
 
 // --- Hard real time code below ---
@@ -291,7 +300,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	// Reset and configure the ZC solver
 	_state.num_bemf_samples_acquired = 0;
 	_state.num_bemf_samples_past_zc = 0;
-	_state.optimal_num_bemf_samples = (_state.comm_period / _params.adc_sampling_period) / 4 + 2;
+
+	_state.optimal_num_bemf_samples =
+		(_state.comm_period / _params.adc_sampling_period) / _params.motor_bemf_window_len_denom + 2;
 	if (_state.optimal_num_bemf_samples > MAX_BEMF_SAMPLES)
 		_state.optimal_num_bemf_samples = MAX_BEMF_SAMPLES;
 
@@ -474,9 +485,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 * BEMF range validation
 	 * If out of range, the signal will be discarded as noise.
 	 */
-	static const int THRESHOLD_PCT128 = 128 * 0.7;
-
-	if (abs(bemf) > _state.neutral_voltage * THRESHOLD_PCT128 / 128) {
+	if (abs(bemf) > (_state.neutral_voltage * _params.bemf_valid_range_pct128 / 128)) {
 		_state.bemf_samples_out_of_range++;
 		return;
 	}
