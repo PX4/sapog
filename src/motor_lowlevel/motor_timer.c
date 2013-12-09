@@ -250,7 +250,7 @@ void motor_timer_set_relative(int delay_hnsec)
 	 */
 	irq_primask_disable();
 
-	if (delay_hnsec > 2 * HNSEC_PER_USEC) {
+	if (delay_hnsec > HNSEC_PER_USEC) {
 		TIMX->CCR1 = TIMX->CNT + delay_ticks;
 		TIMX->SR = ~TIM_SR_CC1IF;             // Acknowledge IRQ
 		TIMX->DIER |= TIM_DIER_CC1IE;         // Enable this compare match
@@ -261,6 +261,16 @@ void motor_timer_set_relative(int delay_hnsec)
 	}
 
 	irq_primask_enable();
+}
+
+__attribute__((optimize(3)))
+void motor_timer_set_absolute(uint64_t timestamp_hnsec)
+{
+	const uint64_t current_timestamp = motor_timer_hnsec();
+	if (timestamp_hnsec > current_timestamp)
+		motor_timer_set_relative(current_timestamp - timestamp_hnsec);
+	else
+		motor_timer_set_relative(0);
 }
 
 void motor_timer_cancel(void)

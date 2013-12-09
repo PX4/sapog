@@ -48,7 +48,7 @@
 #define NUM_PHASES                 3
 #define NUM_COMMUTATION_STEPS      6
 
-#define COMM_PERIOD_LOWPASS_MAX    100
+#define COMM_PERIOD_LOWPASS_MAX    50
 
 /**
  * Upper limit is 8 for 72MHz Cortex M3 (limited by the processing power)
@@ -307,7 +307,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	}
 }
 
-static void handle_zero_cross(const uint64_t current_timestamp, uint64_t zc_timestamp)
+static void handle_zero_cross(uint64_t zc_timestamp)
 {
 	if (zc_timestamp < _state.prev_zc_timestamp)
 		zc_timestamp = _state.prev_zc_timestamp;
@@ -329,11 +329,7 @@ static void handle_zero_cross(const uint64_t current_timestamp, uint64_t zc_time
 		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, _params.timing_advance_deg64);
 
 	// Override the comm period deadline that was set at the last commutation switching
-	uint64_t deadline = zc_timestamp + advance;
-	if (deadline < current_timestamp)
-		deadline = current_timestamp;
-	// TODO: FIX THIS
-	motor_timer_set_relative(deadline - current_timestamp);
+	motor_timer_set_absolute(zc_timestamp + advance);
 
 	// Disable till next comm period
 	motor_adc_disable_from_isr();
@@ -542,7 +538,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		return;
 	}
 
-	handle_zero_cross(sample->timestamp, zc_timestamp);
+	handle_zero_cross(zc_timestamp);
 	update_input_voltage_current(sample);
 }
 
