@@ -98,10 +98,12 @@ static struct diag_info                /// This data is never used by the contro
 	uint64_t bemf_samples_premature_zc;
 
 	/// Last ZC solution
-	int zc_solution_num_samples;
-	int zc_solution_samples[MAX_BEMF_SAMPLES];
 	int64_t zc_solution_slope;
 	int64_t zc_solution_yintercept;
+	int zc_solution_num_samples;
+#if DEBUG
+	int zc_solution_samples[MAX_BEMF_SAMPLES];
+#endif
 
 	uint64_t started_at;
 } _diag;
@@ -465,8 +467,10 @@ static uint64_t solve_zero_cross_approximation(void)
 	_diag.zc_solution_slope = slope;
 	_diag.zc_solution_yintercept = yintercept;
 	_diag.zc_solution_num_samples = _state.zc_bemf_samples_acquired;
-	memmove(_diag.zc_solution_samples, _state.zc_bemf_samples,
+#if DEBUG
+	memcpy(_diag.zc_solution_samples, _state.zc_bemf_samples,
 		_state.zc_bemf_samples_acquired * sizeof(_state.zc_bemf_samples[0]));
+#endif
 
 	/*
 	 * Solution validation
@@ -850,6 +854,7 @@ void motor_print_debug_info(void)
 	/*
 	 * ZC fitting
 	 */
+#if DEBUG
 	if (_diag.zc_solution_num_samples > 0) {
 		lowsyslog("Motor ZC solution data\n");
 
@@ -867,6 +872,7 @@ void motor_print_debug_info(void)
 		}
 		lowsyslog("\n");
 	}
+#endif
 
 #undef PRINT_INT
 #undef PRINT_FLT
