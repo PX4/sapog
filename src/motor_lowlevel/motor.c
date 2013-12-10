@@ -175,7 +175,7 @@ CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
 CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    10000, 0,     50000)
 CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.2,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
-CONFIG_PARAM_INT("motor_timing_advance_deg",           10,    0,     60)
+CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   1e-3,  1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
@@ -509,7 +509,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	/*
 	 * BEMF range validation
-	 * If out of range, the sample will be discarded as noise.
 	 */
 	if (abs(bemf) > (_state.neutral_voltage * _params.bemf_valid_range_pct128 / 128)) {
 		_diag.bemf_samples_out_of_range++;
@@ -518,7 +517,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	/*
 	 * ZC event validation
-	 * The first valid sample must be before ZC, obviously, otherwise it is noise
 	 */
 	const bool past_zc = is_past_zc(bemf);
 
@@ -529,12 +527,15 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	/*
 	 * Here the BEMF sample is considered to be valid, and can be added to the solution.
-	 * Store the sample, update the BEMF integral.
+	 * Input voltage/current updates are synced with ZC - this way the noise can be reduced.
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
 
 	if (!bemf_integrate_and_check(bemf))
 		return;
+
+	if (past_zc)
+		update_input_voltage_current(sample);
 
 	/*
 	 * Is there enough samples collected?
@@ -570,9 +571,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		_state.zc_bemf_samples_acquired_past_zc = 0;
 		return;
 	}
-
 	handle_zero_cross(zc_timestamp);
-	update_input_voltage_current(sample);
 }
 
 // --- End of hard real time code ---
@@ -859,6 +858,7 @@ void motor_print_debug_info(void)
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
 	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
 	PRINT_INT("zc sol failures",   diag_copy.zc_solution_failures);
+	PRINT_INT("zc sol num samples",diag_copy.zc_solution_num_samples);
 	PRINT_FLT("zc sol slope",      diag_copy.zc_solution_slope / (float)LEAST_SQUARES_MULT);
 	PRINT_FLT("zc sol yintercept", diag_copy.zc_solution_yintercept / (float)LEAST_SQUARES_MULT);
 
