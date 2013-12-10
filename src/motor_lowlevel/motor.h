@@ -141,7 +141,8 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current);
 uint32_t motor_get_limit_comm_period_hnsec(void);
 
 /**
- * Debug only.
+ * Prints some debug info.
+ * Shall never be called during normal operation because it can disrupt the control timings.
  */
 void motor_print_debug_info(void);
 

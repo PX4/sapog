@@ -89,8 +89,24 @@ static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[NUM_COM
 
 enum control_state_id { CS_IDLE, CS_BEFORE_ZC, CS_PAST_ZC, CS_FAILED_ZC };
 
-// TODO: separate the statistics
-static struct control_state
+static struct diag_info                /// This data is never used by the control algorithms, it is write only
+{
+	/// Increment-only counters
+	uint64_t zc_failures_since_start;
+	uint64_t zc_solution_failures;
+	uint64_t bemf_samples_out_of_range;
+	uint64_t bemf_samples_premature_zc;
+
+	/// Last ZC solution
+	int zc_solution_num_samples;
+	int zc_solution_samples[MAX_BEMF_SAMPLES];
+	int64_t zc_solution_slope;
+	int64_t zc_solution_yintercept;
+
+	uint64_t started_at;
+} _diag;
+
+static struct control_state            /// Control state
 {
 	enum control_state_id control_state;
 
@@ -105,17 +121,9 @@ static struct control_state
 
 	unsigned int immediate_zc_failures;
 	unsigned int immediate_zc_detects;
+	unsigned int zc_detects_during_spinup;
 
-	uint64_t zc_failures_since_start;
-	uint64_t zc_detects_since_start;
-	uint64_t zc_failed_solutions;
-	int zc_samples_per_solution;
-	int zc_prev_samples[MAX_BEMF_SAMPLES];
-	int zc_prev_fitted_samples[MAX_BEMF_SAMPLES];
-	int zc_slope;
-	uint64_t bemf_samples_out_of_range;
-	uint64_t bemf_samples_premature_zc;
-
+	// TODO: rename
 	int bemf_samples[MAX_BEMF_SAMPLES];
 	uint64_t bemf_timestamps[MAX_BEMF_SAMPLES];
 	int optimal_num_bemf_samples;
@@ -130,11 +138,9 @@ static struct control_state
 
 	struct motor_pwm_val pwm_val;
 	struct motor_pwm_val pwm_val_after_spinup;
-
-	uint64_t started_at;
 } _state;
 
-static struct precomputed_params
+static struct precomputed_params       /// Parameters are read only
 {
 	uint32_t comm_period_lowpass_base;
 	int comm_period_shift_on_zc_failure;
@@ -260,15 +266,15 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	switch_commutation_step();
 	//From this moment we have at least half of the commutation period before the next time critical event.
 
-	if (_state.control_state != CS_PAST_ZC) {  // ZC has timed out
-		// In this case we need to emulate the ZC detection
+	if (_state.control_state != CS_PAST_ZC) {
+		// ZC has timed out - in this case we need to emulate the ZC detection
 		const uint32_t leeway = comm_period_on_zc_failure / 2 +
 			TIMING_ADVANCE64(comm_period_on_zc_failure, _params.timing_advance_deg64);
 		_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 
 		// There may be some ZC failures during spinup, it's OK but we don't want to count them
 		if (_state.spinup_done)
-			_state.zc_failures_since_start++;
+			_diag.zc_failures_since_start++;
 
 		// Stall detection
 		_state.immediate_zc_detects = 0;
@@ -282,8 +288,10 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		// Slow down a bit
 		if (_state.spinup_done)
 			_state.comm_period = comm_period_on_zc_failure;
-	} else { // On successful ZC
-		_state.zc_detects_since_start++;
+	} else {
+		// On successful ZC
+		if (!_state.spinup_done)
+			_state.zc_detects_during_spinup++;
 
 		// Stall detection update
 		if (_state.immediate_zc_failures) {
@@ -311,7 +319,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	// Have we reached the stable operation mode?
 	if (!_state.spinup_done) {
-		if (_state.immediate_zc_failures == 0 && _state.zc_detects_since_start > _params.zc_detects_min) {
+		if (_state.immediate_zc_failures == 0 && _state.zc_detects_during_spinup > _params.zc_detects_min) {
 			_state.spinup_done = true;
 			_state.pwm_val = _state.pwm_val_after_spinup;  // Engage normal duty cycle
 		}
@@ -436,35 +444,37 @@ static void solve_least_squares(const int n, const int x[], const int y[], int64
 
 static uint64_t solve_zero_cross_approximation(void)
 {
-	// Some stat
-	_state.zc_samples_per_solution = _state.num_bemf_samples_acquired;
-	memmove(_state.zc_prev_samples, _state.bemf_samples, _state.num_bemf_samples_acquired * 4);
-
-	// Large X numbers may cause overflow, so we subtract the constant (leftmost timestamp)
-	int data_x[MAX_BEMF_SAMPLES];
+	/*
+	 * Solution
+	 */
+	int data_x[MAX_BEMF_SAMPLES];                     // Subtract the leftmost timestamp to avoid overflows
 	for (int i = 0; i < _state.num_bemf_samples_acquired; i++) {
 		data_x[i] = _state.bemf_timestamps[i] - _state.bemf_timestamps[0];
 		assert(data_x[i] >= 0);
 	}
 
-	// Linear fitting
 	int64_t slope = 0, yintercept = 0;
 	solve_least_squares(_state.num_bemf_samples_acquired, data_x, _state.bemf_samples, &slope, &yintercept);
 
-	_state.zc_slope = slope;
+	const int x = -yintercept / slope; // Linear equation solved for x
 
-	// Linear equation solved for x
-	const int x = -yintercept / slope;
+	/*
+	 * Diagnostic info
+	 */
+	_diag.zc_solution_slope = slope;
+	_diag.zc_solution_yintercept = yintercept;
+	_diag.zc_solution_num_samples = _state.num_bemf_samples_acquired;
+	memmove(_diag.zc_solution_samples, _state.bemf_samples,
+		_state.num_bemf_samples_acquired * sizeof(_state.bemf_samples[0]));
 
-	for (int i = 0; i < _state.num_bemf_samples_acquired; i++)
-		_state.zc_prev_fitted_samples[i] = (slope * data_x[i] + yintercept) / LEAST_SQUARES_MULT;
-
-	// TODO: check the covariance
-
-	// Noisy input data may break the solution. Implement an outlier detector?
-	if (abs(x) > (int)(_params.adc_sampling_period * _state.num_bemf_samples_acquired * 2))
+	/*
+	 * Solution validation
+	 * Implement an outlier detector? Check the solution covariance?
+	 */
+	if (abs(x) > (int)(_params.adc_sampling_period * _state.num_bemf_samples_acquired * 2)) {
+		_diag.zc_solution_failures++;
 		return 0;
-
+	}
 	return _state.bemf_timestamps[0] + x;
 }
 
@@ -483,10 +493,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	/*
 	 * BEMF range validation
-	 * If out of range, the signal will be discarded as noise.
+	 * If out of range, the sample will be discarded as noise.
 	 */
 	if (abs(bemf) > (_state.neutral_voltage * _params.bemf_valid_range_pct128 / 128)) {
-		_state.bemf_samples_out_of_range++;
+		_diag.bemf_samples_out_of_range++;
 		return;
 	}
 
@@ -497,7 +507,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	const bool past_zc = is_past_zc(bemf);
 
 	if (past_zc && (_state.num_bemf_samples_acquired == 0) && _state.spinup_done) {
-		_state.bemf_samples_premature_zc++;
+		_diag.bemf_samples_premature_zc++;
 		return;
 	}
 
@@ -542,8 +552,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		_state.control_state = CS_FAILED_ZC;
 		_state.num_bemf_samples_acquired = 0;
 		_state.num_bemf_samples_past_zc = 0;
-		if (_state.spinup_done)
-			_state.zc_failed_solutions++;
 		return;
 	}
 
@@ -653,13 +661,15 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 		return;
 
 	/*
-	 * Initialize the control struct
+	 * Initialize the structs
 	 */
+	memset(&_diag, 0, sizeof(_diag));
 	memset(&_state, 0, sizeof(_state));    // Mighty reset
+
+	_diag.started_at = motor_timer_hnsec();
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
 	_state.spinup_done = false;
-	_state.started_at = motor_timer_hnsec();
 	_state.current_comm_step = 0;
 
 	motor_pwm_compute_pwm_val(spinup_duty_cycle, &_state.pwm_val);
@@ -753,7 +763,7 @@ uint32_t motor_get_comm_period_hnsec(void)
 uint64_t motor_get_zc_failures_since_start(void)
 {
 	irq_primask_disable();
-	const uint64_t ret = _state.zc_failures_since_start;
+	const uint64_t ret = _diag.zc_failures_since_start;
 	irq_primask_enable();
 	return ret;
 }
@@ -807,43 +817,60 @@ uint32_t motor_get_limit_comm_period_hnsec(void)
 
 void motor_print_debug_info(void)
 {
+	static const int ALIGNMENT = 25;
+
+#define PRINT_INT(name, value) lowsyslog("  %-*s %D\n", ALIGNMENT, (name), (long)(value))
+#define PRINT_FLT(name, value) lowsyslog("  %-*s %f\n", ALIGNMENT, (name), (float)(value))
+
+	/*
+	 * Instant state
+	 */
 	irq_primask_disable();
 	const struct control_state state_copy = _state;
 	irq_primask_enable();
 
-	lowsyslog("Motor: Debug\n"
-		"  comm period        %u usec\n"
-		"  neutral voltage    %i\n"
-		"  zc failures        %u\n"
-		"  zc spls in sol     %i\n"
-		"  zc sol failures    %u\n"
-		"  zc slope           %f\n"
-		"  opt bemf spls      %i\n"
-		"  bemf spls oor      %u\n"
-		"  bemf spls prem     %u\n"
-		"  voltage, current   %i %i\n",
-		(unsigned)(state_copy.comm_period / HNSEC_PER_USEC),
-		(int)state_copy.neutral_voltage,
-		(unsigned)state_copy.zc_failures_since_start,
-		_state.zc_samples_per_solution,
-		(unsigned)_state.zc_failed_solutions,
-		_state.zc_slope / (float)LEAST_SQUARES_MULT,
-		_state.optimal_num_bemf_samples,
-		(unsigned)_state.bemf_samples_out_of_range,
-		(unsigned)_state.bemf_samples_premature_zc,
-		state_copy.input_voltage, state_copy.input_current);
+	lowsyslog("Motor state\n");
+	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
+	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
+	PRINT_INT("input voltage",   state_copy.input_voltage);
+	PRINT_INT("input current",   state_copy.input_current);
 
-	if (_state.zc_samples_per_solution > 0) {
-		// ZC samples
-		lowsyslog("  zc samples  ");
-		for (int i = 0; i < _state.zc_samples_per_solution; i++)
-			lowsyslog("%i ", _state.zc_prev_samples[i]);
+	/*
+	 * Diagnostics
+	 */
+	irq_primask_disable();
+	const struct diag_info diag_copy = _diag;
+	irq_primask_enable();
+
+	lowsyslog("Motor diag\n");
+	PRINT_INT("zc failures",       diag_copy.zc_failures_since_start);
+	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
+	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
+	PRINT_INT("zc sol failures",   diag_copy.zc_solution_failures);
+	PRINT_FLT("zc sol slope",      diag_copy.zc_solution_slope / (float)LEAST_SQUARES_MULT);
+	PRINT_FLT("zc sol yintercept", diag_copy.zc_solution_yintercept / (float)LEAST_SQUARES_MULT);
+
+	/*
+	 * ZC fitting
+	 */
+	if (_diag.zc_solution_num_samples > 0) {
+		lowsyslog("Motor ZC solution data\n");
+
+		lowsyslog("  zc samples   ");
+		for (int i = 0; i < _diag.zc_solution_num_samples; i++)
+			lowsyslog("%-5i ", diag_copy.zc_solution_samples[i]);
 		lowsyslog("\n");
 
-		// ZC fitted samples
-		lowsyslog("  zc fitting  ");
-		for (int i = 0; i < _state.zc_samples_per_solution; i++)
-			lowsyslog("%i ", _state.zc_prev_fitted_samples[i]);
+		lowsyslog("  zc fitted    ");
+		for (int i = 0; i < _diag.zc_solution_num_samples; i++) {
+			const int x = _params.adc_sampling_period * i;
+			const int y = (diag_copy.zc_solution_slope * x + diag_copy.zc_solution_yintercept) /
+				LEAST_SQUARES_MULT;
+			lowsyslog("%-5i ", y);
+		}
 		lowsyslog("\n");
 	}
+
+#undef PRINT_INT
+#undef PRINT_FLT
 }
