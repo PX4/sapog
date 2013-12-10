@@ -122,7 +122,7 @@ int config_get_descr(const char* name, struct config_param* out);
 
 /**
  * @param [in] name Parameter name
- * @return The parameter value if it does exist, quiet NAN otherwise.
+ * @return The parameter value if it does exist; otherwise fires an assert() in debug builds, returns NAN in release.
  */
 float config_get(const char* name);
 
