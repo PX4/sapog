@@ -173,19 +173,19 @@ CONFIG_PARAM_INT("motor_comm_period_lowpass_base_usec",10000, 0,     50000)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           10,    0,     60)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lowpass_alpha", 1.0,   1e-3,  1.0)
-CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100) // Correct blank time is vital for LSF approx
+CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_alignment_usec",        300000,0,     900000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 10000, 90000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 10000, 60000)
-CONFIG_PARAM_INT("motor_spinup_num_steps",             1,     0,     10)
+CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",30000, 5000,  90000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 5000,  60000)
+CONFIG_PARAM_INT("motor_spinup_num_steps",             0,     0,     10)
 // Something not so important
 CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
-CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    1,     500)
+CONFIG_PARAM_INT("motor_zc_failures_to_stop",          50,    1,     500)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   1,     1000)
-CONFIG_PARAM_INT("motor_comm_period_max_usec",         20000, 1000,  100000)
+CONFIG_PARAM_INT("motor_comm_period_max_usec",         16000, 1000,  50000)
 CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_alpha",    0.02,  1e-3,  1.0)
 
 
@@ -226,8 +226,10 @@ static void configure(void)
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
-	lowsyslog("Motor: Config: BEMF window denom: %i, Neutral LP: %i\n",
-		_params.motor_bemf_window_len_denom, _params.neutral_voltage_lowpass_alpha_reciprocal);
+	lowsyslog("Motor: Config: Max comm period: %u usec, BEMF window denom: %i, Neutral LP: %i\n",
+		_params.comm_period_max / HNSEC_PER_USEC,
+		_params.motor_bemf_window_len_denom,
+		_params.neutral_voltage_lowpass_alpha_reciprocal);
 }
 
 // --- Hard real time code below ---
