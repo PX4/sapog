@@ -168,9 +168,10 @@ static void update_control_non_running(void)
 		(_state.mode == MOTORMGR_MODE_RPM && (_state.rpm_setpoint > 0));
 
 	if (need_start) {
-		_state.dc_actual = spinup_dc;
-		// DEBUG:
+#if DEBUG
 		motor_print_debug_info();
+#endif
+		_state.dc_actual = spinup_dc;
 		motor_start(spinup_dc, spinup_dc, _params.reverse);
 	}
 }
