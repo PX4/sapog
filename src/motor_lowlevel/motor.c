@@ -123,12 +123,11 @@ static struct control_state            /// Control state
 	unsigned int immediate_zc_detects;
 	unsigned int zc_detects_during_spinup;
 
-	// TODO: rename
-	int bemf_samples[MAX_BEMF_SAMPLES];
-	uint64_t bemf_timestamps[MAX_BEMF_SAMPLES];
-	int optimal_num_bemf_samples;
-	int num_bemf_samples_acquired;
-	int num_bemf_samples_past_zc;
+	int zc_bemf_samples[MAX_BEMF_SAMPLES];
+	uint64_t zc_bemf_timestamps[MAX_BEMF_SAMPLES];
+	int zc_bemf_samples_optimal;
+	int zc_bemf_samples_acquired;
+	int zc_bemf_samples_acquired_past_zc;
 
 	int neutral_voltage;
 	int integrated_bemf_voltage;
@@ -306,13 +305,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	motor_adc_enable_from_isr();
 
 	// Reset and configure the ZC solver
-	_state.num_bemf_samples_acquired = 0;
-	_state.num_bemf_samples_past_zc = 0;
+	_state.zc_bemf_samples_acquired = 0;
+	_state.zc_bemf_samples_acquired_past_zc = 0;
 
-	_state.optimal_num_bemf_samples =
+	_state.zc_bemf_samples_optimal =
 		(_state.comm_period / _params.adc_sampling_period) / _params.motor_bemf_window_len_denom + 2;
-	if (_state.optimal_num_bemf_samples > MAX_BEMF_SAMPLES)
-		_state.optimal_num_bemf_samples = MAX_BEMF_SAMPLES;
+	if (_state.zc_bemf_samples_optimal > MAX_BEMF_SAMPLES)
+		_state.zc_bemf_samples_optimal = MAX_BEMF_SAMPLES;
 
 	_state.integrated_bemf_voltage = 0;
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
@@ -363,25 +362,25 @@ static void update_input_voltage_current(const struct motor_adc_sample* sample)
 
 static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 {
-	assert(_state.num_bemf_samples_acquired <= _state.optimal_num_bemf_samples);
-	assert(_state.optimal_num_bemf_samples > 1);
+	assert(_state.zc_bemf_samples_acquired <= _state.zc_bemf_samples_optimal);
+	assert(_state.zc_bemf_samples_optimal > 1);
 
 	int insertion_index = 0;
 
-	if (_state.num_bemf_samples_acquired < _state.optimal_num_bemf_samples) {
-		insertion_index = _state.num_bemf_samples_acquired;
-		_state.num_bemf_samples_acquired++;
+	if (_state.zc_bemf_samples_acquired < _state.zc_bemf_samples_optimal) {
+		insertion_index = _state.zc_bemf_samples_acquired;
+		_state.zc_bemf_samples_acquired++;
 	} else {
-		insertion_index = _state.optimal_num_bemf_samples - 1;
+		insertion_index = _state.zc_bemf_samples_optimal - 1;
 		// Move all samples one step to the left (hope the compiler will replace this with memmove())
 		for (int i = 0; i < insertion_index; i++) {
-			_state.bemf_samples[i] = _state.bemf_samples[i + 1];
-			_state.bemf_timestamps[i] = _state.bemf_timestamps[i + 1];
+			_state.zc_bemf_samples[i] = _state.zc_bemf_samples[i + 1];
+			_state.zc_bemf_timestamps[i] = _state.zc_bemf_timestamps[i + 1];
 		}
 	}
 
-	_state.bemf_samples[insertion_index] = bemf;
-	_state.bemf_timestamps[insertion_index] = timestamp;
+	_state.zc_bemf_samples[insertion_index] = bemf;
+	_state.zc_bemf_timestamps[insertion_index] = timestamp;
 }
 
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
@@ -448,13 +447,13 @@ static uint64_t solve_zero_cross_approximation(void)
 	 * Solution
 	 */
 	int data_x[MAX_BEMF_SAMPLES];                     // Subtract the leftmost timestamp to avoid overflows
-	for (int i = 0; i < _state.num_bemf_samples_acquired; i++) {
-		data_x[i] = _state.bemf_timestamps[i] - _state.bemf_timestamps[0];
+	for (int i = 0; i < _state.zc_bemf_samples_acquired; i++) {
+		data_x[i] = _state.zc_bemf_timestamps[i] - _state.zc_bemf_timestamps[0];
 		assert(data_x[i] >= 0);
 	}
 
 	int64_t slope = 0, yintercept = 0;
-	solve_least_squares(_state.num_bemf_samples_acquired, data_x, _state.bemf_samples, &slope, &yintercept);
+	solve_least_squares(_state.zc_bemf_samples_acquired, data_x, _state.zc_bemf_samples, &slope, &yintercept);
 
 	const int x = -yintercept / slope; // Linear equation solved for x
 
@@ -463,19 +462,19 @@ static uint64_t solve_zero_cross_approximation(void)
 	 */
 	_diag.zc_solution_slope = slope;
 	_diag.zc_solution_yintercept = yintercept;
-	_diag.zc_solution_num_samples = _state.num_bemf_samples_acquired;
-	memmove(_diag.zc_solution_samples, _state.bemf_samples,
-		_state.num_bemf_samples_acquired * sizeof(_state.bemf_samples[0]));
+	_diag.zc_solution_num_samples = _state.zc_bemf_samples_acquired;
+	memmove(_diag.zc_solution_samples, _state.zc_bemf_samples,
+		_state.zc_bemf_samples_acquired * sizeof(_state.zc_bemf_samples[0]));
 
 	/*
 	 * Solution validation
 	 * Implement an outlier detector? Check the solution covariance?
 	 */
-	if (abs(x) > (int)(_params.adc_sampling_period * _state.num_bemf_samples_acquired * 2)) {
+	if (abs(x) > (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2)) {
 		_diag.zc_solution_failures++;
 		return 0;
 	}
-	return _state.bemf_timestamps[0] + x;
+	return _state.zc_bemf_timestamps[0] + x;
 }
 
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
@@ -506,7 +505,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	const bool past_zc = is_past_zc(bemf);
 
-	if (past_zc && (_state.num_bemf_samples_acquired == 0) && _state.spinup_done) {
+	if (past_zc && (_state.zc_bemf_samples_acquired == 0) && _state.spinup_done) {
 		_diag.bemf_samples_premature_zc++;
 		return;
 	}
@@ -525,12 +524,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	bool enough_samples = false;
 	if (past_zc) {
-		const int optimal_samples_past_zc = _state.optimal_num_bemf_samples / 2;
-		_state.num_bemf_samples_past_zc++;
+		const int optimal_samples_past_zc = _state.zc_bemf_samples_optimal / 2;
+		_state.zc_bemf_samples_acquired_past_zc++;
 
 		enough_samples =
-			(_state.num_bemf_samples_past_zc >= optimal_samples_past_zc) &&
-			(_state.num_bemf_samples_acquired > 1);
+			(_state.zc_bemf_samples_acquired_past_zc >= optimal_samples_past_zc) &&
+			(_state.zc_bemf_samples_acquired > 1);
 
 		if (step->floating == 0) {
 			TESTPAD_ZC_SET();
@@ -550,8 +549,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (zc_timestamp == 0) {
 		// Sorry Mario
 		_state.control_state = CS_FAILED_ZC;
-		_state.num_bemf_samples_acquired = 0;
-		_state.num_bemf_samples_past_zc = 0;
+		_state.zc_bemf_samples_acquired = 0;
+		_state.zc_bemf_samples_acquired_past_zc = 0;
 		return;
 	}
 
