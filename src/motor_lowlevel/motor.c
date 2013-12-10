@@ -48,7 +48,7 @@
 #define NUM_PHASES                 3
 #define NUM_COMMUTATION_STEPS      6
 
-#define COMM_PERIOD_LOWPASS_MAX    50
+#define COMM_PERIOD_LOWPASS_MAX    (2 * HNSEC_PER_USEC)
 
 /**
  * Upper limit is 8 for 72MHz Cortex M3 (limited by the processing power)
@@ -61,6 +61,12 @@
  */
 #define TIMING_ADVANCE64(comm_period, degrees) \
 	(((uint64_t)comm_period * (uint64_t)degrees) / 64/*60*/)
+
+/**
+ * Generic lowpass filter with correct rounding
+ */
+#define LOWPASS(xold, xnew, alpha_rcpr) \
+	(((xold) * (alpha_rcpr) + (xnew) + (((alpha_rcpr) + 1) / 2)) / ((alpha_rcpr) + 1))
 
 #define TESTPAD_ZC_SET()           TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
 #define TESTPAD_ZC_CLEAR()         TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
@@ -172,11 +178,11 @@ static bool _initialization_confirmed = false;
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
 // Most important parameters
-CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    10000, 0,     50000)
-CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.2,   0.1,   1.0)
+CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
+CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
-CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   1e-3,  1.0)
+CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_alignment_usec",        300000,0,     900000)
@@ -190,7 +196,7 @@ CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          60,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         16000, 1000,  50000)
-CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.02,  1e-3,  1.0)
+CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.02,  0.01,  1.0)
 
 
 static void configure(void)
@@ -311,10 +317,8 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	}
 	_state.control_state = CS_BEFORE_ZC; // Waiting for the next ZC
 
-	// Enable ADC sampling
 	motor_adc_enable_from_isr();
 
-	// Reset and configure the ZC solver
 	_state.zc_bemf_samples_acquired = 0;
 	_state.zc_bemf_samples_acquired_past_zc = 0;
 
@@ -354,25 +358,22 @@ static void handle_zero_cross(uint64_t zc_timestamp)
 	if (comm_period_lowpass < (unsigned)_params.comm_period_lowpass_alpha_reciprocal_min)
 		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
 
-	_state.comm_period = (_state.comm_period * comm_period_lowpass + new_comm_period) / (comm_period_lowpass + 1);
+	_state.comm_period = LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
 
 	_state.control_state = CS_PAST_ZC;
 
 	const uint32_t advance =
 		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, _params.timing_advance_deg64);
 
-	// Override the comm period deadline that was set at the last commutation switching
 	motor_timer_set_absolute(zc_timestamp + advance);
-
-	// Disable till next comm period
 	motor_adc_disable_from_isr();
 }
 
 static void update_input_voltage_current(const struct motor_adc_sample* sample)
 {
 	const int alpha = _params.input_volt_cur_lowpass_alpha_reciprocal;
-	_state.input_voltage = (_state.input_voltage * alpha + sample->input_voltage) / (alpha + 1);
-	_state.input_current = (_state.input_current * alpha + sample->input_current) / (alpha + 1);
+	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage, alpha);
+	_state.input_current = LOWPASS(_state.input_current, sample->input_current, alpha);
 }
 
 static void add_bemf_sample(const int bemf, const uint64_t timestamp)
@@ -403,8 +404,7 @@ static void update_neutral_voltage(const struct motor_adc_sample* sample)
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
 	const int avg_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 	_state.neutral_voltage =
-		(_state.neutral_voltage * _params.neutral_voltage_lowpass_alpha_reciprocal + avg_voltage) /
-		(_params.neutral_voltage_lowpass_alpha_reciprocal + 1);
+		LOWPASS(_state.neutral_voltage, avg_voltage, _params.neutral_voltage_lowpass_alpha_reciprocal);
 }
 
 static bool is_past_zc(const int bemf)
