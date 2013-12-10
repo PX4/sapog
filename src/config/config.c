@@ -316,7 +316,9 @@ float config_get(const char* name)
 {
 	chMtxLock(&_mutex);
 	const int index = index_by_name(name);
+	assert(index >= 0);
 	const float val = (index < 0) ? nanf("") : _value_pool[index];
 	chMtxUnlock();
+	assert(isfinite(val));
 	return val;
 }

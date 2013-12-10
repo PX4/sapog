@@ -121,9 +121,9 @@ static struct control_state            /// Control state
 
 	bool spinup_done;
 
-	unsigned int immediate_zc_failures;
-	unsigned int immediate_zc_detects;
-	unsigned int zc_detects_during_spinup;
+	unsigned immediate_zc_failures;
+	unsigned immediate_zc_detects;
+	unsigned zc_detects_during_spinup;
 
 	int zc_bemf_samples[MAX_BEMF_SAMPLES];
 	uint64_t zc_bemf_timestamps[MAX_BEMF_SAMPLES];
@@ -144,6 +144,7 @@ static struct control_state            /// Control state
 static struct precomputed_params       /// Parameters are read only
 {
 	uint32_t comm_period_lowpass_base;
+	int comm_period_lowpass_alpha_reciprocal_min;
 	int comm_period_shift_on_zc_failure;
 	int timing_advance_deg64;
 	int neutral_voltage_lowpass_alpha_reciprocal;
@@ -156,8 +157,8 @@ static struct precomputed_params       /// Parameters are read only
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
 	int integrated_bemf_threshold_pct128;
-	unsigned int zc_failures_max;
-	unsigned int zc_detects_min;
+	unsigned zc_failures_max;
+	unsigned zc_detects_min;
 	uint32_t comm_period_max;
 	int comm_blank_hnsec;
 	int input_volt_cur_lowpass_alpha_reciprocal;
@@ -171,33 +172,37 @@ static bool _initialization_confirmed = false;
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
 // Most important parameters
-CONFIG_PARAM_INT("motor_comm_period_lowpass_base_usec",10000, 0,     50000)
+CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    10000, 0,     50000)
+CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.2,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           10,    0,     60)
-CONFIG_PARAM_FLOAT("motor_neutral_volt_lowpass_alpha", 1.0,   1e-3,  1.0)
+CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   1e-3,  1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_alignment_usec",        300000,0,     900000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",30000, 5000,  90000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 5000,  60000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 2000,  90000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 2000,  60000)
 CONFIG_PARAM_INT("motor_spinup_num_steps",             0,     0,     10)
 // Something not so important
 CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
-CONFIG_PARAM_INT("motor_zc_failures_to_stop",          50,    1,     500)
-CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   1,     1000)
+CONFIG_PARAM_INT("motor_zc_failures_to_stop",          60,    6,     300)
+CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         16000, 1000,  50000)
-CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_alpha",    0.02,  1e-3,  1.0)
+CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.02,  1e-3,  1.0)
 
 
 static void configure(void)
 {
-	_params.comm_period_lowpass_base        = config_get("motor_comm_period_lowpass_base_usec") * HNSEC_PER_USEC;
+	_params.comm_period_lowpass_base = config_get("motor_comm_period_lpf_base_usec") * HNSEC_PER_USEC;
+	_params.comm_period_lowpass_alpha_reciprocal_min =
+		(int)(1.0f / config_get("motor_comm_period_lpf_alpha_max") + 0.5f) - 1;
+
 	_params.comm_period_shift_on_zc_failure = config_get("motor_deceleration_rate_on_zc_miss");
 	_params.timing_advance_deg64            = config_get("motor_timing_advance_deg") * 64 / 60;
 	_params.neutral_voltage_lowpass_alpha_reciprocal =
-		(int)(1.0f / config_get("motor_neutral_volt_lowpass_alpha") + 0.5f) - 1;
+		(int)(1.0f / config_get("motor_neutral_volt_lpf_alpha") + 0.5f) - 1;
 
 	_params.spinup_alignment_hnsec   = config_get("motor_spinup_alignment_usec")         * HNSEC_PER_USEC;
 	_params.spinup_comm_period_begin = config_get("motor_spinup_comm_period_begin_usec") * HNSEC_PER_USEC;
@@ -212,7 +217,7 @@ static void configure(void)
 	_params.comm_period_max  = config_get("motor_comm_period_max_usec") * HNSEC_PER_USEC;
 	_params.comm_blank_hnsec = config_get("motor_comm_blank_usec") * HNSEC_PER_USEC;
 	_params.input_volt_cur_lowpass_alpha_reciprocal =
-		(int)(1.0f / config_get("motor_volt_curr_lowpass_alpha")) - 1;
+		(int)(1.0f / config_get("motor_volt_curr_lpf_alpha")) - 1;
 
 	assert_always(_params.neutral_voltage_lowpass_alpha_reciprocal >= 0);
 	assert_always(_params.input_volt_cur_lowpass_alpha_reciprocal >= 0);
@@ -280,9 +285,10 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			_diag.zc_failures_since_start++;
 
 		// Stall detection
+		const unsigned max_fails = _state.spinup_done ? _params.zc_failures_max : (_params.zc_failures_max * 2);
 		_state.immediate_zc_detects = 0;
 		_state.immediate_zc_failures++;
-		if (_state.immediate_zc_failures > _params.zc_failures_max) {
+		if (_state.immediate_zc_failures > max_fails) {
 			// No bounce no play
 			stop_from_isr();
 			return;
@@ -341,8 +347,13 @@ static void handle_zero_cross(uint64_t zc_timestamp)
 
 	const unsigned comm_period_base = (new_comm_period + _state.comm_period) / 2;
 	unsigned comm_period_lowpass = _params.comm_period_lowpass_base / comm_period_base;
+
 	if (comm_period_lowpass > COMM_PERIOD_LOWPASS_MAX)
 		comm_period_lowpass = COMM_PERIOD_LOWPASS_MAX;
+
+	if (comm_period_lowpass < (unsigned)_params.comm_period_lowpass_alpha_reciprocal_min)
+		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
+
 	_state.comm_period = (_state.comm_period * comm_period_lowpass + new_comm_period) / (comm_period_lowpass + 1);
 
 	_state.control_state = CS_PAST_ZC;
