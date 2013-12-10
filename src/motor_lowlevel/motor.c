@@ -135,8 +135,8 @@ static struct control_state            /// Control state
 	int input_voltage;
 	int input_current;
 
-	struct motor_pwm_val pwm_val;
-	struct motor_pwm_val pwm_val_after_spinup;
+	int pwm_val;
+	int pwm_val_after_spinup;
 } _state;
 
 static struct precomputed_params       /// Parameters are read only
@@ -240,7 +240,7 @@ static inline void switch_commutation_step(void)
 	if (_state.current_comm_step >= NUM_COMMUTATION_STEPS)
 		_state.current_comm_step = 0;
 	assert(_state.comm_table);
-	motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, &_state.pwm_val);
+	motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, _state.pwm_val);
 }
 
 static inline void stop_from_isr(void)
@@ -622,7 +622,7 @@ static void spinup_align(void)
 	polarities[first_step->positive] = 1;
 	polarities[first_step->floating] = -1;
 
-	motor_pwm_align(polarities, &_state.pwm_val);
+	motor_pwm_align(polarities, _state.pwm_val);
 
 	// Strict timing is not required here, so usleep() is OK
 	usleep(_params.spinup_alignment_hnsec / HNSEC_PER_USEC);
@@ -671,8 +671,8 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	_state.spinup_done = false;
 	_state.current_comm_step = 0;
 
-	motor_pwm_compute_pwm_val(spinup_duty_cycle, &_state.pwm_val);
-	motor_pwm_compute_pwm_val(normal_duty_cycle, &_state.pwm_val_after_spinup);
+	_state.pwm_val = motor_pwm_compute_pwm_val(spinup_duty_cycle);
+	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(normal_duty_cycle);
 
 	init_adc_filters();
 
@@ -717,12 +717,8 @@ void motor_stop(void)
 
 void motor_set_duty_cycle(float duty_cycle)
 {
-	struct motor_pwm_val val;
-	motor_pwm_compute_pwm_val(duty_cycle, &val);
-
-	irq_primask_disable();
-	_state.pwm_val = val;
-	irq_primask_enable();
+	// We don't need a critical section to write an integer
+	_state.pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
 }
 
 enum motor_state motor_get_state(void)

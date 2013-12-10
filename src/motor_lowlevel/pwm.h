@@ -49,11 +49,6 @@ struct motor_pwm_commutation_step
 	int_fast8_t floating;
 };
 
-struct motor_pwm_val
-{
-	int16_t normalized_duty_cycle;
-};
-
 enum motor_pwm_phase_manip
 {
 	MOTOR_PWM_MANIP_LOW,
@@ -100,7 +95,7 @@ uint32_t motor_adc_sampling_period_hnsec(void);
  */
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[3]);
 
-void motor_pwm_align(const int polarities[3], const struct motor_pwm_val* pwm_val);
+void motor_pwm_align(const int polarities[3], int pwm_val);
 
 void motor_pwm_set_freewheeling(void);
 
@@ -109,9 +104,9 @@ void motor_pwm_emergency(void);
 /**
  * Duty cycle in [-1; 1]
  */
-void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val);
+int motor_pwm_compute_pwm_val(float duty_cycle);
 
-void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val);
+void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, int pwm_val);
 
 void motor_pwm_beep(int frequency, int duration_msec);
 

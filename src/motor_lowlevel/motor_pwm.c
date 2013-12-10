@@ -332,13 +332,12 @@ static void phase_enable_i(int phase)
  *  - motor IRQs are disabled
  */
 __attribute__((optimize(3), always_inline))
-static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inverted)
+static void phase_set_i(int phase, const int pwm_val, bool inverted)
 {
 	assert(phase >= 0 && phase < 3);
-	assert(pwm_val);
 
-	uint_fast16_t duty_cycle_high = pwm_val->normalized_duty_cycle;
-	uint_fast16_t duty_cycle_low  = pwm_val->normalized_duty_cycle;
+	uint_fast16_t duty_cycle_high = pwm_val;
+	uint_fast16_t duty_cycle_low  = pwm_val;
 
 	if (inverted) {
 		// Reset if necessary
@@ -349,7 +348,7 @@ static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inv
 		TIM4->CCER |= TIM4_HIGH_CCER_POL[phase];
 
 		// Inverted phase shall have greater PWM value than non-inverted one
-		if (pwm_val->normalized_duty_cycle > _pwm_half_top)
+		if (pwm_val > _pwm_half_top)
 			duty_cycle_low  -= _pwm_dead_time_ticks;
 		else
 			duty_cycle_high += _pwm_dead_time_ticks;
@@ -361,7 +360,7 @@ static void phase_set_i(int phase, const struct motor_pwm_val* pwm_val, bool inv
 		// Normal - low PWM is inverted, high is not
 		TIM3->CCER |= TIM3_LOW_CCER_POL[phase];
 
-		if (pwm_val->normalized_duty_cycle > _pwm_half_top)
+		if (pwm_val > _pwm_half_top)
 			duty_cycle_high -= _pwm_dead_time_ticks;
 		else
 			duty_cycle_low  += _pwm_dead_time_ticks;
@@ -386,11 +385,10 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 		case MOTOR_PWM_MANIP_HALF: {
 			const float duty_cycle = (command[phase] == MOTOR_PWM_MANIP_HIGH) ? 1.f : 0.f;
 
-			struct motor_pwm_val pwm_val;
-			motor_pwm_compute_pwm_val(duty_cycle, &pwm_val);
+			const int pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
 
 			irq_primask_disable();
-			phase_set_i(phase, &pwm_val, false);
+			phase_set_i(phase, pwm_val, false);
 			irq_primask_enable();
 			break;
 		}
@@ -418,7 +416,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 	}
 }
 
-void motor_pwm_align(const int polarities[3], const struct motor_pwm_val* pwm_val)
+void motor_pwm_align(const int polarities[3], int pwm_val)
 {
 	irq_primask_disable();
 	phase_reset_all_i();
@@ -463,10 +461,8 @@ void motor_pwm_emergency(void)
 	irq_primask_restore(irqstate);
 }
 
-void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val)
+int motor_pwm_compute_pwm_val(float duty_cycle)
 {
-	assert(out_val);
-
 	/*
 	 * Normalize into [0; PWM_TOP] regardless of sign
 	 */
@@ -481,29 +477,33 @@ void motor_pwm_compute_pwm_val(float duty_cycle, struct motor_pwm_val* out_val)
 	 * Compute the complementary duty cycle
 	 * Ref. "Influence of PWM Schemes and Commutation Methods for DC and Brushless Motors and Drives", page 4.
 	 */
+	int output = 0;
+
 	if (duty_cycle >= 0) {
 		// Forward mode
-		out_val->normalized_duty_cycle = _pwm_top - ((_pwm_top - int_duty_cycle) / 2);
+		output = _pwm_top - ((_pwm_top - int_duty_cycle) / 2);
 
-		if (out_val->normalized_duty_cycle > _pwm_max)
-			out_val->normalized_duty_cycle = _pwm_max;
+		if (output > _pwm_max)
+			output = _pwm_max;
 
-		assert(out_val->normalized_duty_cycle >= _pwm_half_top);
-		assert(out_val->normalized_duty_cycle <= _pwm_top);
+		assert(output >= _pwm_half_top);
+		assert(output <= _pwm_top);
 	} else {
 		// Braking mode
-		out_val->normalized_duty_cycle = (_pwm_top - int_duty_cycle) / 2;
+		output = (_pwm_top - int_duty_cycle) / 2;
 
-		if (out_val->normalized_duty_cycle < _pwm_min)
-			out_val->normalized_duty_cycle = _pwm_min;
+		if (output < _pwm_min)
+			output = _pwm_min;
 
-		assert(out_val->normalized_duty_cycle >= 0);
-		assert(out_val->normalized_duty_cycle <= _pwm_half_top);
+		assert(output >= 0);
+		assert(output <= _pwm_half_top);
 	}
+
+	return output;
 }
 
 __attribute__((optimize(3)))
-void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, const struct motor_pwm_val* pwm_val)
+void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, int pwm_val)
 {
 	phase_reset_i(step->floating);
 
