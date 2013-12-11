@@ -311,6 +311,16 @@ static msg_t control_thread(void* arg)
 			control_period_ms = IDLE_CONTROL_PERIOD_MSEC;
 
 		/*
+		 * Thread priority - maximum if the motor is running, normal otherwise
+		 */
+		const tprio_t desired_thread_priority = (comm_period > 0) ? HIGHPRIO : NORMALPRIO;
+
+		if (desired_thread_priority != chThdGetPriority()) {
+			const tprio_t old = chThdSetPriority(desired_thread_priority);
+			lowsyslog("Motor manager: Priority changed: %i --> %i\n", old, desired_thread_priority);
+		}
+
+		/*
 		 * Make sure the event is set when the mutex is unlocked.
 		 * Otherwise this thread will take control, stumble upon the locked mutex, return the control
 		 * to the thread that holds the mutex, unlock the mutex, then proceed.

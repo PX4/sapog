@@ -108,6 +108,9 @@ int motor_pwm_compute_pwm_val(float duty_cycle);
 
 void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, int pwm_val);
 
+/**
+ * Should be called from high priority threads
+ */
 void motor_pwm_beep(int frequency, int duration_msec);
 
 __END_DECLS

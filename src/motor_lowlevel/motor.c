@@ -754,7 +754,9 @@ void motor_beep(int frequency, int duration_msec)
 		motor_adc_disable_from_isr();
 		irq_primask_enable();
 
+		const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 		motor_pwm_beep(frequency, duration_msec);
+		chThdSetPriority(orig_priority);
 
 		irq_primask_disable();
 		motor_adc_enable_from_isr();

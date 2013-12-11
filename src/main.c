@@ -150,6 +150,8 @@ int main(void)
 	led_set_status(false);
 	led_set_error(false);
 
+	chThdSetPriority(LOWPRIO);
+
 	while (1) {
 		// TODO: LED indication
 		usleep(10000);
