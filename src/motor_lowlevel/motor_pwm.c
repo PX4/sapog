@@ -552,6 +552,7 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	const int low_phase_first  = _phase_sel++ % 3;
 	const int low_phase_second = _phase_sel++ % 3;
 	const int high_phase       = _phase_sel++ % 3;
+	_phase_sel++;              // We need to increment it not by multiple of 3
 	assert(low_phase_first != high_phase && low_phase_second != high_phase);
 
 	/*
