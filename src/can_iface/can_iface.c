@@ -117,6 +117,5 @@ int canif_init(void)
 	res = canasParamAdvertise(&_canas, CANAS_UAV_ROTOR_RPM_1 + _self_esc_id - 1, enable_interlacing);
 	CHECKERR(res, "Pub: RPM");
 
-	lowsyslog("Canas: Init OK\n");
 	return 0;
 }

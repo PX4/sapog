@@ -64,17 +64,7 @@ void application_halt_hook(void)
 	led_set_status(true);
 }
 
-void run_plot(void)
-{
-	motor_start(0.2, 0.6, false);
-	while (1) {
-		usleep(50000);
-		const uint32_t per = motor_get_comm_period_hnsec();
-		lowsyslog("$ %u\n", (unsigned)per);
-	}
-}
-
-int init(void)
+static int init(void)
 {
 	int res = 0;
 
@@ -95,11 +85,12 @@ int init(void)
 	res = motor_test_hardware();
 	if (res)
 		return res;
+	lowsyslog("Power stage OK\n");
 
 	if (motor_test_motor())
 		lowsyslog("Motor is not connected or damaged\n");
 	else
-		lowsyslog("Motor is OK\n");
+		lowsyslog("Motor OK\n");
 
 	/*
 	 * CAN
@@ -107,12 +98,13 @@ int init(void)
 	res = canif_init();
 	if (res)
 		return res;
+	lowsyslog("CAN OK\n");
 
 	return 0;
 }
 
 __attribute__((noreturn))
-void die(int status)
+static void die(int status)
 {
 	usleep(100000);
 	lowsyslog("Now I am dead. %i\n", status);
@@ -126,6 +118,14 @@ void die(int status)
 	}
 }
 
+static void print_banner(void)
+{
+	lowsyslog("\n\n\n");
+	lowsyslog("\x1b\x5b\x48");      // Home sweet home
+	lowsyslog("\x1b\x5b\x32\x4a");  // Clear
+	lowsyslog("PX4ESC\n");
+}
+
 int main(void)
 {
 	halInit();
@@ -133,7 +133,7 @@ int main(void)
 	sdStart(&STDOUT_SD, NULL);
 
 	usleep(300000);
-	lowsyslog("\nPX4ESC: starting\n");
+	print_banner();
 
 	const int init_status = init();
 
