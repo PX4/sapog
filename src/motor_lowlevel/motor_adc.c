@@ -239,7 +239,9 @@ float motor_adc_convert_input_voltage(int raw)
 
 float motor_adc_convert_input_current(int raw)
 {
-	static const float GAIN = 50.9f;
-	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
-	return unscaled / (_shunt_resistance * GAIN);
+	// http://www.diodes.com/datasheets/ZXCT1051.pdf
+	const float vout = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
+	const float vsense = vout / 10;
+	const float iload = vsense / _shunt_resistance;
+	return iload;
 }

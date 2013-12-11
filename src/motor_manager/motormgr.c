@@ -68,6 +68,7 @@ static struct state
 
 	float input_voltage;
 	float input_current;
+	float input_curent_offset;
 } _state;
 
 static struct params
@@ -100,7 +101,7 @@ CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
 
 CONFIG_PARAM_INT("motormgr_rpm_min",                  800,    50,      5000)
 
-CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 0.5,    0.1,     100.0)
+CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 5.0,    0.1,     100.0)
 
 
 static void configure(void)
@@ -130,13 +131,23 @@ static float lowpass(float xold, float xnew, float tau, float dt)
 
 static void init_filters(void)
 {
-	motor_get_input_voltage_current(&_state.input_voltage, &_state.input_current);
+	// Assuming that initial current is zero
+	motor_get_input_voltage_current(&_state.input_voltage, &_state.input_curent_offset);
+	_state.input_current = 0.0f;
 }
 
 static void update_filters(float dt)
 {
 	float voltage = 0, current = 0;
 	motor_get_input_voltage_current(&voltage, &current);
+
+	if (motor_get_state() == MOTOR_STATE_IDLE) {
+		// Current sensor offset calibration, corner frequency is much lower.
+		const float offset_tau = _params.voltage_current_lowpass_tau * 50;
+		_state.input_curent_offset = lowpass(_state.input_curent_offset, current, offset_tau, dt);
+	}
+
+	current -= _state.input_curent_offset;
 
 	_state.input_voltage = lowpass(_state.input_voltage, voltage, _params.voltage_current_lowpass_tau, dt);
 	_state.input_current = lowpass(_state.input_current, current, _params.voltage_current_lowpass_tau, dt);

@@ -176,7 +176,7 @@ static bool _initialization_confirmed = false;
 
 
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
-CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
+CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
 CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
@@ -196,7 +196,7 @@ CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          60,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         16000, 1000,  50000)
-CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.02,  0.01,  1.0)
+CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
 
 
 static void configure(void)
