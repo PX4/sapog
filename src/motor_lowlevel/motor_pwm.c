@@ -516,17 +516,8 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 
 void motor_pwm_beep(int frequency, int duration_msec)
 {
-	static const float DUTY_CYCLE = 0.005;
+	static const float DUTY_CYCLE = 0.008;
 	static const int ACTIVE_USEC_MAX = 20;
-
-	/*
-	 * FET round robin
-	 * This way we can beep even if some FETs went bananas
-	 */
-	static unsigned _call_counter;
-	const int low_phase = _call_counter++ % 3;
-	const int high_phase = _call_counter++ % 3;
-	assert(low_phase != high_phase && low_phase < 3 && high_phase < 3);
 
 	motor_pwm_set_freewheeling();
 
@@ -554,12 +545,23 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	const uint64_t end_time = motor_timer_hnsec() + duration_msec * HNSEC_PER_MSEC;
 
 	/*
+	 * FET round robin
+	 * This way we can beep even if some FETs went bananas
+	 */
+	static unsigned _phase_sel;
+	const int low_phase_first  = _phase_sel++ % 3;
+	const int low_phase_second = _phase_sel++ % 3;
+	const int high_phase       = _phase_sel++ % 3;
+	assert(low_phase_first != high_phase && low_phase_second != high_phase);
+
+	/*
 	 * Commutations
-	 * One phase is always low, one is alternating
 	 * No high side pumping
 	 */
-	*PWM_REG_LOW[low_phase] = _pwm_top;
-	phase_enable_i(low_phase);
+	*PWM_REG_LOW[low_phase_first]  = _pwm_top;
+	*PWM_REG_LOW[low_phase_second] = _pwm_top;
+	phase_enable_i(low_phase_first);
+	phase_enable_i(low_phase_second);
 	phase_enable_i(high_phase);
 
 	while (end_time > motor_timer_hnsec()) {

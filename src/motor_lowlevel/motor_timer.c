@@ -281,18 +281,16 @@ void motor_timer_cancel(void)
 
 void motor_timer_udelay(int usecs)
 {
-	usecs -= 1;
-	const uint64_t deadline = motor_timer_hnsec() + usecs * HNSEC_PER_USEC;
-	while (motor_timer_hnsec() < deadline) {
-		/*
-		 * Do some yak-shaving in order to reduce the frequency of calls to
-		 * motor_timer_hnsec(), because each call disables interrupts for some time.
-		 */
-		for (volatile int i = 0; i < 8; i++) { }
-	}
+	motor_timer_hndelay(usecs * HNSEC_PER_USEC);
 }
 
 void motor_timer_hndelay(int hnsecs)
 {
-	motor_timer_udelay(hnsecs / HNSEC_PER_USEC);
+	static const int OVERHEAD_HNSEC = 1 * HNSEC_PER_USEC;
+	if (hnsecs > OVERHEAD_HNSEC)
+		hnsecs -= OVERHEAD_HNSEC;
+	else
+		hnsecs = 0;
+	const uint64_t deadline = motor_timer_hnsec() + hnsecs;
+	while (motor_timer_hnsec() < deadline) { }
 }
