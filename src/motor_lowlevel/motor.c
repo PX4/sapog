@@ -48,7 +48,7 @@
 #define NUM_PHASES                 3
 #define NUM_COMMUTATION_STEPS      6
 
-#define COMM_PERIOD_LOWPASS_MAX    (2 * HNSEC_PER_USEC)
+#define COMM_PERIOD_LOWPASS_MAX    (1 * HNSEC_PER_USEC)
 
 /**
  * Upper limit is 8 for 72MHz Cortex M3 (limited by the processing power)
@@ -60,7 +60,7 @@
  * Computes the timing advance in comm_period units
  */
 #define TIMING_ADVANCE64(comm_period, degrees) \
-	(((uint64_t)comm_period * (uint64_t)degrees) / 64/*60*/)
+	(((int64_t)comm_period * (int64_t)degrees) / 64LL)
 
 /**
  * Generic lowpass filter with correct rounding
@@ -175,13 +175,13 @@ static struct precomputed_params       /// Parameters are read only
 static bool _initialization_confirmed = false;
 
 
-CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_INT("motor_pwm_frequency",                20000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
 CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
-CONFIG_PARAM_INT("motor_timing_advance_deg",           7,     0,     20)
+CONFIG_PARAM_INT("motor_timing_advance_deg",           0,    -5,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
