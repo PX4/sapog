@@ -181,7 +181,7 @@ CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.001, 100.0)
 CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
 CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
-CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
+CONFIG_PARAM_INT("motor_timing_advance_deg",           7,     0,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
@@ -512,6 +512,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	if (abs(bemf) > (_state.neutral_voltage * _params.bemf_valid_range_pct128 / 128)) {
 		_diag.bemf_samples_out_of_range++;
+		_state.zc_bemf_samples_acquired = 0;
+		_state.zc_bemf_samples_acquired_past_zc = 0;
 		return;
 	}
 
@@ -567,8 +569,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (zc_timestamp == 0) {
 		// Sorry Mario
 		_state.control_state = CS_FAILED_ZC;
-		_state.zc_bemf_samples_acquired = 0;
-		_state.zc_bemf_samples_acquired_past_zc = 0;
 		return;
 	}
 	handle_zero_cross(zc_timestamp);
