@@ -93,13 +93,13 @@ static struct params
 CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.9,    0.5,     20.0)
 
 CONFIG_PARAM_FLOAT("motormgr_dc_min_voltage",         1.5,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.1,    0.01,    2.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_slope",               1.5,    0.1,     100.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.2,    0.01,    2.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_slope",               2.0,    0.1,     100.0)
 
 CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
 CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
 
-CONFIG_PARAM_INT("motormgr_rpm_min",                  800,    50,      5000)
+CONFIG_PARAM_INT("motormgr_rpm_min",                  700,    50,      5000)
 
 CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 5.0,    0.1,     100.0)
 
@@ -184,6 +184,8 @@ static void update_control_non_running(void)
 #endif
 		_state.dc_actual = spinup_dc;
 		motor_start(spinup_dc, spinup_dc, _params.reverse);
+
+		lowsyslog("Motor manager: Started, DC %f, mode %i\n", spinup_dc, _state.mode);
 	}
 }
 
@@ -254,15 +256,18 @@ static void update_control(uint32_t comm_period, float dt)
 	/*
 	 * Duty cycle slope control
 	 */
-	if (fabs(new_duty_cycle - _state.dc_actual) > _params.dc_step_max) {
+	if (fabsf(new_duty_cycle - _state.dc_actual) > _params.dc_step_max) {
 		float step = _params.dc_slope * dt;
+
+		if (step > _params.dc_step_max)
+			step = _params.dc_step_max;
+
 		if (new_duty_cycle < _state.dc_actual)
 			step = -step;
 
 		new_duty_cycle = _state.dc_actual + step;
 		_state.limit_mask |= MOTORMGR_LIMIT_ACCEL;
-	}
-	else {
+	} else {
 		_state.limit_mask &= ~MOTORMGR_LIMIT_ACCEL;
 	}
 
@@ -333,6 +338,8 @@ static msg_t control_thread(void* arg)
 		const uint32_t dt_hnsec = new_timestamp_hnsec - timestamp_hnsec;
 		const float dt = dt_hnsec / (float)HNSEC_PER_SEC;
 		timestamp_hnsec = new_timestamp_hnsec;
+
+		assert(dt > 0);
 
 		update_filters(dt);
 		update_setpoint_ttl(dt_hnsec / HNSEC_PER_MSEC);
