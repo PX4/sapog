@@ -51,8 +51,8 @@
 #define COMM_PERIOD_LOWPASS_MAX    (1 * HNSEC_PER_USEC)
 
 /**
- * Upper limit is 8 for 72MHz Cortex M3 (limited by the processing power)
- * Least possible value is 2 (logic requirement)
+ * Large values affect performance
+ * Least possible value is 2
  */
 #define MAX_BEMF_SAMPLES           8
 
@@ -175,7 +175,7 @@ static struct precomputed_params       /// Parameters are read only
 static bool _initialization_confirmed = false;
 
 
-CONFIG_PARAM_INT("motor_pwm_frequency",                20000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
