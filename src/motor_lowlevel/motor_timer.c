@@ -268,7 +268,7 @@ void motor_timer_set_absolute(uint64_t timestamp_hnsec)
 {
 	const uint64_t current_timestamp = motor_timer_hnsec();
 	if (timestamp_hnsec > current_timestamp)
-		motor_timer_set_relative(current_timestamp - timestamp_hnsec);
+		motor_timer_set_relative(timestamp_hnsec - current_timestamp);
 	else
 		motor_timer_set_relative(0);
 }
