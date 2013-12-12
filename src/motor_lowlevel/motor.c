@@ -154,9 +154,6 @@ static struct precomputed_params       /// Parameters are read only
 	int timing_advance_deg64;
 	int neutral_voltage_lowpass_alpha_reciprocal;
 
-	uint32_t spinup_end_comm_period;
-	uint32_t spinup_timeout;
-
 	int comm_period_shift_on_zc_failure;
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
@@ -166,6 +163,11 @@ static struct precomputed_params       /// Parameters are read only
 	uint32_t comm_period_max;
 	int comm_blank_hnsec;
 	int input_volt_cur_lowpass_alpha_reciprocal;
+
+	uint32_t spinup_end_comm_period;
+	uint32_t spinup_timeout;
+	uint32_t spinup_vipd_probe_duration;
+	uint32_t spinup_vipd_drive_duration;
 
 	uint32_t adc_sampling_period;
 } _params;
@@ -181,9 +183,6 @@ CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           0,    -5,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
-// Spinup settings
-CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
-CONFIG_PARAM_INT("motor_spinup_timeout_ms",            600,   100,   4000)
 // Something not so important
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
@@ -193,6 +192,11 @@ CONFIG_PARAM_INT("motor_zc_failures_to_stop",          50,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         16000, 1000,  50000)
 CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
+// Spinup settings
+CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
+CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
+CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       50,    10,    200)
+CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       2000,  1000,  4000)
 
 
 static void configure(void)
@@ -205,9 +209,6 @@ static void configure(void)
 	_params.neutral_voltage_lowpass_alpha_reciprocal =
 		(int)(1.0f / config_get("motor_neutral_volt_lpf_alpha") + 0.5f) - 1;
 
-	_params.spinup_end_comm_period = config_get("motor_spinup_end_comm_period_usec") * HNSEC_PER_USEC;
-	_params.spinup_timeout         = config_get("motor_spinup_timeout_ms") * HNSEC_PER_MSEC;
-
 	_params.comm_period_shift_on_zc_failure  = config_get("motor_deceleration_rate_on_zc_miss");
 	_params.motor_bemf_window_len_denom      = 100.0f / config_get("motor_bemf_window_pct") + 0.5f;
 	_params.bemf_valid_range_pct128          = config_get("motor_bemf_valid_range_pct") * 128 / 100;
@@ -218,6 +219,11 @@ static void configure(void)
 	_params.comm_blank_hnsec = config_get("motor_comm_blank_usec") * HNSEC_PER_USEC;
 	_params.input_volt_cur_lowpass_alpha_reciprocal =
 		(int)(1.0f / config_get("motor_volt_curr_lpf_alpha")) - 1;
+
+	_params.spinup_end_comm_period     = config_get("motor_spinup_end_comm_period_usec") * HNSEC_PER_USEC;
+	_params.spinup_timeout             = config_get("motor_spinup_timeout_ms") * HNSEC_PER_MSEC;
+	_params.spinup_vipd_probe_duration = config_get("motor_spinup_vipd_probe_usec") * HNSEC_PER_USEC;
+	_params.spinup_vipd_drive_duration = config_get("motor_spinup_vipd_drive_usec") * HNSEC_PER_USEC;
 
 	/*
 	 * Validation
@@ -633,7 +639,6 @@ static int detect_rotor_position_as_step_index(void)
 	/*
 	 * Ref. "Start-up Control Algorithm for Sensorless and Variable Load BLDC Control
 	 *       Using Variable Inductance Sensing Method"
-	 * Step order: 1 2 0 4 3 5
 	 */
 	static const int ENERGIZING_TABLE_FORWARD[3][3] = {
 		{1, 0, 0},
@@ -645,21 +650,24 @@ static int detect_rotor_position_as_step_index(void)
 		{1, 1, 0},
 		{1, 0, 1}
 	};
+	static const int POS_MAP[6] = {2, 0, 1, 4, 3, 5}; // Step order: 1 2 0 4 3 5
 
 	const int pwm_val = motor_pwm_compute_pwm_val(1.0);
 
-	// TODO: configuration
-	const int num_samples_energize = (_params.adc_sampling_period >= (50 * HNSEC_PER_USEC)) ? 1 : 2;
-	const int num_samples_sleep = num_samples_energize * 2;
+	// With proper rounding
+	const int num_samples_energize =
+		(_params.spinup_vipd_probe_duration + _params.adc_sampling_period / 2) / _params.adc_sampling_period;
+	assert(num_samples_energize > 0 && num_samples_energize < 4);
 
-	// We don't care about absolute current values so we don't use offset or scaling
-//	int current_samples[3][2];
-	int position_code = 0;
+	const int num_samples_sleep = num_samples_energize * 2;
 
 	chSysSuspend();
 	motor_pwm_set_freewheeling();
 
+	int position_code = 0;
+
 	for (int i = 0; i < 3; i++) {
+		// We don't care about absolute current values so we don't use offset or scaling
 		// Forward
 		wait_adc_samples(num_samples_sleep);
 		motor_pwm_align(ENERGIZING_TABLE_FORWARD[i], pwm_val);
@@ -678,21 +686,10 @@ static int detect_rotor_position_as_step_index(void)
 		if (forward_current > reverse_current)
 			position_code++;
 		position_code <<= 1;
-//		current_samples[i][0] = forward_current;
-//		current_samples[i][1] = reverse_current;
 	}
-
-	position_code = (position_code >> 1) - 1;
-
-	static const int POS_MAP[6] = {2, 0, 1, 4, 3, 5}; // <-- 1 2 0 4 3 5
-	position_code = POS_MAP[position_code];
-
 	chSysEnable();
-
-//	lowsyslog("%i | %-5i %-5i | %-5i %-5i | %-5i %-5i\n", position_code,
-//		current_samples[0][0], current_samples[0][1],
-//		current_samples[1][0], current_samples[1][1],
-//		current_samples[2][0], current_samples[2][1]);
+	position_code = (position_code >> 1) - 1; // Will be in range [0; 5]
+	position_code = POS_MAP[position_code];
 	return position_code;
 }
 
@@ -700,18 +697,16 @@ static bool do_variable_inductance_spinup(void)
 {
 	const uint64_t deadline = motor_timer_hnsec() + _params.spinup_timeout;
 
-	_state.comm_period = _params.comm_period_max;
-
-	motor_pwm_set_freewheeling();
-
-	_state.current_comm_step = detect_rotor_position_as_step_index();
-
 	uint64_t prev_step_timestamp = motor_timer_hnsec();
 	int good_steps = 0;
 
+	_state.comm_period = _params.comm_period_max;
+	_state.current_comm_step = detect_rotor_position_as_step_index();
+
 	while (motor_timer_hnsec() < deadline) {
 		// We need some arbitrary amount of time to drive the motor between the measurements
-		usleep(2000);
+		usleep(_params.spinup_vipd_drive_duration / HNSEC_PER_USEC);
+
 		const int this_step = detect_rotor_position_as_step_index();
 
 		// Bring back the power
@@ -727,7 +722,6 @@ static bool do_variable_inductance_spinup(void)
 		if (!valid_sequence)
 			continue;
 
-		// Update the comm period
 		const uint64_t timestamp = motor_timer_hnsec();
 		_state.comm_period = (_state.comm_period + (timestamp - prev_step_timestamp)) / 2;
 		prev_step_timestamp = timestamp;
@@ -739,10 +733,6 @@ static bool do_variable_inductance_spinup(void)
 		} else {
 			good_steps = 0;
 		}
-
-		irq_primask_disable();
-		motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, _state.pwm_val);
-		irq_primask_enable();
 	}
 	return _state.comm_period < _params.spinup_end_comm_period;
 }
@@ -770,7 +760,6 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
 	_state.spinup_done = false;
-	_state.current_comm_step = 0;
 
 	_state.pwm_val = motor_pwm_compute_pwm_val(spinup_duty_cycle);
 	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(normal_duty_cycle);
