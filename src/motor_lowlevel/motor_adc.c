@@ -224,9 +224,9 @@ void motor_adc_disable_from_isr(void)
 struct motor_adc_sample motor_adc_get_last_sample(void)
 {
 	struct motor_adc_sample ret;
-	chSysDisable();
+	irq_primask_disable();
 	ret = _sample;
-	chSysEnable();
+	irq_primask_enable();
 	return ret;
 }
 

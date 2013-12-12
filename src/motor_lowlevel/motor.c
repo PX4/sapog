@@ -151,15 +151,14 @@ static struct precomputed_params       /// Parameters are read only
 {
 	uint32_t comm_period_lowpass_base;
 	int comm_period_lowpass_alpha_reciprocal_min;
-	int comm_period_shift_on_zc_failure;
 	int timing_advance_deg64;
 	int neutral_voltage_lowpass_alpha_reciprocal;
 
 	uint32_t spinup_alignment_hnsec;
-	uint32_t spinup_comm_period_begin;
-	uint32_t spinup_comm_period_end;
-	int spinup_num_steps;
+	uint32_t spinup_comm_period;
+	int spinup_zc_detects_min;
 
+	int comm_period_shift_on_zc_failure;
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
 	int integrated_bemf_threshold_pct128;
@@ -180,20 +179,19 @@ CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
 CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
-CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           0,    -5,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
-CONFIG_PARAM_INT("motor_spinup_alignment_usec",        300000,0,     900000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_begin_usec",20000, 2000,  90000)
-CONFIG_PARAM_INT("motor_spinup_comm_period_end_usec",  16000, 2000,  60000)
-CONFIG_PARAM_INT("motor_spinup_num_steps",             0,     0,     10)
+CONFIG_PARAM_INT("motor_spinup_alignment_usec",        0,     0,     600000)
+CONFIG_PARAM_INT("motor_spinup_comm_period_usec",      15000, 2000,  90000)
+CONFIG_PARAM_INT("motor_spinup_zc_detects_to_start",   5,     0,     200)
 // Something not so important
+CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
-CONFIG_PARAM_INT("motor_zc_failures_to_stop",          60,    6,     300)
+CONFIG_PARAM_INT("motor_zc_failures_to_stop",          50,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         16000, 1000,  50000)
 CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
@@ -205,16 +203,15 @@ static void configure(void)
 	_params.comm_period_lowpass_alpha_reciprocal_min =
 		(int)(1.0f / config_get("motor_comm_period_lpf_alpha_max") + 0.5f) - 1;
 
-	_params.comm_period_shift_on_zc_failure = config_get("motor_deceleration_rate_on_zc_miss");
-	_params.timing_advance_deg64            = config_get("motor_timing_advance_deg") * 64 / 60;
+	_params.timing_advance_deg64 = config_get("motor_timing_advance_deg") * 64 / 60;
 	_params.neutral_voltage_lowpass_alpha_reciprocal =
 		(int)(1.0f / config_get("motor_neutral_volt_lpf_alpha") + 0.5f) - 1;
 
-	_params.spinup_alignment_hnsec   = config_get("motor_spinup_alignment_usec")         * HNSEC_PER_USEC;
-	_params.spinup_comm_period_begin = config_get("motor_spinup_comm_period_begin_usec") * HNSEC_PER_USEC;
-	_params.spinup_comm_period_end   = config_get("motor_spinup_comm_period_end_usec")   * HNSEC_PER_USEC;
-	_params.spinup_num_steps         = config_get("motor_spinup_num_steps");
+	_params.spinup_alignment_hnsec       = config_get("motor_spinup_alignment_usec")   * HNSEC_PER_USEC;
+	_params.spinup_comm_period           = config_get("motor_spinup_comm_period_usec") * HNSEC_PER_USEC;
+	_params.spinup_zc_detects_min        = config_get("motor_spinup_zc_detects_to_start");
 
+	_params.comm_period_shift_on_zc_failure  = config_get("motor_deceleration_rate_on_zc_miss");
 	_params.motor_bemf_window_len_denom      = 100.0f / config_get("motor_bemf_window_pct") + 0.5f;
 	_params.bemf_valid_range_pct128          = config_get("motor_bemf_valid_range_pct") * 128 / 100;
 	_params.integrated_bemf_threshold_pct128 = config_get("motor_zc_integral_threshold_pct") * 128 / 100;
@@ -225,17 +222,14 @@ static void configure(void)
 	_params.input_volt_cur_lowpass_alpha_reciprocal =
 		(int)(1.0f / config_get("motor_volt_curr_lpf_alpha")) - 1;
 
+	/*
+	 * Validation
+	 */
 	assert_always(_params.neutral_voltage_lowpass_alpha_reciprocal >= 0);
 	assert_always(_params.input_volt_cur_lowpass_alpha_reciprocal >= 0);
 
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
-
-	if (_params.spinup_comm_period_end > _params.comm_period_max)
-		_params.spinup_comm_period_end = _params.comm_period_max;
-
-	if (_params.spinup_comm_period_begin < _params.spinup_comm_period_end)
-		_params.spinup_comm_period_begin = _params.spinup_comm_period_end;
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
@@ -291,10 +285,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			_diag.zc_failures_since_start++;
 
 		// Stall detection
-		const unsigned max_fails = _state.spinup_done ? _params.zc_failures_max : (_params.zc_failures_max * 2);
 		_state.immediate_zc_detects = 0;
 		_state.immediate_zc_failures++;
-		if (_state.immediate_zc_failures > max_fails) {
+		if (_state.immediate_zc_failures > _params.zc_failures_max) {
 			// No bounce no play
 			stop_from_isr();
 			return;
@@ -631,6 +624,10 @@ static void init_adc_filters(void)
 static void spinup_align(void)
 {
 	assert(_state.comm_table);
+
+	if (_params.spinup_alignment_hnsec <= 0)
+		return;
+
 	const struct motor_pwm_commutation_step* const first_step = _state.comm_table + _state.current_comm_step;
 
 	int polarities[3];
@@ -640,26 +637,107 @@ static void spinup_align(void)
 
 	motor_pwm_align(polarities, _state.pwm_val);
 
-	// Strict timing is not required here, so usleep() is OK
 	usleep(_params.spinup_alignment_hnsec / HNSEC_PER_USEC);
 }
 
-static void spinup_do_blind_comms(void)
+__attribute__((optimize(0)))
+static bool spinup_do_blind_comms(void)
 {
-	if (_params.spinup_num_steps <= 0)
-		return;
-
-	assert_always(_params.spinup_comm_period_begin >= _params.spinup_comm_period_end);
-	const uint32_t accel =
-		(_params.spinup_comm_period_begin - _params.spinup_comm_period_end) / _params.spinup_num_steps;
-
-	uint32_t current_comm_period = _params.spinup_comm_period_begin;
-	for (int i = 0; i < _params.spinup_num_steps; i++) {
-		switch_commutation_step();
-		// usleep() is not precise enough for the spinup commutations, so we use busyloop:
-		motor_timer_hndelay(current_comm_period);
-		current_comm_period -= accel;
+	if (_params.spinup_zc_detects_min <= 0) {
+		_state.comm_period = _params.spinup_comm_period;
+		if (_state.comm_period > _params.comm_period_max)
+			_state.comm_period = _params.comm_period_max;
+		return true;
 	}
+
+	const uint32_t min_comm_period = motor_get_limit_comm_period_hnsec();
+
+	const uint32_t overall_timeout = _params.spinup_comm_period * _params.spinup_zc_detects_min * 10;
+	const uint64_t overall_deadline = motor_timer_hnsec() + overall_timeout;
+
+	_state.comm_period = _params.spinup_comm_period;
+
+	uint64_t prev_sample_timestamp = 0;
+	int num_zc_successive_detects = 0;
+	int num_zc_total_detects = 0;
+
+	float duty = 0.1;
+
+	/*
+	 * TODO: out of coffee and it is 3 AM, refactor later
+	 */
+	while (motor_timer_hnsec() < overall_deadline) {
+		// Update the duty cycle
+		_state.pwm_val = motor_pwm_compute_pwm_val(duty);
+
+		// Switch the commutation step
+		const uint64_t this_comm_timestamp = motor_timer_hnsec();
+		const uint64_t this_comm_deadline = this_comm_timestamp + _state.comm_period;
+		switch_commutation_step();
+		motor_timer_hndelay(_params.comm_blank_hnsec);
+		const struct motor_pwm_commutation_step* step = _state.comm_table + _state.current_comm_step;
+
+		// Wait for either ZC or timeout
+		int min_successive_zc_samples = (_state.comm_period / _params.adc_sampling_period) / 128 + 1;
+		if (min_successive_zc_samples > 3)
+			min_successive_zc_samples = 3;
+		if (min_successive_zc_samples < 2)
+			min_successive_zc_samples = 2;
+		int num_successive_zc_samples = 0;
+		int total_non_zc_samples = 0;
+
+		while (motor_timer_hnsec() < this_comm_deadline) {
+			const struct motor_adc_sample sample = motor_adc_get_last_sample();
+
+			if (sample.timestamp == prev_sample_timestamp)
+				continue;
+			prev_sample_timestamp = sample.timestamp;
+
+			const int neutral =
+				(sample.phase_values[step->negative] + sample.phase_values[step->positive]) / 2;
+
+			const int bemf = sample.phase_values[step->floating] - neutral;
+			if (abs(bemf) > (neutral * _params.bemf_valid_range_pct128 / 128))
+				continue;
+
+			if (is_past_zc(bemf)) {
+				if (total_non_zc_samples < (min_successive_zc_samples / 2 + 1))
+					continue;
+				num_successive_zc_samples++;
+			} else {
+				total_non_zc_samples++;
+				num_successive_zc_samples = 0;
+			}
+
+			if (num_successive_zc_samples >= min_successive_zc_samples)
+				break;
+		}
+
+		if (num_successive_zc_samples >= min_successive_zc_samples) {
+			num_zc_successive_detects++;
+			num_zc_total_detects++;
+			const uint32_t new_comm_period = (motor_timer_hnsec() - this_comm_timestamp) * 2;
+			_state.comm_period = (_state.comm_period + new_comm_period) / 2;
+			motor_timer_hndelay(new_comm_period * 40 / 100);
+		} else {
+			num_zc_successive_detects = 0; // Good try ZC but no
+
+			duty += (num_zc_total_detects < (_params.spinup_zc_detects_min / 2)) ? .01 : .005;
+			if (duty > .15)
+				duty = .15;
+		}
+
+		if (num_zc_successive_detects >= _params.spinup_zc_detects_min)
+			break;
+
+		if (_state.comm_period <= min_comm_period)
+			break;
+	}
+
+	if (_state.comm_period > _params.comm_period_max)
+		_state.comm_period = _params.comm_period_max;
+
+	return num_zc_successive_detects >= _params.spinup_zc_detects_min;
 }
 
 void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
@@ -695,36 +773,33 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	/*
 	 * Align the rotor and perform blind commutations
 	 */
-	irq_primask_disable();
-	motor_adc_disable_from_isr();
-	irq_primask_enable();
+	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 
 	spinup_align();
 
-	spinup_do_blind_comms();
-
-	irq_primask_disable();
-	motor_adc_enable_from_isr();
-	irq_primask_enable();
+	const bool started = spinup_do_blind_comms();
 
 	/*
 	 * Engage the closed-loop mode
 	 */
-	_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
-	_state.comm_period = _params.spinup_comm_period_end;
-	_state.control_state = CS_BEFORE_ZC;
-
-	motor_timer_set_relative(0);
+	if (started) {
+		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
+		_state.control_state = CS_BEFORE_ZC;
+		motor_timer_set_relative(0);
+	} else {
+		motor_stop();
+	}
+	chThdSetPriority(orig_priority);
 }
 
 void motor_stop(void)
 {
 	irq_primask_disable();
-
-	_state.control_state = CS_IDLE;
-	// ADC should be enabled by default
-	motor_adc_enable_from_isr();
-
+	{
+		_state.control_state = CS_IDLE;
+		// ADC should be enabled by default
+		motor_adc_enable_from_isr();
+	}
 	irq_primask_enable();
 
 	motor_timer_cancel();
@@ -822,7 +897,7 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 		*out_current = motor_adc_convert_input_current(curr);
 }
 
-uint32_t motor_get_limit_comm_period_hnsec(void)
+uint32_t motor_get_limit_comm_period_hnsec(void) // TODO: rename
 {
 	// Ensure some number of ADC samples per comm period
 	return motor_adc_sampling_period_hnsec() * 5;
