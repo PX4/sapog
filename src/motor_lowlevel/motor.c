@@ -196,8 +196,8 @@ CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
-CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       50,    10,    200)
-CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1000,  1000,  4000)
+CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       75,    10,    200)
+CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1500,  1000,  4000)
 
 
 static void configure(void)
@@ -234,6 +234,9 @@ static void configure(void)
 
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
+
+	if (_params.spinup_end_comm_period > _params.comm_period_max)
+		_params.spinup_end_comm_period = _params.comm_period_max;
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
@@ -719,7 +722,7 @@ static bool do_variable_inductance_spinup(void)
 
 	while (motor_timer_hnsec() < deadline) {
 		// We need some arbitrary amount of time to drive the motor between the measurements
-		usleep(_params.spinup_vipd_drive_duration / HNSEC_PER_USEC);
+		motor_timer_hndelay(_params.spinup_vipd_drive_duration);
 
 		const int this_step = detect_rotor_position_as_step_index();
 
@@ -748,7 +751,15 @@ static bool do_variable_inductance_spinup(void)
 			good_steps = 0;
 		}
 	}
-	return _state.comm_period < _params.spinup_end_comm_period;
+
+	if (_state.comm_period < _params.spinup_end_comm_period) {
+		// Account for the extremely low resolution
+		_state.comm_period += _params.spinup_vipd_drive_duration / 2;
+		if (_state.comm_period > _params.spinup_end_comm_period)
+			_state.comm_period = _params.spinup_end_comm_period;
+		return true;
+	}
+	return false;
 }
 
 void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
