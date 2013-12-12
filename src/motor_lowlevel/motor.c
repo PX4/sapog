@@ -787,7 +787,7 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 
 	chThdSetPriority(orig_priority);
 
-	lowsyslog("Motor: Spinup comm period: %u usec, %s\n",
+	lowsyslog("Motor: Initial spinup comm period: %u usec, %s\n",
 		(unsigned)(spinup_comm_period / HNSEC_PER_USEC), started ? "done" : "failed");
 }
 

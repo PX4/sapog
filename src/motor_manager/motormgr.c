@@ -182,10 +182,16 @@ static void update_control_non_running(void)
 #if DEBUG
 		motor_print_debug_info();
 #endif
+		const uint64_t timestamp = motor_timer_hnsec();
+
 		_state.dc_actual = spinup_dc;
 		motor_start(spinup_dc, spinup_dc, _params.reverse);
 
-		lowsyslog("Motor manager: Started, DC %f, mode %i\n", spinup_dc, _state.mode);
+		// This HACK prevents the setpoint TTL expiration in case of protracted startup
+		const int elapsed_ms = (motor_timer_hnsec() - timestamp) / HNSEC_PER_MSEC;
+		_state.setpoint_ttl_ms += elapsed_ms;
+
+		lowsyslog("Motor manager: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
 	}
 }
 
