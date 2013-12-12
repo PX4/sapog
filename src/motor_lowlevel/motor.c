@@ -650,7 +650,7 @@ static int detect_rotor_position_as_step_index(void)
 		{1, 1, 0},
 		{1, 0, 1}
 	};
-	static const int POS_MAP[6] = {2, 0, 1, 4, 3, 5}; // Step order: 1 2 0 4 3 5
+	static const int POSITION_CODE_TO_STEP_INDEX[6] = {2, 0, 1, 4, 3, 5}; // Step order: 1 2 0 4 3 5
 
 	const int pwm_val = motor_pwm_compute_pwm_val(1.0);
 
@@ -689,8 +689,7 @@ static int detect_rotor_position_as_step_index(void)
 	}
 	chSysEnable();
 	position_code = (position_code >> 1) - 1; // Will be in range [0; 5]
-	position_code = POS_MAP[position_code];
-	return position_code;
+	return POSITION_CODE_TO_STEP_INDEX[position_code];
 }
 
 static bool do_variable_inductance_spinup(void)
