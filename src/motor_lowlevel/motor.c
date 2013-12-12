@@ -182,8 +182,8 @@ CONFIG_PARAM_INT("motor_timing_advance_deg",           0,    -5,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Spinup settings
-CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  8000,  8000,  90000)
-CONFIG_PARAM_INT("motor_spinup_timeout_ms",            600,   10,    9000)
+CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
+CONFIG_PARAM_INT("motor_spinup_timeout_ms",            600,   100,   4000)
 // Something not so important
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
 CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
@@ -650,7 +650,7 @@ static int detect_rotor_position_as_step_index(void)
 
 	// TODO: configuration
 	const int num_samples_energize = (_params.adc_sampling_period >= (50 * HNSEC_PER_USEC)) ? 1 : 2;
-	const int num_samples_sleep = num_samples_energize;
+	const int num_samples_sleep = num_samples_energize * 2;
 
 	// We don't care about absolute current values so we don't use offset or scaling
 //	int current_samples[3][2];
@@ -734,7 +734,7 @@ static bool do_variable_inductance_spinup(void)
 
 		if (_state.comm_period < _params.spinup_end_comm_period) {
 			good_steps++;
-			if (good_steps > NUM_COMMUTATION_STEPS) // Just in case, do multiple revolutions
+			if (good_steps > NUM_COMMUTATION_STEPS) // Just in case, do multiple commutations
 				break;
 		} else {
 			good_steps = 0;
