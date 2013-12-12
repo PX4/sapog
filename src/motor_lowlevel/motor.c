@@ -102,6 +102,7 @@ static struct diag_info                /// This data is never used by the contro
 	uint64_t zc_solution_failures;
 	uint64_t bemf_samples_out_of_range;
 	uint64_t bemf_samples_premature_zc;
+	uint64_t demagnetizations;
 
 	/// Last ZC solution
 	int64_t zc_solution_slope;
@@ -184,7 +185,7 @@ CONFIG_PARAM_INT("motor_timing_advance_deg",           0,    -5,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Something not so important
-CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     0,     8)
+CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     2,     8)
 CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
@@ -520,6 +521,20 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	if (past_zc && (_state.zc_bemf_samples_acquired == 0) && _state.spinup_done) {
 		_diag.bemf_samples_premature_zc++;
+		/*
+		 * BEMF signal may be affected by extreme magnetic saturation, which we can detect
+		 * as BEMF readings on the wrong side of neutral voltage past 30 degrees since
+		 * the last commutation. In this case we simply turn off the light and freewheel
+		 * towards the next scheduled commutation.
+		 * This commutation will be handled as ZC miss.
+		 * Note: The timing advance angle is not considered (who cares)
+		 */
+		const uint64_t deadline = _state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period;
+		if (sample->timestamp >= deadline) {
+			motor_pwm_set_freewheeling();
+			_diag.demagnetizations++;
+			_state.control_state = CS_FAILED_ZC;
+		}
 		return;
 	}
 
@@ -930,6 +945,7 @@ void motor_print_debug_info(void)
 
 	lowsyslog("Motor diag\n");
 	PRINT_INT("zc failures",       diag_copy.zc_failures_since_start);
+	PRINT_INT("demagnetizations",  diag_copy.demagnetizations);
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
 	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
 	PRINT_INT("zc sol failures",   diag_copy.zc_solution_failures);
