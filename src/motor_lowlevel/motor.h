@@ -138,7 +138,7 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current);
 /**
  * Minimum safe comm period. Depends on PWM frequency.
  */
-uint32_t motor_get_limit_comm_period_hnsec(void);
+uint32_t motor_get_min_comm_period_hnsec(void);
 
 /**
  * Prints some debug info.

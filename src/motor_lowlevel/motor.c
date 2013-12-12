@@ -189,9 +189,9 @@ CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     2,     8)
 CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
-CONFIG_PARAM_INT("motor_zc_failures_to_stop",          50,    6,     300)
+CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
-CONFIG_PARAM_INT("motor_comm_period_max_usec",         16000, 1000,  50000)
+CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
@@ -326,6 +326,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		(_state.comm_period / _params.adc_sampling_period) / _params.motor_bemf_window_len_denom + 2;
 	if (_state.zc_bemf_samples_optimal > MAX_BEMF_SAMPLES)
 		_state.zc_bemf_samples_optimal = MAX_BEMF_SAMPLES;
+	// On high RPM 2 samples yield more reliable solution than 3 and require less processing time
+	if (_state.zc_bemf_samples_optimal == 3)
+		_state.zc_bemf_samples_optimal = 2;
 
 	_state.integrated_bemf_voltage = 0;
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
@@ -675,7 +678,6 @@ static int detect_rotor_position_as_step_index(void)
 	// With proper rounding
 	const int num_samples_energize =
 		(_params.spinup_vipd_probe_duration + _params.adc_sampling_period / 2) / _params.adc_sampling_period;
-	assert(num_samples_energize > 0 && num_samples_energize < 4);
 
 	const int num_samples_sleep = num_samples_energize * 2;
 
@@ -921,10 +923,10 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 		*out_current = motor_adc_convert_input_current(curr);
 }
 
-uint32_t motor_get_limit_comm_period_hnsec(void) // TODO: rename
+uint32_t motor_get_min_comm_period_hnsec(void)
 {
 	// Ensure some number of ADC samples per comm period
-	return motor_adc_sampling_period_hnsec() * 5;
+	return motor_adc_sampling_period_hnsec() * 6;
 }
 
 void motor_print_debug_info(void)

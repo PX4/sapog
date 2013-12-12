@@ -135,7 +135,7 @@ static int init_constants(unsigned frequency)
 	const float pwm_min_pulse_len = PWM_MIN_PULSE_NANOSEC / 1e9f;
 	const float pwm_min_pulse_ticks_float = pwm_min_pulse_len / pwm_clock_period;
 	assert(pwm_min_pulse_ticks_float >= 0);
-	assert(pwm_min_pulse_ticks_float < (_pwm_top * 0.1f));
+	assert(pwm_min_pulse_ticks_float < (_pwm_top * 0.3f));
 
 	const uint16_t pwm_min_pulse_ticks = (uint16_t)pwm_min_pulse_ticks_float;
 
