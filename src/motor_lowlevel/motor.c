@@ -197,7 +197,7 @@ CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
 CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       50,    10,    200)
-CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       2000,  1000,  4000)
+CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1000,  1000,  4000)
 
 
 static void configure(void)
