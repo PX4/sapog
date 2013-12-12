@@ -772,9 +772,10 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 
 	const bool started = do_variable_inductance_spinup();
+	const uint32_t spinup_comm_period = _state.comm_period;
 
 	/*
-	 * Engage the closed-loop mode if started
+	 * Engage the normal mode if started
 	 */
 	if (started) {
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
@@ -783,7 +784,11 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	} else {
 		motor_stop();
 	}
+
 	chThdSetPriority(orig_priority);
+
+	lowsyslog("Motor: Spinup comm period: %u usec, %s\n",
+		(unsigned)(spinup_comm_period / HNSEC_PER_USEC), started ? "done" : "failed");
 }
 
 void motor_stop(void)
