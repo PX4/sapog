@@ -653,8 +653,7 @@ static void wait_adc_samples(int num)
 	assert(num > 0);
 	while (num --> 0) {
 		const volatile uint64_t timestamp = motor_adc_get_last_sample().timestamp;
-		while (timestamp == motor_adc_get_last_sample().timestamp)
-			__asm volatile ("nop");
+		while (timestamp == motor_adc_get_last_sample().timestamp) { }
 	}
 }
 
