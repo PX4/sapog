@@ -733,11 +733,7 @@ static bool do_variable_inductance_spinup(void)
 
 		if (_state.current_comm_step == this_step)
 			continue;
-
-		const bool valid_sequence = abs(_state.current_comm_step - this_step) <= 1;
 		_state.current_comm_step = this_step;
-		if (!valid_sequence)
-			continue;
 
 		const uint64_t timestamp = motor_timer_hnsec();
 		_state.comm_period = (_state.comm_period + (timestamp - prev_step_timestamp)) / 2;
