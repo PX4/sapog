@@ -510,20 +510,18 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
 	const int bemf = sample->phase_values[step->floating] - _state.neutral_voltage;
 
+	const bool past_zc = is_past_zc(bemf);
+
 	/*
-	 * BEMF range validation
+	 * BEMF/ZC validation
 	 */
-	if (abs(bemf) > (_state.neutral_voltage * _params.bemf_valid_range_pct128 / 128)) {
+	const int bemf_threshold = _state.neutral_voltage * _params.bemf_valid_range_pct128 / 128;
+	if (!past_zc && (abs(bemf) > bemf_threshold)) {
 		_diag.bemf_samples_out_of_range++;
 		_state.zc_bemf_samples_acquired = 0;
 		_state.zc_bemf_samples_acquired_past_zc = 0;
 		return;
 	}
-
-	/*
-	 * ZC event validation
-	 */
-	const bool past_zc = is_past_zc(bemf);
 
 	if (past_zc && (_state.zc_bemf_samples_acquired == 0) && _state.spinup_done) {
 		_diag.bemf_samples_premature_zc++;
