@@ -302,8 +302,8 @@ static void phase_reset_all_i(void)
  * Assumes:
  *  - motor IRQs are disabled
  */
-__attribute__((optimize(3), always_inline))
-static void phase_reset_i(int phase)
+__attribute__((optimize(3)))
+static inline void phase_reset_i(int phase)
 {
 	assert(phase >= 0 && phase < 3);
 	// Disable inversions and outputs:
@@ -319,8 +319,8 @@ static void phase_reset_i(int phase)
  * Assumes:
  *  - motor IRQs are disabled
  */
-__attribute__((optimize(3), always_inline))
-static void phase_enable_i(int phase)
+__attribute__((optimize(3)))
+static inline void phase_enable_i(int phase)
 {
 	assert(phase >= 0 && phase < 3);
 	TIM3->CCER |= TIM3_LOW_CCER_EN[phase];
@@ -331,8 +331,8 @@ static void phase_enable_i(int phase)
  * Assumes:
  *  - motor IRQs are disabled
  */
-__attribute__((optimize(3), always_inline))
-static void phase_set_i(int phase, const int pwm_val, bool inverted)
+__attribute__((optimize(3)))
+static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
 {
 	assert(phase >= 0 && phase < 3);
 
