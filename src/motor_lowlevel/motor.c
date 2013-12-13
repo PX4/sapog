@@ -186,7 +186,7 @@ CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Something not so important
 CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     2,     8)
-CONFIG_PARAM_INT("motor_bemf_window_pct",              25,    10,    70)
+CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     2,     8)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
@@ -211,7 +211,7 @@ static void configure(void)
 		(int)(1.0f / config_get("motor_neutral_volt_lpf_alpha") + 0.5f) - 1;
 
 	_params.comm_period_shift_on_zc_failure  = config_get("motor_deceleration_rate_on_zc_miss");
-	_params.motor_bemf_window_len_denom      = 100.0f / config_get("motor_bemf_window_pct") + 0.5f;
+	_params.motor_bemf_window_len_denom      = config_get("motor_bemf_window_len_denom");
 	_params.bemf_valid_range_pct128          = config_get("motor_bemf_valid_range_pct") * 128 / 100;
 	_params.integrated_bemf_threshold_pct128 = config_get("motor_zc_integral_threshold_pct") * 128 / 100;
 	_params.zc_failures_max  = config_get("motor_zc_failures_to_stop");
@@ -453,10 +453,10 @@ static void solve_least_squares(const int n, const int x[], const int y[], int64
 	if (b == 0)
 		return; // Garbage in - garbage out
 
-	const int64_t slope = LEAST_SQUARES_MULT * a / b;
+	const int64_t slope = (LEAST_SQUARES_MULT * a + b / 2) / b;
 
 	*out_slope = slope;
-	*out_yintercept = (LEAST_SQUARES_MULT * sum_y - slope * sum_x) / n;
+	*out_yintercept = (LEAST_SQUARES_MULT * sum_y - slope * sum_x + n / 2) / n;
 }
 
 static uint64_t solve_zero_cross_approximation(void)
@@ -473,7 +473,7 @@ static uint64_t solve_zero_cross_approximation(void)
 	int64_t slope = 0, yintercept = 0;
 	solve_least_squares(_state.zc_bemf_samples_acquired, data_x, _state.zc_bemf_samples, &slope, &yintercept);
 
-	const int x = -yintercept / slope; // Linear equation solved for x
+	const int x = (-yintercept + slope / 2) / slope; // Linear equation solved for x
 
 	/*
 	 * Diagnostic info
