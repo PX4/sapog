@@ -93,7 +93,7 @@ static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[NUM_COM
 };
 
 
-enum control_state_id { CS_IDLE, CS_BEFORE_ZC, CS_PAST_ZC, CS_FAILED_ZC };
+enum control_state_id { CS_IDLE, CS_BEFORE_ZC, CS_PAST_ZC, CS_FAILED_ZC, CS_DEMAGNETIZATION };
 
 static struct diag_info                /// This data is never used by the control algorithms, it is write only
 {
@@ -282,27 +282,34 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	//From this moment we have at least half of the commutation period before the next time critical event.
 
 	if (_state.control_state != CS_PAST_ZC) {
-		// ZC has timed out - in this case we need to emulate the ZC detection
+		// Phony ZC detection
 		const uint32_t leeway = comm_period_on_zc_failure / 2 +
 			TIMING_ADVANCE64(comm_period_on_zc_failure, _params.timing_advance_deg64);
 		_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 
-		// There may be some ZC failures during spinup, it's OK but we don't want to count them
-		if (_state.spinup_done)
-			_diag.zc_failures_since_start++;
+		/*
+		 * Usually, magnetic saturation occurs under low RPM with very high duty cycle
+		 * (because of large W * sec), as in case of rapid acceleration or high constant load.
+		 * In both cases the powerskipping naturally keeps the power within acceptable range for
+		 * the given motor.
+		 */
+		if (_state.control_state != CS_DEMAGNETIZATION) {
+			// There may be some ZC failures during spinup, it's OK but we don't want to count them
+			if (_state.spinup_done)
+				_diag.zc_failures_since_start++;
 
-		// Stall detection
-		_state.immediate_zc_detects = 0;
-		_state.immediate_zc_failures++;
-		if (_state.immediate_zc_failures > _params.zc_failures_max) {
-			// No bounce no play
-			stop_from_isr();
-			return;
+			// Stall detection
+			_state.immediate_zc_detects = 0;
+			_state.immediate_zc_failures++;
+			if (_state.immediate_zc_failures > _params.zc_failures_max) {
+				// No bounce no play
+				stop_from_isr();
+				return;
+			}
+
+			if (_state.spinup_done)
+				_state.comm_period = comm_period_on_zc_failure;
 		}
-
-		// Slow down a bit
-		if (_state.spinup_done)
-			_state.comm_period = comm_period_on_zc_failure;
 	} else {
 		// On successful ZC
 		if (!_state.spinup_done)
@@ -530,14 +537,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		 * as BEMF readings on the wrong side of neutral voltage past 30 degrees since
 		 * the last commutation. In this case we simply turn off the light and freewheel
 		 * towards the next scheduled commutation.
-		 * This commutation will be handled as ZC miss.
-		 * Note: The timing advance angle is not considered (who cares)
 		 */
 		const uint64_t deadline = _state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period;
 		if (sample->timestamp >= deadline) {
 			motor_pwm_set_freewheeling();
 			_diag.demagnetizations++;
-			_state.control_state = CS_FAILED_ZC;
+			_state.control_state = CS_DEMAGNETIZATION;
 		}
 		return;
 	}
