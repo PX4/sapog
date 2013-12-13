@@ -53,7 +53,10 @@ static Mutex _mutex;
 static EVENTSOURCE_DECL(_setpoint_update_event);
 static WORKING_AREA(_wa_control_thread, 1024);
 
-
+/*
+ * TODO: Current implementation is a mess.
+ * Maybe it should be redesigned from scratch as a nice FSM.
+ */
 static struct state
 {
 	enum motormgr_mode mode;
@@ -69,6 +72,8 @@ static struct state
 	float input_voltage;
 	float input_current;
 	float input_curent_offset;
+
+	enum motor_state motor_state;
 } _state;
 
 static struct params
@@ -161,7 +166,18 @@ static void stop(void)
 	_state.dc_openloop_setpoint = 0.0;
 	_state.rpm_setpoint = 0;
 	_state.setpoint_ttl_ms = 0;
+	_state.motor_state = motor_get_state();
 	rpmctl_reset();
+}
+
+static void handle_unexpected_stop(void)
+{
+	// The motor will not be restarted automatically till the next setpoint update
+	stop();
+
+	// Usually unexpected stop means that the control is fucked up, so it's good to have some insight
+	lowsyslog("Motor manager: Unexpected stop, below is some debug info\n");
+	motor_print_debug_info();
 }
 
 static void update_control_non_running(void)
@@ -179,19 +195,20 @@ static void update_control_non_running(void)
 		(_state.mode == MOTORMGR_MODE_RPM && (_state.rpm_setpoint > 0));
 
 	if (need_start) {
-#if DEBUG
-		motor_print_debug_info();
-#endif
 		const uint64_t timestamp = motor_timer_hnsec();
 
 		_state.dc_actual = spinup_dc;
 		motor_start(spinup_dc, spinup_dc, _params.reverse);
+		_state.motor_state = motor_get_state();
 
 		// This HACK prevents the setpoint TTL expiration in case of protracted startup
 		const int elapsed_ms = (motor_timer_hnsec() - timestamp) / HNSEC_PER_MSEC;
 		_state.setpoint_ttl_ms += elapsed_ms;
 
 		lowsyslog("Motor manager: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
+
+		if (_state.motor_state == MOTOR_STATE_IDLE)
+			handle_unexpected_stop();
 	}
 }
 
@@ -237,7 +254,17 @@ static float update_control_rpm(uint32_t comm_period, float dt)
 
 static void update_control(uint32_t comm_period, float dt)
 {
-	if (comm_period == 0 || motor_get_state() != MOTOR_STATE_RUNNING) {
+	/*
+	 * Start/stop management
+	 */
+	const enum motor_state new_motor_state = motor_get_state();
+
+	const bool just_stopped = new_motor_state == MOTOR_STATE_IDLE && _state.motor_state != MOTOR_STATE_IDLE;
+	if (just_stopped)
+		handle_unexpected_stop();
+
+	_state.motor_state = new_motor_state;
+	if (comm_period == 0 || _state.motor_state != MOTOR_STATE_RUNNING) {
 		update_control_non_running();
 		return;
 	}
@@ -378,6 +405,8 @@ int motormgr_init(void)
 	ret = rpmctl_init();
 	if (ret)
 		return ret;
+
+	motormgr_stop();
 
 	assert_always(chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread),
 		HIGHPRIO, control_thread, NULL));

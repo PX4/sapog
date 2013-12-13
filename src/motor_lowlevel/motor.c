@@ -716,6 +716,7 @@ static bool do_variable_inductance_spinup(void)
 
 	uint64_t prev_step_timestamp = motor_timer_hnsec();
 	int good_steps = 0;
+	bool success = false;
 
 	_state.comm_period = _params.comm_period_max;
 	_state.current_comm_step = detect_rotor_position_as_step_index();
@@ -741,21 +742,22 @@ static bool do_variable_inductance_spinup(void)
 
 		if (_state.comm_period < _params.spinup_end_comm_period) {
 			good_steps++;
-			if (good_steps > NUM_COMMUTATION_STEPS) // Just in case, do multiple commutations
+			if (good_steps > NUM_COMMUTATION_STEPS) { // Just in case, do multiple commutations
+				success = true;
 				break;
+			}
 		} else {
 			good_steps = 0;
 		}
 	}
 
-	if (_state.comm_period < _params.spinup_end_comm_period) {
+	if (success) {
 		// Account for the extremely low resolution
 		_state.comm_period += _params.spinup_vipd_drive_duration / 2;
 		if (_state.comm_period > _params.spinup_end_comm_period)
 			_state.comm_period = _params.spinup_end_comm_period;
-		return true;
 	}
-	return false;
+	return success;
 }
 
 void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
