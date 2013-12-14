@@ -62,10 +62,9 @@ void motor_confirm_initialization(void);
 
 /**
  * Start the motor.
- * @param [in] spinup_duty_cycle Initial PWM duty cycle for initial alignment and spinup, (0; 1]
- * @param [in] normal_duty_cycle Normal PWM duty cycle that will be applied once the motor is started, (0; 1]
+ * @param [in] spinup_duty_cycle Initial PWM duty cycle for spinup, (0; 1]
+ * @param [in] normal_duty_cycle Normal PWM duty cycle that will be applied once the motor has started, (0; 1]
  * @param [in] reverse           Spin direction
- * @return     True normal duty cycle, corrected with respect to the true resolution.
  */
 void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse);
 
@@ -77,7 +76,6 @@ void motor_stop(void);
 /**
  * Configure PWM duty cycle
  * @param [in] duty_cycle PWM duty cycle [-1; 1], negative - braking, positive - forward
- * @return     True duty cycle, corrected with respect to the true resolution.
  */
 void motor_set_duty_cycle(float duty_cycle);
 
@@ -88,18 +86,17 @@ enum motor_state motor_get_state(void);
 
 /**
  * Make noise.
+ * Will work only if the motor is not running.
  */
 void motor_beep(int frequency, int duration_msec);
 
 /**
- * Commutation period in microseconds
- * @return Comm period; 0 if the motor is not running
+ * Returns the commutation period if running, 0 if not.
  */
 uint32_t motor_get_comm_period_hnsec(void);
 
 /**
  * Number of zero cross detection failures since the motor has started.
- * The value stops incrementing at the maximum value, thus it never overflows.
  */
 uint64_t motor_get_zc_failures_since_start(void);
 
