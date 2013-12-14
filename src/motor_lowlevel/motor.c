@@ -185,7 +185,7 @@ CONFIG_PARAM_INT("motor_timing_advance_deg",           0,    -5,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Something not so important
-CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 3,     2,     8)
+CONFIG_PARAM_INT("motor_deceleration_rate_on_zc_miss", 4,     2,     8)
 CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     2,     8)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
