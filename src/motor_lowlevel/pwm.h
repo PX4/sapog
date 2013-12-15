@@ -37,6 +37,7 @@
 #include <stdint.h>
 #include <hal.h>
 #include <sys.h>
+#include "common.h"
 
 __BEGIN_DECLS
 
@@ -93,9 +94,9 @@ uint32_t motor_adc_sampling_period_hnsec(void);
 /**
  * Direct phase control - for self-testing
  */
-void motor_pwm_manip(const enum motor_pwm_phase_manip command[3]);
+void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES]);
 
-void motor_pwm_align(const int polarities[3], int pwm_val);
+void motor_pwm_align(const int polarities[MOTOR_NUM_PHASES], int pwm_val);
 
 void motor_pwm_set_freewheeling(void);
 

@@ -53,23 +53,23 @@
 /**
  * PWM channel mapping
  */
-static volatile uint16_t* const PWM_REG_HIGH[3] = {
+static volatile uint16_t* const PWM_REG_HIGH[MOTOR_NUM_PHASES] = {
 	&TIM4->CCR1,
 	&TIM4->CCR2,
 	&TIM4->CCR3
 };
-static volatile uint16_t* const PWM_REG_LOW[3] = {
+static volatile uint16_t* const PWM_REG_LOW[MOTOR_NUM_PHASES] = {
 	&TIM3->CCR2,
 	&TIM3->CCR3,
 	&TIM3->CCR4
 };
 
-static const uint16_t TIM4_HIGH_CCER_POL[3] = {
+static const uint16_t TIM4_HIGH_CCER_POL[MOTOR_NUM_PHASES] = {
 	TIM_CCER_CC1P,
 	TIM_CCER_CC2P,
 	TIM_CCER_CC3P
 };
-static const uint16_t TIM3_LOW_CCER_POL[3] = {
+static const uint16_t TIM3_LOW_CCER_POL[MOTOR_NUM_PHASES] = {
 	TIM_CCER_CC2P,
 	TIM_CCER_CC3P,
 	TIM_CCER_CC4P
@@ -77,12 +77,12 @@ static const uint16_t TIM3_LOW_CCER_POL[3] = {
 static const uint16_t TIM4_HIGH_CCER_POL_MASK = TIM_CCER_CC1P | TIM_CCER_CC2P | TIM_CCER_CC3P;
 static const uint16_t TIM3_LOW_CCER_POL_MASK  = TIM_CCER_CC2P | TIM_CCER_CC3P | TIM_CCER_CC4P;
 
-static const uint16_t TIM4_HIGH_CCER_EN[3] = {
+static const uint16_t TIM4_HIGH_CCER_EN[MOTOR_NUM_PHASES] = {
 	TIM_CCER_CC1E,
 	TIM_CCER_CC2E,
 	TIM_CCER_CC3E
 };
-static const uint16_t TIM3_LOW_CCER_EN[3] = {
+static const uint16_t TIM3_LOW_CCER_EN[MOTOR_NUM_PHASES] = {
 	TIM_CCER_CC2E,
 	TIM_CCER_CC3E,
 	TIM_CCER_CC4E
@@ -291,7 +291,7 @@ static void phase_reset_all_i(void)
 	TIM3->CCER &= ~(TIM3_LOW_CCER_EN_MASK  | TIM3_LOW_CCER_POL_MASK);
 	TIM4->CCER &= ~(TIM4_HIGH_CCER_EN_MASK | TIM4_HIGH_CCER_POL_MASK);
 	// Reset PWM registers:
-	for (int phase = 0; phase < 3; phase++) {
+	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		*PWM_REG_HIGH[phase] = 0;
 		*PWM_REG_LOW[phase] = 0;
 	}
@@ -305,7 +305,7 @@ static void phase_reset_all_i(void)
 __attribute__((optimize(3)))
 static inline void phase_reset_i(int phase)
 {
-	assert(phase >= 0 && phase < 3);
+	assert(phase >= 0 && phase < MOTOR_NUM_PHASES);
 	// Disable inversions and outputs:
 	TIM3->CCER &= ~(TIM3_LOW_CCER_EN[phase]  | TIM3_LOW_CCER_POL[phase]);
 	TIM4->CCER &= ~(TIM4_HIGH_CCER_EN[phase] | TIM4_HIGH_CCER_POL[phase]);
@@ -322,7 +322,7 @@ static inline void phase_reset_i(int phase)
 __attribute__((optimize(3)))
 static inline void phase_enable_i(int phase)
 {
-	assert(phase >= 0 && phase < 3);
+	assert(phase >= 0 && phase < MOTOR_NUM_PHASES);
 	TIM3->CCER |= TIM3_LOW_CCER_EN[phase];
 	TIM4->CCER |= TIM4_HIGH_CCER_EN[phase];
 }
@@ -334,7 +334,7 @@ static inline void phase_enable_i(int phase)
 __attribute__((optimize(3)))
 static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
 {
-	assert(phase >= 0 && phase < 3);
+	assert(phase >= 0 && phase < MOTOR_NUM_PHASES);
 
 	uint_fast16_t duty_cycle_high = pwm_val;
 	uint_fast16_t duty_cycle_low  = pwm_val;
@@ -371,7 +371,7 @@ static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
 	*PWM_REG_LOW[phase] = duty_cycle_low;
 }
 
-void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
+void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 {
 	irq_primask_disable();
 	phase_reset_all_i();
@@ -379,7 +379,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 
 	const uint64_t dead_time_expiration = motor_timer_hnsec() + PWM_DEAD_TIME_NANOSEC / NSEC_PER_HNSEC;
 
-	for (int phase = 0; phase < 3; phase++) {
+	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		switch (command[phase]) {
 		case MOTOR_PWM_MANIP_HIGH:
 		case MOTOR_PWM_MANIP_HALF: {
@@ -407,7 +407,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 	// This loop should be skipped immediately because all the processing above takes enough time.
 	while (motor_timer_hnsec() <= dead_time_expiration) { }
 
-	for (int phase = 0; phase < 3; phase++) {
+	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		if (command[phase] == MOTOR_PWM_MANIP_FLOATING)
 			continue;
 		irq_primask_disable();
@@ -416,7 +416,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[3])
 	}
 }
 
-void motor_pwm_align(const int polarities[3], int pwm_val)
+void motor_pwm_align(const int polarities[MOTOR_NUM_PHASES], int pwm_val)
 {
 	irq_primask_disable();
 	phase_reset_all_i();
@@ -424,7 +424,7 @@ void motor_pwm_align(const int polarities[3], int pwm_val)
 
 	const uint64_t dead_time_expiration = motor_timer_hnsec() + PWM_DEAD_TIME_NANOSEC / NSEC_PER_HNSEC;
 
-	for (int phase = 0; phase < 3; phase++) {
+	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		const int pol = polarities[phase];
 		assert(pol == 0 || pol == 1 || pol == -1);
 
@@ -440,7 +440,7 @@ void motor_pwm_align(const int polarities[3], int pwm_val)
 	while (motor_timer_hnsec() <= dead_time_expiration) { }
 
 	irq_primask_disable();
-	for (int phase = 0; phase < 3; phase++) {
+	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		if (polarities[phase] >= 0)
 			phase_enable_i(phase);
 	}
@@ -549,9 +549,9 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	 * This way we can beep even if some FETs went bananas
 	 */
 	static unsigned _phase_sel;
-	const int low_phase_first  = _phase_sel++ % 3;
-	const int low_phase_second = _phase_sel++ % 3;
-	const int high_phase       = _phase_sel++ % 3;
+	const int low_phase_first  = _phase_sel++ % MOTOR_NUM_PHASES;
+	const int low_phase_second = _phase_sel++ % MOTOR_NUM_PHASES;
+	const int high_phase       = _phase_sel++ % MOTOR_NUM_PHASES;
 	_phase_sel++;              // We need to increment it not by multiple of 3
 	assert(low_phase_first != high_phase && low_phase_second != high_phase);
 

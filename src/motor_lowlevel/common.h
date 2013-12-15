@@ -40,6 +40,8 @@
 
 __BEGIN_DECLS
 
+#define MOTOR_NUM_PHASES        3
+
 /**
  * Faster alternatives for GPIO API that can be used from IRQ handlers.
  */

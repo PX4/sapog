@@ -37,13 +37,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "common.h"
 #include "pwm.h"
 #include "adc.h"
 #include "test.h"
 
-#define NUM_PHASES  3
 
-static const int INITIAL_DELAY_MS = 500;
+static const int INITIAL_DELAY_MS = 300;
 static const int SAMPLE_DELAY_MS  = 10;
 
 static const int ANALOG_TOLERANCE_PERCENT = 5;
@@ -51,7 +51,7 @@ static const int ANALOG_TOLERANCE_PERCENT = 5;
 
 static int test_one_phase(int phase, bool level)
 {
-	assert(phase >= 0 && phase < NUM_PHASES);
+	assert(phase >= 0 && phase < MOTOR_NUM_PHASES);
 
 	enum motor_pwm_phase_manip manip_cmd[3] = {
 		MOTOR_PWM_MANIP_FLOATING,
@@ -77,7 +77,7 @@ static int compare_samples(const void* p1, const void* p2)
 int motor_test_test_power_stage(void)
 {
 	int result = 0;
-	int high_samples[NUM_PHASES];
+	int high_samples[MOTOR_NUM_PHASES];
 	memset(high_samples, 0, sizeof(high_samples));
 
 	const int threshold = ((1 << MOTOR_ADC_RESOLUTION) * ANALOG_TOLERANCE_PERCENT) / 100;
@@ -88,7 +88,7 @@ int motor_test_test_power_stage(void)
 	/*
 	 * Test phases at low level; collect high level readings
 	 */
-	for (int phase = 0; phase < NUM_PHASES; phase++) {
+	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		// Low level
 		const int low = test_one_phase(phase, false);
 		if (low > threshold) {
@@ -114,12 +114,12 @@ int motor_test_test_power_stage(void)
 	/*
 	 * Make sure that the high level readings are nearly identical
 	 */
-	int high_samples_sorted[NUM_PHASES];
+	int high_samples_sorted[MOTOR_NUM_PHASES];
 	memcpy(high_samples_sorted, high_samples, sizeof(high_samples));
-	qsort(high_samples_sorted, NUM_PHASES, sizeof(int), compare_samples);
-	const int high_median = high_samples_sorted[NUM_PHASES / 2];
+	qsort(high_samples_sorted, MOTOR_NUM_PHASES, sizeof(int), compare_samples);
+	const int high_median = high_samples_sorted[MOTOR_NUM_PHASES / 2];
 
-	for (int phase = 0; phase < NUM_PHASES; phase++) {
+	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		if (abs(high_samples[phase] - high_median) > threshold) {
 			lowsyslog("Motor: Selftest FAILURE at phase %i: sample %i is far from median %i\n",
 			          phase, high_samples[phase], high_median);

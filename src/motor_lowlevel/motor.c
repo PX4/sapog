@@ -45,8 +45,6 @@
 #include "timer.h"
 #include "test.h"
 
-#define NUM_PHASES                 3
-#define NUM_COMMUTATION_STEPS      6
 
 #define COMM_PERIOD_LOWPASS_MAX    (1 * HNSEC_PER_USEC)
 
@@ -75,6 +73,7 @@
  * Commutation tables
  * Phase order: Positive, Negative, Floating
  */
+#define NUM_COMMUTATION_STEPS      6
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE_FORWARD[NUM_COMMUTATION_STEPS] = {
 	{1, 0, 2},
 	{1, 2, 0},
@@ -626,14 +625,14 @@ static void init_adc_filters(void)
 	enum motor_pwm_phase_manip manip_cmd[3];
 
 	// Low phase
-	for (int i = 0 ; i < NUM_PHASES; i++)
+	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++)
 		manip_cmd[i] = MOTOR_PWM_MANIP_LOW;
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
 	const int low = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
 
 	// High phase
-	for (int i = 0 ; i < NUM_PHASES; i++)
+	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++)
 		manip_cmd[i] = MOTOR_PWM_MANIP_HIGH;
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
