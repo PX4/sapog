@@ -141,7 +141,6 @@ static struct control_state            /// Control state
 	int zc_bemf_samples_acquired_past_zc;
 
 	int neutral_voltage;
-	int integrated_bemf_voltage;  // TODO: move to the ZC group
 
 	int input_voltage;
 	int input_current;
@@ -159,7 +158,6 @@ static struct precomputed_params       /// Parameters are read only
 
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
-	int integrated_bemf_threshold_pct128;
 	unsigned zc_failures_max;
 	unsigned zc_detects_min;
 	uint32_t comm_period_max;
@@ -188,7 +186,6 @@ CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Something not so important
 CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     2,     8)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
-CONFIG_PARAM_INT("motor_zc_integral_threshold_pct",    15,    0,     200)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
@@ -212,7 +209,6 @@ static void configure(void)
 
 	_params.motor_bemf_window_len_denom      = config_get("motor_bemf_window_len_denom");
 	_params.bemf_valid_range_pct128          = config_get("motor_bemf_valid_range_pct") * 128 / 100;
-	_params.integrated_bemf_threshold_pct128 = config_get("motor_zc_integral_threshold_pct") * 128 / 100;
 	_params.zc_failures_max  = config_get("motor_zc_failures_to_stop");
 	_params.zc_detects_min   = config_get("motor_zc_detects_to_start");
 	_params.comm_period_max  = config_get("motor_comm_period_max_usec") * HNSEC_PER_USEC;
@@ -306,8 +302,6 @@ static void fake_missed_zc_detection(uint64_t timestamp_hnsec)
 
 static void prepare_zc_detector_for_next_step(void)
 {
-	_state.integrated_bemf_voltage = 0;
-
 	_state.zc_bemf_samples_acquired = 0;
 	_state.zc_bemf_samples_acquired_past_zc = 0;
 
@@ -456,21 +450,6 @@ static bool is_past_zc(const int bemf)
 	return (zc_polarity && (bemf >= 0)) || (!zc_polarity && (bemf <= 0));
 }
 
-static bool bemf_integrate_and_check(const int bemf)
-{
-	/*
-	 * Ref. "BLDC Sensorless Algorithm Tuning"
-	 * BEMF integration is not used to detect ZC, but rather as a mere heuristic
-	 * to decide whether an observed ZC is valid or just a noise.
-	 */
-	const int integrated_bemf_threshold = _state.neutral_voltage * _params.integrated_bemf_threshold_pct128 / 128;
-
-	if (abs(_state.integrated_bemf_voltage) <= integrated_bemf_threshold)
-		_state.integrated_bemf_voltage += bemf;
-
-	return abs(_state.integrated_bemf_voltage) > integrated_bemf_threshold;
-}
-
 /// Fixed point multiplier
 #define LEAST_SQUARES_MULT   (1 << 17)
 
@@ -589,9 +568,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 * Input voltage/current updates are synced with ZC - this way the noise can be reduced.
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
-
-	if (!bemf_integrate_and_check(bemf))
-		return;
 
 	if (past_zc)
 		update_input_voltage_current(sample);
