@@ -99,7 +99,7 @@ CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.5,    0.5,     20.0)
 
 CONFIG_PARAM_FLOAT("motormgr_dc_min_voltage",         1.2,    0.5,     10.0)
 CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.2,    0.01,    2.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_slope",               1.0,    0.1,     100.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_slope",               3.0,    0.1,     100.0)
 
 CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
 CONFIG_PARAM_BOOL("motormgr_reverse",                 false)

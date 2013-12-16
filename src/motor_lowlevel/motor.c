@@ -126,6 +126,7 @@ static struct control_state            /// Control state
 	const struct motor_pwm_commutation_step* comm_table;
 
 	bool spinup_done;
+	bool sync_recovery;
 
 	unsigned immediate_zc_failures;
 	unsigned immediate_zc_detects;
@@ -179,7 +180,7 @@ CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
 CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
-CONFIG_PARAM_INT("motor_timing_advance_deg",           0,    -5,     20)
+CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Something not so important
@@ -337,12 +338,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	case CS_PAST_ZC:
 		engage_current_comm_step();
 		register_good_step();
+		_state.sync_recovery = false;
 		break;
 
-	case CS_DEMAGNETIZATION:
+	case CS_DEMAGNETIZATION:  // This state is neither good nor bad
 		engage_current_comm_step();
 		fake_missed_zc_detection(timestamp_hnsec);
-		register_bad_step(&stop_now);
+		_state.sync_recovery = true;
 		break;
 
 	case CS_BEFORE_ZC:
@@ -353,6 +355,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			engage_current_comm_step();
 		fake_missed_zc_detection(timestamp_hnsec);
 		register_bad_step(&stop_now);
+		_state.sync_recovery = true;
 		break;
 
 	default:
@@ -390,6 +393,11 @@ static void handle_zero_cross(uint64_t zc_timestamp)
 
 	if (comm_period_lowpass < (unsigned)_params.comm_period_lowpass_alpha_reciprocal_min)
 		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
+
+	if (_state.sync_recovery) {
+		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
+		engage_current_comm_step();
+	}
 
 	_state.comm_period = LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
 
@@ -615,7 +623,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	if (zc_timestamp == 0) {
 		// Sorry Mario
+		motor_pwm_set_freewheeling();
 		_state.control_state = CS_FAILED_ZC;
+		_state.sync_recovery = true;
 		return;
 	}
 	handle_zero_cross(zc_timestamp);
@@ -953,7 +963,7 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 uint32_t motor_get_min_comm_period_hnsec(void)
 {
 	// Ensure some number of ADC samples per comm period
-	return motor_adc_sampling_period_hnsec() * 6;
+	return motor_adc_sampling_period_hnsec() * 5;
 }
 
 void motor_print_debug_info(void)
