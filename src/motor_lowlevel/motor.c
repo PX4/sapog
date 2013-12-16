@@ -46,6 +46,8 @@
 #include "test.h"
 
 
+#define STEP_SWITCHING_DELAY_HNSEC (1 * HNSEC_PER_USEC)
+
 #define COMM_PERIOD_LOWPASS_MAX    (1 * HNSEC_PER_USEC)
 
 /**
@@ -375,7 +377,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	motor_adc_enable_from_isr();
 }
 
-static void handle_zero_cross(uint64_t zc_timestamp)
+static void handle_detected_zc(uint64_t zc_timestamp)
 {
 	if (zc_timestamp < _state.prev_zc_timestamp)
 		zc_timestamp = _state.prev_zc_timestamp;
@@ -406,7 +408,7 @@ static void handle_zero_cross(uint64_t zc_timestamp)
 	const uint32_t advance =
 		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, _params.timing_advance_deg64);
 
-	motor_timer_set_absolute(zc_timestamp + advance);
+	motor_timer_set_absolute(zc_timestamp + advance - STEP_SWITCHING_DELAY_HNSEC);
 	motor_adc_disable_from_isr();
 }
 
@@ -497,7 +499,7 @@ static void solve_least_squares(const int n, const int x[], const int y[], int64
 	*out_yintercept = (LEAST_SQUARES_MULT * sum_y - slope * sum_x + n / 2) / n;
 }
 
-static uint64_t solve_zero_cross_approximation(void)
+static uint64_t solve_zc_approximation(void)
 {
 	/*
 	 * Solution
@@ -617,7 +619,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	/*
 	 * Find the exact ZC position using the collected samples
 	 */
-	const uint64_t zc_timestamp = solve_zero_cross_approximation();
+	const uint64_t zc_timestamp = solve_zc_approximation();
 
 	TESTPAD_ZC_CLEAR();
 
@@ -628,7 +630,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		_state.sync_recovery = true;
 		return;
 	}
-	handle_zero_cross(zc_timestamp);
+	handle_detected_zc(zc_timestamp);
 }
 
 // --- End of hard real time code ---
