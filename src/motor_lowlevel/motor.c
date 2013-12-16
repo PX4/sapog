@@ -93,8 +93,20 @@ static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[NUM_COM
 	{1, 0, 2}
 };
 
+enum flags
+{
+	FLAG_ACTIVE        = 1,
+	FLAG_SPINUP        = 2,
+	FLAG_SYNC_RECOVERY = 4
+};
 
-enum control_state_id { CS_IDLE, CS_BEFORE_ZC, CS_PAST_ZC, CS_FAILED_ZC, CS_DEMAGNETIZATION };
+enum zc_detection_result
+{
+	ZC_NOT_DETECTED,
+	ZC_DETECTED,
+	ZC_FAILED,
+	ZC_DEMAGNETIZATION
+};
 
 static struct diag_info                /// This data is never used by the control algorithms, it is write only
 {
@@ -118,7 +130,8 @@ static struct diag_info                /// This data is never used by the contro
 
 static struct control_state            /// Control state
 {
-	enum control_state_id control_state;
+	unsigned flags;
+	enum zc_detection_result zc_detection_result;
 
 	uint64_t blank_time_deadline;
 	uint64_t prev_zc_timestamp;
@@ -126,9 +139,6 @@ static struct control_state            /// Control state
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
-
-	bool spinup_done;
-	bool sync_recovery;
 
 	unsigned immediate_zc_failures;
 	unsigned immediate_zc_detects;
@@ -246,7 +256,7 @@ static void configure(void)
 
 static void stop_from_isr(void)
 {
-	_state.control_state = CS_IDLE;
+	_state.flags = 0;
 	motor_timer_cancel();
 	motor_pwm_set_freewheeling();
 }
@@ -265,7 +275,7 @@ static void register_good_step(void)
 			_state.immediate_zc_failures = 0;
 	}
 
-	if (!_state.spinup_done) {
+	if (_state.flags & FLAG_SPINUP) {
 		_state.zc_detects_during_spinup++;
 
 		const bool is_stable =
@@ -273,7 +283,7 @@ static void register_good_step(void)
 			_state.zc_detects_during_spinup > _params.zc_detects_min;
 
 		if (is_stable) {
-			_state.spinup_done = true;
+			_state.flags &= ~FLAG_SPINUP;
 			_state.pwm_val = _state.pwm_val_after_spinup;
 		}
 	}
@@ -288,7 +298,7 @@ static void register_bad_step(bool* need_to_stop)
 	*need_to_stop = _state.immediate_zc_failures > _params.zc_failures_max;
 
 	// There may be some ZC failures during spinup, it's OK but we don't want to count them
-	if (_state.spinup_done)
+	if (!(_state.flags & FLAG_SPINUP))
 		_diag.zc_failures_since_start++;
 }
 
@@ -318,7 +328,7 @@ static void prepare_zc_detector_for_next_step(void)
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
 {
-	if (_state.control_state == CS_IDLE)
+	if (!(_state.flags & FLAG_ACTIVE))
 		return;
 
 	motor_timer_set_relative(_state.comm_period);
@@ -330,28 +340,28 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	bool stop_now = false;
 
-	switch (_state.control_state) {
-	case CS_PAST_ZC:
+	switch (_state.zc_detection_result) {
+	case ZC_DETECTED:
 		engage_current_comm_step();
 		register_good_step();
-		_state.sync_recovery = false;
+		_state.flags &= ~FLAG_SYNC_RECOVERY;
 		break;
 
-	case CS_DEMAGNETIZATION:  // This state is neither good nor bad
+	case ZC_DEMAGNETIZATION:
 		engage_current_comm_step();
 		fake_missed_zc_detection(timestamp_hnsec);
-		_state.sync_recovery = true;
+		_state.flags |= FLAG_SYNC_RECOVERY;
 		break;
 
-	case CS_BEFORE_ZC:
-	case CS_FAILED_ZC:
-		if (_state.spinup_done)
-			motor_pwm_set_freewheeling();             // Will not apply the power until recovery
-		else
+	case ZC_NOT_DETECTED:
+	case ZC_FAILED:
+		if (_state.flags & FLAG_SPINUP)
 			engage_current_comm_step();
+		else
+			motor_pwm_set_freewheeling();
 		fake_missed_zc_detection(timestamp_hnsec);
 		register_bad_step(&stop_now);
-		_state.sync_recovery = true;
+		_state.flags |= FLAG_SYNC_RECOVERY;
 		break;
 
 	default:
@@ -364,7 +374,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		return;
 	}
 
-	_state.control_state = CS_BEFORE_ZC;
+	_state.zc_detection_result = ZC_NOT_DETECTED;
 	_state.blank_time_deadline = timestamp_hnsec + _params.comm_blank_hnsec;
 
 	prepare_zc_detector_for_next_step();
@@ -390,14 +400,14 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	if (comm_period_lowpass < (unsigned)_params.comm_period_lowpass_alpha_reciprocal_min)
 		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
 
-	if (_state.sync_recovery) {
+	if (_state.flags & FLAG_SYNC_RECOVERY) {
 		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
 		engage_current_comm_step();
 	}
 
 	_state.comm_period = LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
 
-	_state.control_state = CS_PAST_ZC;
+	_state.zc_detection_result = ZC_DETECTED;
 
 	const uint32_t advance =
 		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, _params.timing_advance_deg64);
@@ -518,8 +528,14 @@ static uint64_t solve_zc_approximation(void)
 
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
-	if (_state.control_state != CS_BEFORE_ZC || sample->timestamp < _state.blank_time_deadline)
+	const bool proceed =
+		(_state.flags & FLAG_ACTIVE) &&
+		(_state.zc_detection_result == ZC_NOT_DETECTED) &&
+		(sample->timestamp >= _state.blank_time_deadline);
+
+	if (!proceed)
 		return;
+
 	assert(_state.comm_table);
 
 	/*
@@ -542,8 +558,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		return;
 	}
 
-	if (past_zc && (_state.zc_bemf_samples_acquired == 0) && _state.spinup_done) {
+	if (past_zc && (_state.zc_bemf_samples_acquired == 0)) {
 		_diag.bemf_samples_premature_zc++;
+		if (_state.flags & FLAG_SPINUP)
+			return;
 		/*
 		 * BEMF signal may be affected by extreme magnetic saturation, which we can detect
 		 * as BEMF readings on the wrong side of neutral voltage past 30 degrees since
@@ -557,8 +575,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		const uint64_t deadline = _state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period;
 		if (sample->timestamp >= deadline) {
 			motor_pwm_set_freewheeling();
+			_state.zc_detection_result = ZC_DEMAGNETIZATION;
 			_diag.demagnetizations++;
-			_state.control_state = CS_DEMAGNETIZATION;
 		}
 		return;
 	}
@@ -602,8 +620,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (zc_timestamp == 0) {
 		// Sorry Mario
 		motor_pwm_set_freewheeling();
-		_state.control_state = CS_FAILED_ZC;
-		_state.sync_recovery = true;
+		_state.zc_detection_result = ZC_FAILED;
 		return;
 	}
 	handle_detected_zc(zc_timestamp);
@@ -801,7 +818,6 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	_diag.started_at = motor_timer_hnsec();
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
-	_state.spinup_done = false;
 
 	_state.pwm_val = motor_pwm_compute_pwm_val(spinup_duty_cycle);
 	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(normal_duty_cycle);
@@ -821,7 +837,8 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	 */
 	if (started) {
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
-		_state.control_state = CS_BEFORE_ZC;
+		_state.zc_detection_result = ZC_NOT_DETECTED;
+		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
 		motor_timer_set_relative(0);
 	} else {
 		motor_stop();
@@ -835,15 +852,14 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 
 void motor_stop(void)
 {
+	_state.flags = 0;
+	motor_timer_cancel();
+	_state.flags = 0;
+
 	irq_primask_disable();
-	{
-		_state.control_state = CS_IDLE;
-		// ADC should be enabled by default
-		motor_adc_enable_from_isr();
-	}
+	motor_adc_enable_from_isr(); // ADC should be enabled by default
 	irq_primask_enable();
 
-	motor_timer_cancel();
 	motor_pwm_set_freewheeling();
 }
 
@@ -855,29 +871,30 @@ void motor_set_duty_cycle(float duty_cycle)
 
 enum motor_state motor_get_state(void)
 {
-	const enum control_state_id csid = _state.control_state;
-	const bool spinup_done = _state.spinup_done;
+	volatile const unsigned flags = _state.flags;
 
-	if (csid == CS_IDLE)
+	if (flags & FLAG_ACTIVE)
+		return (flags & FLAG_SPINUP) ? MOTOR_STATE_STARTING : MOTOR_STATE_RUNNING;
+	else
 		return MOTOR_STATE_IDLE;
-	return spinup_done ? MOTOR_STATE_RUNNING : MOTOR_STATE_STARTING;
 }
 
 void motor_beep(int frequency, int duration_msec)
 {
-	if (_state.control_state == CS_IDLE) {
-		irq_primask_disable();
-		motor_adc_disable_from_isr();
-		irq_primask_enable();
+	if (_state.flags & FLAG_ACTIVE)
+		return;
 
-		const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
-		motor_pwm_beep(frequency, duration_msec);
-		chThdSetPriority(orig_priority);
+	irq_primask_disable();
+	motor_adc_disable_from_isr();
+	irq_primask_enable();
 
-		irq_primask_disable();
-		motor_adc_enable_from_isr();
-		irq_primask_enable();
-	}
+	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
+	motor_pwm_beep(frequency, duration_msec);
+	chThdSetPriority(orig_priority);
+
+	irq_primask_disable();
+	motor_adc_enable_from_isr();
+	irq_primask_enable();
 }
 
 uint32_t motor_get_comm_period_hnsec(void)
@@ -899,14 +916,14 @@ uint64_t motor_get_zc_failures_since_start(void)
 
 int motor_test_hardware(void)
 {
-	if (_state.control_state != CS_IDLE)
+	if (_state.flags & FLAG_ACTIVE)
 		return -1;
 	return motor_test_test_power_stage();
 }
 
 int motor_test_motor(void)
 {
-	if (_state.control_state != CS_IDLE)
+	if (_state.flags & FLAG_ACTIVE)
 		return -1;
 	return motor_test_test_motor();  // REDRUM
 }
@@ -914,8 +931,11 @@ int motor_test_motor(void)
 void motor_emergency(void)
 {
 	const irqstate_t irqstate = irq_primask_save();
-	motor_pwm_emergency();
-	_state.control_state = CS_IDLE;
+	{
+		motor_pwm_emergency();
+		_state.flags = 0;
+		motor_timer_cancel();
+	}
 	irq_primask_restore(irqstate);
 }
 
@@ -960,6 +980,7 @@ void motor_print_debug_info(void)
 
 	lowsyslog("Motor state\n");
 	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
+	PRINT_INT("flags",           state_copy.flags);
 	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
 	PRINT_INT("input voltage",   state_copy.input_voltage);
 	PRINT_INT("input current",   state_copy.input_current);
