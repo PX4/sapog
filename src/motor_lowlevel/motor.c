@@ -188,7 +188,7 @@ static bool _initialization_confirmed = false;
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
-CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    5000,  0,     50000)
+CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    2500,  0,     10000)
 CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
