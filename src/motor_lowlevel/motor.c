@@ -203,7 +203,7 @@ CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
-CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       75,    10,    200)
+CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       75,    10,    200) // TODO: Replace the RC filter; adjust this
 CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1500,  1000,  4000)
 
 
@@ -710,8 +710,10 @@ static int detect_rotor_position_as_step_index(void)
 	const int pwm_val = motor_pwm_compute_pwm_val(1.0);
 
 	// With proper rounding
-	const int num_samples_energize =
+	int num_samples_energize =
 		(_params.spinup_vipd_probe_duration + _params.adc_sampling_period / 2) / _params.adc_sampling_period;
+	if (num_samples_energize == 0)
+		num_samples_energize = 1;
 
 	const int num_samples_sleep = num_samples_energize * 2;
 
