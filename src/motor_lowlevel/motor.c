@@ -48,8 +48,6 @@
 
 #define STEP_SWITCHING_DELAY_HNSEC (1 * HNSEC_PER_USEC)
 
-#define COMM_PERIOD_LOWPASS_MAX    (1 * HNSEC_PER_USEC)
-
 /**
  * Large values affect performance
  * Least possible value is 2
@@ -161,8 +159,6 @@ static struct control_state            /// Control state
 
 static struct precomputed_params       /// Parameters are read only
 {
-	uint32_t comm_period_lowpass_base;
-	int comm_period_lowpass_alpha_reciprocal_min;
 	int timing_advance_deg64;
 	int neutral_voltage_lowpass_alpha_reciprocal;
 
@@ -188,8 +184,6 @@ static bool _initialization_confirmed = false;
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
-CONFIG_PARAM_INT("motor_comm_period_lpf_base_usec",    2500,  0,     10000)
-CONFIG_PARAM_FLOAT("motor_comm_period_lpf_alpha_max",  0.5,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
@@ -209,10 +203,6 @@ CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1500,  1000,  4000)
 
 static void configure(void)
 {
-	_params.comm_period_lowpass_base = config_get("motor_comm_period_lpf_base_usec") * HNSEC_PER_USEC;
-	_params.comm_period_lowpass_alpha_reciprocal_min =
-		(int)(1.0f / config_get("motor_comm_period_lpf_alpha_max") + 0.5f) - 1;
-
 	_params.timing_advance_deg64 = config_get("motor_timing_advance_deg") * 64 / 60;
 	_params.neutral_voltage_lowpass_alpha_reciprocal =
 		(int)(1.0f / config_get("motor_neutral_volt_lpf_alpha") + 0.5f) - 1;
@@ -391,21 +381,12 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	if (new_comm_period > _params.comm_period_max)
 	        new_comm_period = _params.comm_period_max;
 
-	const unsigned comm_period_base = (new_comm_period + _state.comm_period) / 2;
-	unsigned comm_period_lowpass = _params.comm_period_lowpass_base / comm_period_base;
-
-	if (comm_period_lowpass > COMM_PERIOD_LOWPASS_MAX)
-		comm_period_lowpass = COMM_PERIOD_LOWPASS_MAX;
-
-	if (comm_period_lowpass < (unsigned)_params.comm_period_lowpass_alpha_reciprocal_min)
-		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
-
 	if (_state.flags & FLAG_SYNC_RECOVERY) {
-		comm_period_lowpass = _params.comm_period_lowpass_alpha_reciprocal_min;
+		_state.comm_period = new_comm_period;
 		engage_current_comm_step();
+	} else {
+		_state.comm_period = (_state.comm_period + new_comm_period) / 2;
 	}
-
-	_state.comm_period = LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
 
 	_state.zc_detection_result = ZC_DETECTED;
 
