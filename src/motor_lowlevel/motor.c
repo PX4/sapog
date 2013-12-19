@@ -539,10 +539,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		return;
 	}
 
-	if (past_zc && (_state.zc_bemf_samples_acquired == 0)) {
+	if (past_zc && (_state.zc_bemf_samples_acquired == 0) && !(_state.flags & FLAG_SPINUP)) {
 		_diag.bemf_samples_premature_zc++;
-		if (_state.flags & FLAG_SPINUP)
-			return;
 		/*
 		 * BEMF signal may be affected by extreme magnetic saturation, which we can detect
 		 * as BEMF readings on the wrong side of neutral voltage past 30 degrees since
