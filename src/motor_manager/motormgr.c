@@ -289,12 +289,14 @@ static void update_control(uint32_t comm_period, float dt)
 	/*
 	 * Duty cycle slope control
 	 */
-	if ((new_duty_cycle - _state.dc_actual) > _params.dc_step_max) {
-		assert(new_duty_cycle > _state.dc_actual);
+	if (fabsf(new_duty_cycle - _state.dc_actual) > _params.dc_step_max) {
 		float step = _params.dc_slope * dt;
 
 		if (step > _params.dc_step_max)
 			step = _params.dc_step_max;
+
+		if (new_duty_cycle < _state.dc_actual)
+			step = -step;
 
 		new_duty_cycle = _state.dc_actual + step;
 		_state.limit_mask |= MOTORMGR_LIMIT_ACCEL;
