@@ -770,7 +770,7 @@ static bool do_variable_inductance_spinup(void)
 
 	if (success) {
 		// Account for the extremely low resolution
-		_state.comm_period += _params.spinup_vipd_drive_duration / 2;
+		_state.comm_period += _params.spinup_vipd_drive_duration;
 		if (_state.comm_period > _params.spinup_end_comm_period)
 			_state.comm_period = _params.spinup_end_comm_period;
 	}
