@@ -876,6 +876,12 @@ void motor_beep(int frequency, int duration_msec)
 	irq_primask_disable();
 	motor_adc_enable_from_isr();
 	irq_primask_enable();
+
+	/*
+	 * Motor windings may get saturated after beeping, making immediately following spinup unreliable.
+	 * This little delay fixes that, not in the best way though.
+	 */
+	usleep(10000);
 }
 
 uint32_t motor_get_comm_period_hnsec(void)
