@@ -350,12 +350,11 @@ static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
 	uint_fast16_t duty_cycle_low  = pwm_val;
 
 	if (inverted) {
-		// Reset if necessary
-		if (TIM3->CCER & TIM3_LOW_CCER_POL[phase])
-			phase_reset_i(phase);
-
 		// Inverted - high PWM is inverted, low is not
-		TIM4->CCER |= TIM4_HIGH_CCER_POL[phase];
+		if (TIM3->CCER & TIM3_LOW_CCER_POL[phase] || !(TIM4->CCER & TIM4_HIGH_CCER_POL[phase])) {
+			phase_reset_i(phase);
+			TIM4->CCER |= TIM4_HIGH_CCER_POL[phase];
+		}
 
 		// Inverted phase shall have greater PWM value than non-inverted one
 		// On full PWM there will be no switching at all
@@ -366,12 +365,11 @@ static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
 				duty_cycle_high += _pwm_dead_time_ticks;
 		}
 	} else {
-		// Reset if necessary
-		if (TIM4->CCER & TIM4_HIGH_CCER_POL[phase])
-			phase_reset_i(phase);
-
 		// Normal - low PWM is inverted, high is not
-		TIM3->CCER |= TIM3_LOW_CCER_POL[phase];
+		if (TIM4->CCER & TIM4_HIGH_CCER_POL[phase] || !(TIM3->CCER & TIM3_LOW_CCER_POL[phase])) {
+			phase_reset_i(phase);
+			TIM3->CCER |= TIM3_LOW_CCER_POL[phase];
+		}
 
 		if (pwm_val < _pwm_top) {
 			if (pwm_val > _pwm_half_top)
