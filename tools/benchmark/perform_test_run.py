@@ -15,6 +15,7 @@ HALF_DUTY_CYCLE = False
 SLOPE_MIN = 0.1
 SLOPE_MAX = 1.0
 SLOPE_RISE_TIME = 60.0
+SLOPE_TOP_DELAY = 1.0
 SLOPE_TIME_STEP = 0.04
 
 # Duty cycle [0; 1]; Duration (sec)
@@ -97,7 +98,7 @@ class TestExecutor:
         finally:
             self._driver.stop()
 
-    def run_slope(self, min, max, rise_time, time_step):
+    def run_slope(self, min, max, rise_time, time_step, top_delay):
         assert max > min
         def run_eq(yintercept, slope, yend):
             start_time = time.time()
@@ -115,6 +116,7 @@ class TestExecutor:
         try:
             self._start()
             run_eq(min, (max - min) / rise_time, max)
+            time.sleep(top_delay)
             run_eq(max, (min - max) / rise_time, min)
             self.on_duty_cycle_change(0.0)
         finally:
@@ -192,6 +194,6 @@ def perform(test_name, executor_call):
     with open(output_filename, 'w') as f:
         collector.write_to_csv(f)
 
-perform('slope', lambda x: x.run_slope(SLOPE_MIN, SLOPE_MAX, SLOPE_RISE_TIME, SLOPE_TIME_STEP))
+perform('slope', lambda x: x.run_slope(SLOPE_MIN, SLOPE_MAX, SLOPE_RISE_TIME, SLOPE_TIME_STEP, SLOPE_TOP_DELAY))
 
 perform('dynamic', lambda x: x.run_dynamic(DYNAMIC_PATTERN))
