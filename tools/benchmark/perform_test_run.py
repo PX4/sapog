@@ -15,7 +15,7 @@ HALF_DUTY_CYCLE = False
 SLOPE_MIN = 0.1
 SLOPE_MAX = 1.0
 SLOPE_RISE_TIME = 60.0
-SLOPE_TOP_DELAY = 1.0
+SLOPE_TOP_DELAY = 2.0
 SLOPE_TIME_STEP = 0.04
 
 # Duty cycle [0; 1]; Duration (sec)
@@ -47,6 +47,7 @@ def make_driver(name, port=None):
     from drivers.px4esc_cli import Px4EscCli
     from drivers.esc32_cli import Esc32Cli
     from drivers.pololu_maestro import PololuMaestro
+    from drivers.canas import CanAerospaceEsc
 
     if name == 'px4esc':
         drv = Px4EscCli(port or '/dev/ttyUSB1')
@@ -56,6 +57,8 @@ def make_driver(name, port=None):
             drv.set_duty_cycle(0.01)
         drv.start = start
         drv.require_echo = False # Echo may be mixed with diagnostics
+    elif name == 'canas':
+        drv = CanAerospaceEsc(port or 'slcan0')
     elif name == 'esc32':
         drv = Esc32Cli(port or '/dev/ttyUSB1')
     elif name == 'ppm':
@@ -68,6 +71,9 @@ def make_driver(name, port=None):
         time.sleep(3.0)          # Wait while the PPM controller establishes zero output
     else:
         raise ValueError('Unknown driver name', name)
+
+    if not hasattr(drv, 'dispose'):
+        drv.dispose = lambda: None
 
     if HALF_DUTY_CYCLE:
         print 'Duty cycle limiting is enabled'
@@ -197,3 +203,5 @@ def perform(test_name, executor_call):
 perform('slope', lambda x: x.run_slope(SLOPE_MIN, SLOPE_MAX, SLOPE_RISE_TIME, SLOPE_TIME_STEP, SLOPE_TOP_DELAY))
 
 perform('dynamic', lambda x: x.run_dynamic(DYNAMIC_PATTERN))
+
+driver.dispose()
