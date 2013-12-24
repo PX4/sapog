@@ -100,6 +100,7 @@ static uint16_t _pwm_max;
 static uint16_t _pwm_min;
 
 static uint16_t _pwm_dead_time_ticks;
+static bool _prevent_full_duty_cycle_bump = true;
 
 
 static int init_constants(unsigned frequency)
@@ -168,8 +169,8 @@ static int init_constants(unsigned frequency)
 	// Dead time shall not be halved
 	_pwm_dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
 
-	lowsyslog("Motor: PWM range: [%u, %u]; Dead time: %u ticks\n",
-		(unsigned)_pwm_min, (unsigned)_pwm_max, (unsigned)_pwm_dead_time_ticks);
+	lowsyslog("Motor: PWM top: %u; PWM range: [%u, %u]; Dead time: %u ticks\n",
+		(unsigned)_pwm_top, (unsigned)_pwm_min, (unsigned)_pwm_max, (unsigned)_pwm_dead_time_ticks);
 	return 0;
 }
 
@@ -257,11 +258,14 @@ static void start_timers(void)
 	assert_always(TIM4->CR1 & TIM_CR1_CEN);
 }
 
-int motor_pwm_init(unsigned frequency)
+int motor_pwm_init(unsigned frequency, bool prevent_full_duty_cycle_bump)
 {
 	const int ret = init_constants(frequency);
 	if (ret)
 		return ret;
+
+	_prevent_full_duty_cycle_bump = prevent_full_duty_cycle_bump;
+	lowsyslog("Motor: PWM bump suppression: %i\n", (int)_prevent_full_duty_cycle_bump);
 
 	init_timers();
 	start_timers();
@@ -330,6 +334,12 @@ static inline void phase_enable_i(int phase)
 /**
  * Assumes:
  *  - motor IRQs are disabled
+ *
+ * TODO: Current implementation generates unwanted spikes when switching from floating mode to driving mode.
+ * This shall be fixed with the new hardware, where the PWM logic is completely different.
+ * Scope traces showing this bug:
+ *    http://habrastorage.org/storage3/532/7b3/c10/5327b3c1085aa8df7628299e400bc9f6.png
+ *    http://habrastorage.org/storage3/50b/348/e6b/50b348e6b903d934fd2a891db336d392.png
  */
 __attribute__((optimize(3)))
 static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
@@ -348,10 +358,13 @@ static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
 		TIM4->CCER |= TIM4_HIGH_CCER_POL[phase];
 
 		// Inverted phase shall have greater PWM value than non-inverted one
-		if (pwm_val > _pwm_half_top)
-			duty_cycle_low  -= _pwm_dead_time_ticks;
-		else
-			duty_cycle_high += _pwm_dead_time_ticks;
+		// On full PWM there will be no switching at all
+		if (pwm_val < _pwm_top) {
+			if (pwm_val > _pwm_half_top)
+				duty_cycle_low  -= _pwm_dead_time_ticks;
+			else
+				duty_cycle_high += _pwm_dead_time_ticks;
+		}
 	} else {
 		// Reset if necessary
 		if (TIM4->CCER & TIM4_HIGH_CCER_POL[phase])
@@ -360,10 +373,12 @@ static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
 		// Normal - low PWM is inverted, high is not
 		TIM3->CCER |= TIM3_LOW_CCER_POL[phase];
 
-		if (pwm_val > _pwm_half_top)
-			duty_cycle_high -= _pwm_dead_time_ticks;
-		else
-			duty_cycle_low  += _pwm_dead_time_ticks;
+		if (pwm_val < _pwm_top) {
+			if (pwm_val > _pwm_half_top)
+				duty_cycle_high -= _pwm_dead_time_ticks;
+			else
+				duty_cycle_low  += _pwm_dead_time_ticks;
+		}
 	}
 
 	// And as always, thanks for watching.
@@ -468,7 +483,7 @@ int motor_pwm_compute_pwm_val(float duty_cycle)
 	 */
 	const float abs_duty_cycle = fabs(duty_cycle);
 	uint_fast16_t int_duty_cycle = 0;
-	if (abs_duty_cycle >= 1)
+	if (abs_duty_cycle > 0.999)
 		int_duty_cycle = _pwm_top;
 	else
 		int_duty_cycle = (uint_fast16_t)(abs_duty_cycle * _pwm_top);
@@ -483,8 +498,13 @@ int motor_pwm_compute_pwm_val(float duty_cycle)
 		// Forward mode
 		output = _pwm_top - ((_pwm_top - int_duty_cycle) / 2);
 
-		if (output > _pwm_max)
+		if (output > _pwm_max) {
 			output = _pwm_max;
+
+			const uint_fast16_t bump_threshold = (_pwm_top + _pwm_max) / 2;
+			if (!_prevent_full_duty_cycle_bump && (int_duty_cycle > bump_threshold))
+				output = _pwm_top;
+		}
 
 		assert(output >= _pwm_half_top);
 		assert(output <= _pwm_top);

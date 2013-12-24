@@ -182,6 +182,7 @@ static bool _initialization_confirmed = false;
 
 
 CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_BOOL("motor_pwm_strictly_linear",         true)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
@@ -610,7 +611,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 int motor_init(void)
 {
-	int ret = motor_pwm_init(config_get("motor_pwm_frequency"));
+	int ret = motor_pwm_init(config_get("motor_pwm_frequency"), config_get("motor_pwm_strictly_linear"));
 	if (ret)
 		return ret;
 

@@ -35,6 +35,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <hal.h>
 #include <sys.h>
 #include "common.h"
@@ -82,9 +83,10 @@ enum motor_pwm_phase_manip
  * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2 * 2)
  *
  * @param [in] frequency - PWM frequency, Hz
+ * @param [in] prevent_full_duty_cycle_bump - Limit the duty cycle range so that there will be no jump near 100%
  * @return 0 on success, anything else if the requested frequency is invalid
  */
-int motor_pwm_init(unsigned frequency);
+int motor_pwm_init(unsigned frequency, bool prevent_full_duty_cycle_bump);
 
 /**
  * ADC converstions are triggered by the PWM hardware, so this function is here
