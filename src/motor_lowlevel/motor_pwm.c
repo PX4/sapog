@@ -48,7 +48,7 @@
  */
 #define PWM_MIN_PULSE_NANOSEC   1000
 
-#define PWM_DEAD_TIME_NANOSEC   500
+#define PWM_DEAD_TIME_NANOSEC   600
 
 /**
  * PWM channel mapping
