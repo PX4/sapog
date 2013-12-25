@@ -10,6 +10,8 @@ from functools import partial
 from pylab import *
 from scipy import signal
 
+LOW_RPM = 900
+
 # -----------------
 
 def read_csv_to_column_dict(filename):
@@ -113,6 +115,14 @@ def add_efficiency_plots(data, ax, color, label):
     ax.grid(alpha=GRID_ALPHA)
 
 def add_ripple_plots(data, axes, color, label):
+    data = data.copy()
+    data['dc_reverse'] = 1.0 - data['dc']
+    data = strip_data_with_zero_values(data, 'dc_reverse')
+    print 'Stripped max DC:', len(data.values()[0])
+    data['low_rpm'] = map(lambda x: x > LOW_RPM, data['rpm'])
+    data = strip_data_with_zero_values(data, 'low_rpm')
+    print 'Stripped low RPM:', len(data.values()[0])
+
     ax_time, ax_ripple = axes
     time = data['time']
     rpm = data['rpm']
@@ -127,7 +137,7 @@ def add_ripple_plots(data, axes, color, label):
     ax_time.grid(alpha=GRID_ALPHA)
 
     ripple = array(map(abs, fitted_rpm - rpm))
-    ax_ripple.scatter(rpm, ripple, marker=',', color=color, s=0.1)
+    ax_ripple.scatter(rpm, ripple, marker=',', color=color, s=0.1, alpha=0.1)
     ax_ripple.set_xlabel('RPM')
     ax_ripple.set_ylabel('RPM Deviation')
 
