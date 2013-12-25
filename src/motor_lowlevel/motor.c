@@ -907,7 +907,10 @@ int motor_test_hardware(void)
 {
 	if (_state.flags & FLAG_ACTIVE)
 		return -1;
-	return motor_test_test_power_stage();
+	int res = motor_test_test_power_stage();
+	if (res) // Try harder
+		res = motor_test_test_power_stage();
+	return res;
 }
 
 int motor_test_motor(void)
