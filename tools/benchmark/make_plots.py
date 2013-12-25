@@ -112,6 +112,30 @@ def add_efficiency_plots(data, ax, color, label):
     ax.plot(x, fitted, color, label=label)
     ax.grid(alpha=GRID_ALPHA)
 
+def add_ripple_plots(data, axes, color, label):
+    ax_time, ax_ripple = axes
+    time = data['time']
+    rpm = data['rpm']
+
+    ax_time.scatter(time, rpm, marker=',', color=color, s=0.1, alpha=0.1)
+    ax_time.set_xlabel('Time (S)')
+    ax_time.set_ylabel('RPM')
+
+    poly_rpm = np.polyfit(time, rpm, 15)
+    fitted_rpm = np.polyval(poly_rpm, time)
+    ax_time.plot(time, fitted_rpm, color, label=label)
+    ax_time.grid(alpha=GRID_ALPHA)
+
+    ripple = array(map(abs, fitted_rpm - rpm))
+    ax_ripple.scatter(rpm, ripple, marker=',', color=color, s=0.1)
+    ax_ripple.set_xlabel('RPM')
+    ax_ripple.set_ylabel('RPM Deviation')
+
+    poly_ripple = np.polyfit(rpm, ripple, 6)
+    fitted_ripple = np.polyval(poly_ripple, rpm)
+    ax_ripple.plot(rpm, fitted_ripple, color, label=label)
+    ax_ripple.grid(alpha=GRID_ALPHA)
+
 def plot_dynamic(filenames):
     fig, axes = subplots(3, sharex=True)
     fig.tight_layout()
@@ -122,8 +146,6 @@ def plot_dynamic(filenames):
     return fig
 
 def plot_efficiency(filenames):
-    COLORS = ['b', 'r', 'g', 'y']
-    assert len(filenames) <= len(COLORS)
     fig, ax = subplots()
     fig.tight_layout()
     for color,fn in zip(COLORS, filenames):
@@ -132,7 +154,18 @@ def plot_efficiency(filenames):
     legend()
     return fig
 
+def plot_ripple(filenames):
+    fig, axes = subplots(2)
+    fig.tight_layout()
+    for color,fn in zip(COLORS, filenames):
+        data = prepare_input_data(fn)
+        add_ripple_plots(data, axes, color, fn)
+    legend()
+    return fig
+
 # -----------------
+
+COLORS = ['b', 'r', 'g', 'y']
 
 GRID_ALPHA = 0.4
 mpl.rcParams['lines.linewidth'] = 1.0
@@ -149,6 +182,8 @@ if plot_type == 'dynamic':
     fig = plot_dynamic(filenames)
 elif plot_type == 'efficiency':
     fig = plot_efficiency(filenames)
+elif plot_type == 'ripple':
+    fig = plot_ripple(filenames)
 else:
     print 'Invalid plot type:', plot_type
     exit(1)
