@@ -552,7 +552,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		 * In both cases the powerskipping naturally keeps the power within acceptable range for
 		 * the given motor.
 		 */
-		const uint64_t deadline = _state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period;
+		const uint64_t deadline =
+			_state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period / 2;
 		if (sample->timestamp >= deadline) {
 			motor_pwm_set_freewheeling();
 			_state.zc_detection_result = ZC_DEMAGNETIZATION;
