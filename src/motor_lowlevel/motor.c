@@ -190,7 +190,7 @@ CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     15)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Something not so important
-CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     4,     8)
+CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     3,     8)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
@@ -307,22 +307,20 @@ static void prepare_zc_detector_for_next_step(void)
 	_state.zc_bemf_samples_acquired = 0;
 	_state.zc_bemf_samples_acquired_past_zc = 0;
 
-	_state.zc_bemf_samples_optimal =
-		(_state.comm_period / _params.adc_sampling_period) / _params.motor_bemf_window_len_denom + 2;
+	/*
+	 * Actual length of the BEMF sampling window depends on the advance angle.
+	 * E.g. advance 15 deg makes the sampling window twice shorter after ZC,
+	 * thus the denom increases by the same amount.
+	 */
+	const int denom = _params.motor_bemf_window_len_denom +
+		_params.motor_bemf_window_len_denom * _params.timing_advance_deg64 / 16;
+
+	_state.zc_bemf_samples_optimal = (_state.comm_period / _params.adc_sampling_period) / denom + 2;
 
 	if (_state.zc_bemf_samples_optimal > MAX_BEMF_SAMPLES)
 		_state.zc_bemf_samples_optimal = MAX_BEMF_SAMPLES;
 
-	// Number of samples past ZC depends on the advance angle
-	_state.zc_bemf_samples_optimal_past_zc =
-		_state.zc_bemf_samples_optimal * (32 - _params.timing_advance_deg64) / 64;
-
-	if (_state.zc_bemf_samples_optimal_past_zc < 1)
-		_state.zc_bemf_samples_optimal_past_zc = 1;
-
-	// On high RPM 2 samples yield more reliable solution than 3 and require less processing time
-	if (_state.zc_bemf_samples_optimal == 3)
-		_state.zc_bemf_samples_optimal = 2;
+	_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal / 2;
 }
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
@@ -490,7 +488,15 @@ static uint64_t solve_zc_approximation(void)
 	}
 
 	int64_t slope = 0, yintercept = 0;
-	solve_least_squares(_state.zc_bemf_samples_acquired, data_x, _state.zc_bemf_samples, &slope, &yintercept);
+	if (_state.zc_bemf_samples_acquired == 3) {
+		// Special case - 3 samples per comm period - ignore the first sample
+		solve_least_squares(_state.zc_bemf_samples_acquired - 1, &data_x[1], &_state.zc_bemf_samples[1],
+			&slope, &yintercept);
+	} else {
+		// General case - 2 or >=4 samples per comm period
+		solve_least_squares(_state.zc_bemf_samples_acquired, data_x, _state.zc_bemf_samples,
+			&slope, &yintercept);
+	}
 
 	const int x = (-yintercept + slope / 2) / slope; // Linear equation solved for x
 
