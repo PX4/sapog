@@ -98,7 +98,7 @@ static struct params
 CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.5,    0.5,     20.0)
 
 CONFIG_PARAM_FLOAT("motormgr_dc_min_voltage",         1.2,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.2,    0.01,    2.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.2,    0.001,   2.0)
 CONFIG_PARAM_FLOAT("motormgr_dc_slope",               3.0,    0.1,     100.0)
 
 CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
@@ -289,11 +289,12 @@ static void update_control(uint32_t comm_period, float dt)
 	/*
 	 * Duty cycle slope control
 	 */
-	if (fabsf(new_duty_cycle - _state.dc_actual) > _params.dc_step_max) {
+	const float dc_step_max = ((new_duty_cycle + _state.dc_actual) / 2.0f) * _params.dc_step_max;
+	if (fabsf(new_duty_cycle - _state.dc_actual) > dc_step_max) {
 		float step = _params.dc_slope * dt;
 
-		if (step > _params.dc_step_max)
-			step = _params.dc_step_max;
+		if (step > dc_step_max)
+			step = dc_step_max;
 
 		if (new_duty_cycle < _state.dc_actual)
 			step = -step;
