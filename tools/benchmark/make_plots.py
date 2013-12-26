@@ -131,7 +131,7 @@ def add_ripple_plots(data, axes, color, label):
     ax_time.set_xlabel('Time (S)')
     ax_time.set_ylabel('RPM')
 
-    poly_rpm = np.polyfit(time, rpm, 15)
+    poly_rpm = np.polyfit(time, rpm, 11)
     fitted_rpm = np.polyval(poly_rpm, time)
     ax_time.plot(time, fitted_rpm, color, label=label)
     ax_time.grid(alpha=GRID_ALPHA)
