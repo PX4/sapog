@@ -68,6 +68,7 @@ static struct state
 	unsigned rpm_setpoint;
 
 	int setpoint_ttl_ms;
+	int num_unexpected_stops;
 
 	float input_voltage;
 	float input_current;
@@ -92,6 +93,7 @@ static struct params
 	unsigned rpm_min;
 
 	float voltage_current_lowpass_tau;
+	int num_unexpected_stops_to_latch;
 } _params;
 
 
@@ -107,6 +109,7 @@ CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
 CONFIG_PARAM_INT("motormgr_rpm_min",                  700,    50,      5000)
 
 CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 5.0,    0.1,     100.0)
+CONFIG_PARAM_INT("motormgr_num_halts_to_latch",       3,      1,       50)
 
 
 static void configure(void)
@@ -125,6 +128,7 @@ static void configure(void)
 	_params.rpm_min = config_get("motormgr_rpm_min");
 
 	_params.voltage_current_lowpass_tau = 1.0f / config_get("motormgr_volt_curr_lowpass_freq");
+	_params.num_unexpected_stops_to_latch = config_get("motormgr_num_halts_to_latch");
 
 	lowsyslog("Motor manager: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
@@ -158,7 +162,7 @@ static void update_filters(float dt)
 	_state.input_current = lowpass(_state.input_current, current, _params.voltage_current_lowpass_tau, dt);
 }
 
-static void stop(void)
+static void stop(bool expected)
 {
 	motor_stop();
 	_state.limit_mask = 0;
@@ -167,16 +171,21 @@ static void stop(void)
 	_state.rpm_setpoint = 0;
 	_state.setpoint_ttl_ms = 0;
 	_state.motor_state = motor_get_state();
+	if (expected)
+		_state.num_unexpected_stops = 0;
+	else
+		_state.num_unexpected_stops++;
 	rpmctl_reset();
 }
 
 static void handle_unexpected_stop(void)
 {
 	// The motor will not be restarted automatically till the next setpoint update
-	stop();
+	stop(false);
 
 	// Usually unexpected stop means that the control is fucked up, so it's good to have some insight
-	lowsyslog("Motor manager: Unexpected stop, below is some debug info\n");
+	lowsyslog("Motor manager: Unexpected stop [%i of %i], below is some debug info\n",
+		_state.num_unexpected_stops, _params.num_unexpected_stops_to_latch);
 	motor_print_debug_info();
 }
 
@@ -194,7 +203,7 @@ static void update_control_non_running(void)
 		(_state.mode == MOTORMGR_MODE_OPENLOOP && (_state.dc_openloop_setpoint > 0)) ||
 		(_state.mode == MOTORMGR_MODE_RPM && (_state.rpm_setpoint > 0));
 
-	if (need_start) {
+	if (need_start && (_state.num_unexpected_stops < _params.num_unexpected_stops_to_latch)) {
 		const uint64_t timestamp = motor_timer_hnsec();
 
 		_state.dc_actual = spinup_dc;
@@ -282,7 +291,7 @@ static void update_control(uint32_t comm_period, float dt)
 	else assert(0);
 
 	if (!isfinite(new_duty_cycle)) {
-		stop();
+		stop(true);
 		return;
 	}
 
@@ -320,7 +329,7 @@ static void update_setpoint_ttl(int dt_ms)
 
 	_state.setpoint_ttl_ms -= dt_ms;
 	if (_state.setpoint_ttl_ms <= 0) {
-		stop();
+		stop(true);
 		lowsyslog("Motor manager: Setpoint TTL expired, stop\n");
 	}
 }
@@ -417,7 +426,7 @@ int motormgr_init(void)
 void motormgr_stop(void)
 {
 	chMtxLock(&_mutex);
-	stop();
+	stop(true);
 	chMtxUnlock();
 }
 
@@ -431,6 +440,9 @@ void motormgr_set_duty_cycle(float dc, int ttl_ms)
 	if (dc > 1.0) dc = 1.0;
 	_state.dc_openloop_setpoint = dc;
 	_state.setpoint_ttl_ms = ttl_ms;
+
+	if (dc == 0.0)
+		_state.num_unexpected_stops = 0;
 
 	chMtxUnlock();
 
@@ -448,6 +460,9 @@ void motormgr_set_rpm(unsigned rpm, int ttl_ms)
 		rpm = _params.rpm_max;
 	_state.rpm_setpoint = rpm;
 	_state.setpoint_ttl_ms = ttl_ms;
+
+	if (rpm == 0)
+		_state.num_unexpected_stops = 0;
 
 	chMtxUnlock();
 
