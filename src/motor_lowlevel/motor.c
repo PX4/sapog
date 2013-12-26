@@ -393,7 +393,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		engage_current_comm_step();
 	} else {
 		// Benchmarking shows that these weights provide lowest RPM ripple
-		_state.comm_period = (_state.comm_period * 3 + new_comm_period) / 4;
+		_state.comm_period = (_state.comm_period * 3 + new_comm_period + 2) / 4;
 	}
 
 	_state.zc_detection_result = ZC_DETECTED;
