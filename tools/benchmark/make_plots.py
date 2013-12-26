@@ -114,7 +114,7 @@ def add_efficiency_plots(data, ax, color, label):
     ax.plot(x, fitted, color, label=label)
     ax.grid(alpha=GRID_ALPHA)
 
-def add_ripple_plots(data, axes, color, label):
+def add_ripple_plots(data, axes, color, label, field, plot_name):
     data = data.copy()
     data['dc_raising'] = [True] + map(lambda i: data['dc'][i] > data['dc'][i - 1], xrange(1, len(data['dc'])))
     data = strip_data_with_zero_values(data, 'dc_raising')
@@ -125,25 +125,25 @@ def add_ripple_plots(data, axes, color, label):
 
     ax_time, ax_ripple = axes
     time = data['time']
-    rpm = data['rpm']
+    y = data[field]
 
-    ax_time.scatter(time, rpm, marker=',', color=color, s=0.1, alpha=0.5)
+    ax_time.scatter(time, y, marker=',', color=color, s=0.1, alpha=0.5)
     ax_time.set_xlabel('Time (S)')
-    ax_time.set_ylabel('RPM')
+    ax_time.set_ylabel(plot_name)
 
-    poly_rpm = np.polyfit(time, rpm, 11)
-    fitted_rpm = np.polyval(poly_rpm, time)
-    ax_time.plot(time, fitted_rpm, color, label=label)
+    poly_y = np.polyfit(time, y, 11)
+    fitted_y = np.polyval(poly_y, time)
+    ax_time.plot(time, fitted_y, color, label=label)
     ax_time.grid(alpha=GRID_ALPHA)
 
-    ripple = map(abs, fitted_rpm - rpm)
-    #ax_ripple.scatter(rpm, ripple, marker=',', color=color, s=0.1, alpha=0.1)
-    ax_ripple.set_xlabel('RPM')
-    ax_ripple.set_ylabel('RPM Deviation')
+    ripple = map(abs, fitted_y - y)
+    #ax_ripple.scatter(y, ripple, marker=',', color=color, s=0.1, alpha=0.1)
+    ax_ripple.set_xlabel(plot_name)
+    ax_ripple.set_ylabel(plot_name + ' Ripple')
 
-    poly_ripple = np.polyfit(rpm, ripple, 6)
-    fitted_ripple = np.polyval(poly_ripple, rpm)
-    ax_ripple.plot(rpm, fitted_ripple, color, label=label)
+    poly_ripple = np.polyfit(y, ripple, 6)
+    fitted_ripple = np.polyval(poly_ripple, y)
+    ax_ripple.plot(y, fitted_ripple, color, label=label)
     ax_ripple.grid(alpha=GRID_ALPHA)
 
 def plot_dynamic(filenames):
@@ -165,11 +165,12 @@ def plot_efficiency(filenames):
     return fig
 
 def plot_ripple(filenames):
-    fig, axes = subplots(1, 2)
+    fig, ((ax1, ax2), (ax3, ax4)) = subplots(2, 2)
     fig.tight_layout()
     for color,fn in zip(COLORS, filenames):
         data = prepare_input_data(fn)
-        add_ripple_plots(data, axes, color, fn)
+        add_ripple_plots(data, (ax1, ax2), color, fn, 'rpm', 'RPM')
+        add_ripple_plots(data, (ax3, ax4), color, fn, 'power_lpf', 'Power')
     legend()
     return fig
 
