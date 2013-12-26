@@ -116,9 +116,9 @@ def add_efficiency_plots(data, ax, color, label):
 
 def add_ripple_plots(data, axes, color, label):
     data = data.copy()
-    data['dc_reverse'] = 1.0 - data['dc']
-    data = strip_data_with_zero_values(data, 'dc_reverse')
-    print 'Stripped max DC:', len(data.values()[0])
+    data['dc_raising'] = [True] + map(lambda i: data['dc'][i] > data['dc'][i - 1], xrange(1, len(data['dc'])))
+    data = strip_data_with_zero_values(data, 'dc_raising')
+    print 'Stripped raising DC:', len(data.values()[0])
     data['low_rpm'] = map(lambda x: x > LOW_RPM, data['rpm'])
     data = strip_data_with_zero_values(data, 'low_rpm')
     print 'Stripped low RPM:', len(data.values()[0])
@@ -127,7 +127,7 @@ def add_ripple_plots(data, axes, color, label):
     time = data['time']
     rpm = data['rpm']
 
-    ax_time.scatter(time, rpm, marker=',', color=color, s=0.1, alpha=0.1)
+    ax_time.scatter(time, rpm, marker=',', color=color, s=0.1, alpha=0.5)
     ax_time.set_xlabel('Time (S)')
     ax_time.set_ylabel('RPM')
 
@@ -136,8 +136,8 @@ def add_ripple_plots(data, axes, color, label):
     ax_time.plot(time, fitted_rpm, color, label=label)
     ax_time.grid(alpha=GRID_ALPHA)
 
-    ripple = array(map(abs, fitted_rpm - rpm))
-    ax_ripple.scatter(rpm, ripple, marker=',', color=color, s=0.1, alpha=0.1)
+    ripple = map(abs, fitted_rpm - rpm)
+    #ax_ripple.scatter(rpm, ripple, marker=',', color=color, s=0.1, alpha=0.1)
     ax_ripple.set_xlabel('RPM')
     ax_ripple.set_ylabel('RPM Deviation')
 
@@ -165,7 +165,7 @@ def plot_efficiency(filenames):
     return fig
 
 def plot_ripple(filenames):
-    fig, axes = subplots(2)
+    fig, axes = subplots(1, 2)
     fig.tight_layout()
     for color,fn in zip(COLORS, filenames):
         data = prepare_input_data(fn)
