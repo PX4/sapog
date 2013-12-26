@@ -145,6 +145,7 @@ static struct control_state            /// Control state
 	int zc_bemf_samples[MAX_BEMF_SAMPLES];
 	uint64_t zc_bemf_timestamps[MAX_BEMF_SAMPLES];
 	int zc_bemf_samples_optimal;
+	int zc_bemf_samples_optimal_past_zc;
 	int zc_bemf_samples_acquired;
 	int zc_bemf_samples_acquired_past_zc;
 
@@ -185,7 +186,7 @@ CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQ
 CONFIG_PARAM_BOOL("motor_pwm_strictly_linear",         true)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
-CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     20)
+CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     15)
 CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 // Something not so important
@@ -311,6 +312,13 @@ static void prepare_zc_detector_for_next_step(void)
 
 	if (_state.zc_bemf_samples_optimal > MAX_BEMF_SAMPLES)
 		_state.zc_bemf_samples_optimal = MAX_BEMF_SAMPLES;
+
+	// Number of samples past ZC depends on the advance angle
+	_state.zc_bemf_samples_optimal_past_zc =
+		_state.zc_bemf_samples_optimal * (32 - _params.timing_advance_deg64) / 64;
+
+	if (_state.zc_bemf_samples_optimal_past_zc < 1)
+		_state.zc_bemf_samples_optimal_past_zc = 1;
 
 	// On high RPM 2 samples yield more reliable solution than 3 and require less processing time
 	if (_state.zc_bemf_samples_optimal == 3)
@@ -576,11 +584,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	bool enough_samples = false;
 	if (past_zc) {
-		const int optimal_samples_past_zc = _state.zc_bemf_samples_optimal / 2;
 		_state.zc_bemf_samples_acquired_past_zc++;
 
 		enough_samples =
-			(_state.zc_bemf_samples_acquired_past_zc >= optimal_samples_past_zc) &&
+			(_state.zc_bemf_samples_acquired_past_zc >= _state.zc_bemf_samples_optimal_past_zc) &&
 			(_state.zc_bemf_samples_acquired > 1);
 
 		if (step->floating == 0) {
