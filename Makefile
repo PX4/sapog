@@ -45,8 +45,9 @@ MOTOR_CSRC = src/motor_lowlevel/motor_pwm.c    \
 MOTORMGR_CSRC = src/motor_manager/motormgr.c   \
                 src/motor_manager/rpmctl.c
 
-include canaerospace.mk
+include ../../canaerospace/canaerospace/embedded_rules.mk
 include canaerospace/drivers/stm32/rules.mk
+#CANAEROSPACE_DEF += -DCANAEROSPACE_DEBUG=1
 
 SPL_SRC = spl/src/stm32f10x_can.c  \
           spl/src/stm32f10x_rcc.c  \
@@ -62,15 +63,15 @@ CSRC = src/main.c                       \
        src/config/config.c              \
        src/config/flash_storage.c       \
        $(MOTOR_CSRC) $(MOTORMGR_CSRC)   \
-       $(CANAS_SRC) $(CAN_SRC)          \
+       $(CANAEROSPACE_SRC) $(CAN_SRC)   \
        $(CANIF_CSRC) $(SPL_SRC)
 
 UINCDIR = src           \
           src/sys       \
           spl/inc       \
-          $(CANAS_INC) $(CAN_INC)
+          $(CANAEROSPACE_INC) $(CAN_INC)
 
-UDEFS = $(CANAS_DEF) $(CAN_DEF) -DCAN_CHIBIOS=1 -DCAN_TIMER_EMULATED=1
+UDEFS = $(CANAEROSPACE_DEF) $(CAN_DEF) -DCAN_CHIBIOS=1 -DCAN_TIMER_EMULATED=1
 
 #
 # OS configuration
