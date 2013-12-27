@@ -47,7 +47,7 @@
 
 CONFIG_PARAM_BOOL("canas_interlacing",               true)
 CONFIG_PARAM_INT("canas_esc_id",                     1,    1,     16)
-CONFIG_PARAM_INT("canas_command_timeout_ms",         33,   10,    500)
+CONFIG_PARAM_INT("canas_command_timeout_ms",         100,  10,    500)
 
 static CanasInstance _canas;
 static int _self_esc_id;
