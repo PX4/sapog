@@ -37,16 +37,17 @@
 #include <config/config.h>
 #include <can_driver.h>
 #include <canaerospace/canaerospace.h>
+#include <canaerospace/generic_redundancy_resolver.h>
 #include <canaerospace/param_id/uav.h>
 #include <motor_manager/motormgr.h>
 #include "can_iface.h"
 #include "can_binding.h"
 
+#define NUM_REDUND_CHANS  3
 
-CONFIG_PARAM_BOOL("canas_interlacing",               true) // Well, this is pointless if there is no iface redundancy
-CONFIG_PARAM_INT("canas_num_redund_chans_to_listen", 3,    1,     4)
-CONFIG_PARAM_INT("canas_esc_id",                     1,    1,     8)
-CONFIG_PARAM_INT("canas_motor_command_ttl_ms",       700,  50,    120000)
+CONFIG_PARAM_BOOL("canas_interlacing",               true)
+CONFIG_PARAM_INT("canas_esc_id",                     1,    1,     16)
+CONFIG_PARAM_INT("canas_command_timeout_ms",         33,   10,    500)
 
 static CanasInstance _canas;
 static int _self_esc_id;
@@ -56,9 +57,21 @@ static int _motor_command_ttl_ms;
 
 static void cb_esc_command(CanasInstance* ci, CanasParamCallbackArgs* args)
 {
-	// TODO: Redundancy resolver
-	float sp = 0.0f;
+	// Redundancy resolution
+	CanasGrrInstance* grr = args->parg;
+	const float figure_of_merit = args->message.service_code;
 
+	const int reason = canasGrrUpdate(grr, args->redund_channel_id, figure_of_merit, args->timestamp_usec);
+	assert(reason >= 0);
+	const int active_chan = canasGrrGetActiveChannel(grr);
+#if DEBUG
+	if (reason != CANAS_GRR_REASON_NONE)
+		lowsyslog("Canas: GRR selected channel %i, FOM %f, reason %i\n", active_chan, figure_of_merit, reason);
+#endif
+	if (active_chan != args->redund_channel_id)
+		return;  // GRR suggests to ignore this message
+
+	float sp = 0.0f;
 	switch (args->message.data.type) {
 	case CANAS_DATATYPE_USHORT:
 		sp = args->message.data.container.USHORT / 65535.0f;
@@ -86,7 +99,7 @@ static void publish_rpm(unsigned rpm)
 void canif_1hz_callback(void)
 {
 	if (!motormgr_is_running())
-		publish_rpm(0);      // Publish 0 if the motor is starting
+		publish_rpm(0);      // Publish 0 even if the motor is starting
 }
 
 void canif_10hz_callback(void)
@@ -102,16 +115,29 @@ int canif_init(void)
 	int res = canif_binding_init(&_canas);
 	CHECKERR(res, "Low level");
 
-	const int redund_chan_count   = config_get("canas_num_redund_chans_to_listen");
-	const bool enable_interlacing = config_get("canas_interlacing");
-	_self_esc_id                  = config_get("canas_esc_id");
-	_motor_command_ttl_ms         = config_get("canas_motor_command_ttl_ms");
+	const bool enable_interlacing   = config_get("canas_interlacing");
+	const uint64_t cmd_timeout_usec = config_get("canas_command_timeout_ms") * 1000;
+	_self_esc_id                    = config_get("canas_esc_id");
+
+	// e.g. min cmd freq 30Hz --> timeout 33ms --> TTL 99ms
+	_motor_command_ttl_ms = cmd_timeout_usec * 3 / 1000;
 
 	/*
 	 * Pub/sub
 	 */
-	res = canasParamSubscribe(&_canas, CANAS_UAV_ESC_COMMAND_1 + _self_esc_id - 1,
-		redund_chan_count, cb_esc_command, NULL);
+	static CanasGrrInstance _grr_command;
+
+	CanasGrrConfig grr_cfg = canasGrrMakeConfig();
+	grr_cfg.channel_timeout_usec = cmd_timeout_usec;
+	grr_cfg.min_fom_switch_interval_usec = grr_cfg.channel_timeout_usec * 2;
+	grr_cfg.fom_hysteresis = 0;
+	grr_cfg.num_channels = NUM_REDUND_CHANS;
+
+	res = canasGrrInit(&_grr_command, &grr_cfg, &_canas);
+	CHECKERR(res, "GRR: command");
+
+	res = canasParamSubscribe(&_canas, CANAS_UAV_ESC_COMMAND_1 + _self_esc_id - 1, NUM_REDUND_CHANS,
+		cb_esc_command, &_grr_command);
 	CHECKERR(res, "Sub: command");
 
 	res = canasParamAdvertise(&_canas, CANAS_UAV_ROTOR_RPM_1 + _self_esc_id - 1, enable_interlacing);

@@ -6,6 +6,7 @@ CANAS_SRC := $(canas_dir_src)core.c    \
              $(canas_dir_src)marshal.c \
              $(canas_dir_src)service.c \
              $(canas_dir_src)util.c    \
+             $(canas_dir_src)generic_redundancy_resolver.c \
              $(canas_dir_src)services/std_identification.c
 
 CANAS_INC := canaerospace/canaerospace/include
