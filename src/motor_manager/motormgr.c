@@ -109,7 +109,7 @@ CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
 CONFIG_PARAM_INT("motormgr_rpm_min",                  700,    50,      5000)
 
 CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 5.0,    0.1,     100.0)
-CONFIG_PARAM_INT("motormgr_num_halts_to_latch",       3,      1,       50)
+CONFIG_PARAM_INT("motormgr_num_halts_to_latch",       7,      1,       100)
 
 
 static void configure(void)
