@@ -39,8 +39,9 @@
 #include <math.h>
 #include <unistd.h>
 #include <config/config.h>
-#include "sys/sys.h"
-#include "console.h"
+#include <sys.h>
+#include <console.h>
+#include <watchdog.h>
 #include "motor_lowlevel/motor.h"
 #include "motor_lowlevel/pwm.h"
 #include "motor_lowlevel/adc.h"
@@ -74,6 +75,11 @@ static int init(void)
 	res = config_init();
 	if (res)
 		return res;
+
+	/*
+	 * Safety
+	 */
+	watchdog_init();
 
 	/*
 	 * Motor control
@@ -152,7 +158,10 @@ int main(void)
 
 	chThdSetPriority(LOWPRIO);
 
+	const int wdid = watchdog_create(500);
+
 	while (1) {
+		watchdog_reset(wdid);
 		// TODO: LED indication
 		usleep(10000);
 		led_set_error(motormgr_get_limit_mask());

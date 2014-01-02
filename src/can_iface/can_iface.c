@@ -35,6 +35,7 @@
 #include <ch.h>
 #include <assert.h>
 #include <config/config.h>
+#include <watchdog.h>
 #include <can_driver.h>
 #include <canaerospace/canaerospace.h>
 #include <canaerospace/generic_redundancy_resolver.h>
@@ -52,6 +53,7 @@ CONFIG_PARAM_INT("canas_command_timeout_ms",         100,  10,    500)
 static CanasInstance _canas;
 static int _self_esc_id;
 static int _motor_command_ttl_ms;
+static int _watchdog_id;
 
 // --- canaerospace callbacks ---
 
@@ -106,12 +108,20 @@ void canif_10hz_callback(void)
 {
 	if (motormgr_is_running())
 		publish_rpm(motormgr_get_rpm());
+
+	watchdog_reset(_watchdog_id);
 }
 
 #define CHECKERR(x, msg) if ((x) != 0) { lowsyslog("Canas: Init failed (%i): " msg "\n", (int)(x)); return (x); } \
 
 int canif_init(void)
 {
+	_watchdog_id = watchdog_create(1000);
+	if (_watchdog_id < 0) {
+		lowsyslog("Canas: Watchdog init failed: %i\n", _watchdog_id);
+		return _watchdog_id;
+	}
+
 	int res = canif_binding_init(&_canas);
 	CHECKERR(res, "Low level");
 

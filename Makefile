@@ -58,6 +58,7 @@ CANIF_CSRC = src/can_iface/can_iface.c   \
 
 CSRC = src/main.c                       \
        src/console.c                    \
+       src/watchdog.c                   \
        src/sys/board.c                  \
        src/sys/sys.c                    \
        src/config/config.c              \

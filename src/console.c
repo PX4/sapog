@@ -38,6 +38,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <shell.h>
+#include <watchdog.h>
 #include <config/config.h>
 #include "console.h"
 #include "motor_lowlevel/motor.h"
@@ -257,6 +258,23 @@ static void cmd_md(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_print_debug_info();
 }
 
+#if DEBUG
+static void cmd_wdt(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	if (argc == 0) {
+		motormgr_stop();
+		puts("Simulates a watchdog failure after X ms. Usage:\n  wdt <X>");
+		return;
+	}
+
+	int timeout_ms = atoi(argv[0]);
+	if (timeout_ms < 1)
+		timeout_ms = 1;
+	const int wdid = watchdog_create(timeout_ms);
+	lowsyslog("WDID: %i\n", wdid);
+}
+#endif
+
 #define COMMAND(cmd)    {#cmd, cmd_##cmd},
 static const ShellCommand _commands[] =
 {
@@ -268,6 +286,9 @@ static const ShellCommand _commands[] =
 	COMMAND(test)
 	COMMAND(sp)
 	COMMAND(md)
+#if DEBUG
+	COMMAND(wdt)
+#endif
 	{NULL, NULL}
 };
 

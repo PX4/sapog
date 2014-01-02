@@ -34,6 +34,7 @@
 
 #include <math.h>
 #include <ch.h>
+#include <watchdog.h>
 #include <config/config.h>
 #include "motormgr.h"
 #include "rpmctl.h"
@@ -49,6 +50,7 @@
 static unsigned comm_period_to_rpm(uint32_t comm_period);
 
 
+static int _watchdog_id;
 static Mutex _mutex;
 static EVENTSOURCE_DECL(_setpoint_update_event);
 static WORKING_AREA(_wa_control_thread, 1024);
@@ -369,7 +371,7 @@ static msg_t control_thread(void* arg)
 		}
 
 		/*
-		 * Make sure the event is set when the mutex is unlocked.
+		 * The event must be set only when the mutex is unlocked.
 		 * Otherwise this thread will take control, stumble upon the locked mutex, return the control
 		 * to the thread that holds the mutex, unlock the mutex, then proceed.
 		 */
@@ -389,14 +391,20 @@ static msg_t control_thread(void* arg)
 		update_control(comm_period, dt);
 
 		chMtxUnlock();
+
+		watchdog_reset(_watchdog_id);
 	}
 
-	chEvtUnregister(&_setpoint_update_event, &listener);
+	assert_always(0);
 	return 0;
 }
 
 int motormgr_init(void)
 {
+	_watchdog_id = watchdog_create(IDLE_CONTROL_PERIOD_MSEC * 10);
+	if (_watchdog_id < 0)
+		return _watchdog_id;
+
 	int ret = motor_init();
 	if (ret)
 		return ret;
