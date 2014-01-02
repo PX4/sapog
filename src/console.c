@@ -140,7 +140,6 @@ static void cmd_reset(BaseSequentialStream *chp, int argc, char *argv[])
 	if (line && (line[0] == 'Y' || line[0] == 'y')) {
 		puts("RESTART\n\n");
 		chThdSleep(MS2ST(100)); // Flush the serial buffers
-		// Doesn't work on ESC32 though
 		NVIC_SystemReset();
 	} else {
 		puts("Abort");
