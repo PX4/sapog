@@ -34,6 +34,7 @@
 
 #include <ch.h>
 #include <hal.h>
+#include <unistd.h>
 #include <assert.h>
 #include <math.h>
 #include <stm32f10x.h>
@@ -252,6 +253,19 @@ int motor_pwm_init(unsigned frequency, bool prevent_full_duty_cycle_bump)
 
 	motor_pwm_set_freewheeling();
 	return 0;
+}
+
+void motor_pwm_prepare_to_start(void)
+{
+	// High side drivers cap precharge
+	const enum motor_pwm_phase_manip cmd[3] = {
+		MOTOR_PWM_MANIP_LOW,
+		MOTOR_PWM_MANIP_LOW,
+		MOTOR_PWM_MANIP_LOW
+	};
+	motor_pwm_manip(cmd);
+	usleep(50);
+	motor_pwm_set_freewheeling();
 }
 
 uint32_t motor_adc_sampling_period_hnsec(void)

@@ -89,6 +89,11 @@ enum motor_pwm_phase_manip
 int motor_pwm_init(unsigned frequency, bool prevent_full_duty_cycle_bump);
 
 /**
+ * Prepares the power stage harware to start the motor
+ */
+void motor_pwm_prepare_to_start(void);
+
+/**
  * ADC converstions are triggered by the PWM hardware, so this function is here
  */
 uint32_t motor_adc_sampling_period_hnsec(void);

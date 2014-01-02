@@ -826,6 +826,7 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 	 */
 	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 
+	motor_pwm_prepare_to_start();
 	const bool started = do_variable_inductance_spinup();
 	const uint32_t spinup_comm_period = _state.comm_period;
 
