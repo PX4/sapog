@@ -47,7 +47,7 @@
 #define NUM_REDUND_CHANS  3
 
 CONFIG_PARAM_BOOL("canas_interlacing",               true)
-CONFIG_PARAM_INT("canas_esc_id",                     1,    1,     16)
+CONFIG_PARAM_INT("canas_esc_id",                     1,    1,     8)
 CONFIG_PARAM_INT("canas_command_timeout_ms",         100,  10,    500)
 
 static CanasInstance _canas;
