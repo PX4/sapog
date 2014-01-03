@@ -81,9 +81,6 @@ float motor_get_duty_cycle(void);
  */
 unsigned motor_get_rpm(void);
 
-/**
- * Stops the motor.
- */
 void motor_stop(void);
 
 enum motor_control_mode motor_get_control_mode(void);
