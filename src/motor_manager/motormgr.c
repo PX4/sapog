@@ -94,6 +94,9 @@ static struct params
 	unsigned rpm_max;
 	unsigned rpm_min;
 
+	float current_limit;
+	float current_limit_p;
+
 	float voltage_current_lowpass_tau;
 	int num_unexpected_stops_to_latch;
 } _params;
@@ -102,15 +105,18 @@ static struct params
 CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.5,    0.5,     20.0)
 
 CONFIG_PARAM_FLOAT("motormgr_dc_min_voltage",         1.2,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.2,    0.001,   2.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_slope",               3.0,    0.1,     100.0)
+CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.2,    0.001,   0.5)
+CONFIG_PARAM_FLOAT("motormgr_dc_slope",               10.0,   0.1,     20.0)
 
 CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
 CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
 
 CONFIG_PARAM_INT("motormgr_rpm_min",                  700,    50,      5000)
 
-CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 5.0,    0.1,     100.0)
+CONFIG_PARAM_FLOAT("motormgr_current_limit",          20.0,   1.0,     60.0)
+CONFIG_PARAM_FLOAT("motormgr_current_limit_p",        0.2,    0.01,    2.0)
+
+CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 10.0,   0.1,     100.0)
 CONFIG_PARAM_INT("motormgr_num_halts_to_latch",       7,      1,       100)
 
 
@@ -128,6 +134,9 @@ static void configure(void)
 	_params.comm_period_limit = motor_get_min_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
 	_params.rpm_min = config_get("motormgr_rpm_min");
+
+	_params.current_limit = config_get("motormgr_current_limit");
+	_params.current_limit_p = config_get("motormgr_current_limit_p");
 
 	_params.voltage_current_lowpass_tau = 1.0f / config_get("motormgr_volt_curr_lowpass_freq");
 	_params.num_unexpected_stops_to_latch = config_get("motormgr_num_halts_to_latch");
@@ -263,6 +272,50 @@ static float update_control_rpm(uint32_t comm_period, float dt)
 	return rpmctl_update(&input);
 }
 
+static float update_control_current_limit(float new_duty_cycle)
+{
+	const bool overcurrent = _state.input_current > _params.current_limit;
+	const bool braking = _state.dc_actual <= 0.0f || new_duty_cycle <= 0.0f;
+
+	if (overcurrent && !braking) {
+		const float error = _state.input_current - _params.current_limit;
+
+		const float comp = error * _params.current_limit_p;
+		assert(comp >= 0.0f);
+
+		const float min_dc = _params.dc_min_voltage / _state.input_voltage;
+
+		new_duty_cycle -= comp * _state.dc_actual;
+		if (new_duty_cycle < min_dc)
+			new_duty_cycle = min_dc;
+
+		_state.limit_mask |= MOTORMGR_LIMIT_CURRENT;
+	} else {
+		_state.limit_mask &= ~MOTORMGR_LIMIT_CURRENT;
+	}
+	return new_duty_cycle;
+}
+
+static float update_control_dc_slope(float new_duty_cycle, float dt)
+{
+	const float dc_step_max = ((new_duty_cycle + _state.dc_actual) / 2.0f) * _params.dc_step_max;
+	if (fabsf(new_duty_cycle - _state.dc_actual) > dc_step_max) {
+		float step = _params.dc_slope * dt;
+
+		if (step > dc_step_max)
+			step = dc_step_max;
+
+		if (new_duty_cycle < _state.dc_actual)
+			step = -step;
+
+		new_duty_cycle = _state.dc_actual + step;
+		_state.limit_mask |= MOTORMGR_LIMIT_ACCEL;
+	} else {
+		_state.limit_mask &= ~MOTORMGR_LIMIT_ACCEL;
+	}
+	return new_duty_cycle;
+}
+
 static void update_control(uint32_t comm_period, float dt)
 {
 	/*
@@ -298,23 +351,10 @@ static void update_control(uint32_t comm_period, float dt)
 	}
 
 	/*
-	 * Duty cycle slope control
+	 * Limiters
 	 */
-	const float dc_step_max = ((new_duty_cycle + _state.dc_actual) / 2.0f) * _params.dc_step_max;
-	if (fabsf(new_duty_cycle - _state.dc_actual) > dc_step_max) {
-		float step = _params.dc_slope * dt;
-
-		if (step > dc_step_max)
-			step = dc_step_max;
-
-		if (new_duty_cycle < _state.dc_actual)
-			step = -step;
-
-		new_duty_cycle = _state.dc_actual + step;
-		_state.limit_mask |= MOTORMGR_LIMIT_ACCEL;
-	} else {
-		_state.limit_mask &= ~MOTORMGR_LIMIT_ACCEL;
-	}
+	new_duty_cycle = update_control_current_limit(new_duty_cycle);
+	new_duty_cycle = update_control_dc_slope(new_duty_cycle, dt);
 
 	/*
 	 * Update
