@@ -37,7 +37,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <stm32f10x.h>
-#include "common.h"
+#include "internal.h"
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"

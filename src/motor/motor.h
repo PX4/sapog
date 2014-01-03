@@ -40,20 +40,20 @@
 
 __BEGIN_DECLS
 
-enum motormgr_mode
+enum motor_control_mode
 {
-	MOTORMGR_MODE_OPENLOOP,
-	MOTORMGR_MODE_RPM
+	MOTOR_CONTROL_MODE_OPENLOOP,
+	MOTOR_CONTROL_MODE_RPM
 };
 
-enum motormgr_limit_mask
+enum motor_limit_mask
 {
-	MOTORMGR_LIMIT_RPM = 1,
-	MOTORMGR_LIMIT_CURRENT = 2,
-	MOTORMGR_LIMIT_ACCEL = 4
+	MOTOR_LIMIT_RPM = 1,
+	MOTOR_LIMIT_CURRENT = 2,
+	MOTOR_LIMIT_ACCEL = 4
 };
 
-int motormgr_init(void);
+int motor_init(void);
 
 /**
  * Sets the duty cycle. Control mode will be OPENLOOP.
@@ -61,7 +61,7 @@ int motormgr_init(void);
  * @param [in] dc     Duty cycle [0.0; 1.0]
  * @param [in] ttl_ms TTL in milliseconds
  */
-void motormgr_set_duty_cycle(float dc, int ttl_ms);
+void motor_set_duty_cycle(float dc, int ttl_ms);
 
 /**
  * Sets the RPM setpoint. Control mode will be RPM.
@@ -69,41 +69,56 @@ void motormgr_set_duty_cycle(float dc, int ttl_ms);
  * @param [in] rpm    RPM setpoint
  * @param [in] ttl_ms TTL in milliseconds
  */
-void motormgr_set_rpm(unsigned rpm, int ttl_ms);
+void motor_set_rpm(unsigned rpm, int ttl_ms);
 
 /**
  * Returns current duty cycle.
  */
-float motormgr_get_duty_cycle(void);
+float motor_get_duty_cycle(void);
 
 /**
  * Returns current RPM.
  */
-unsigned motormgr_get_rpm(void);
+unsigned motor_get_rpm(void);
 
 /**
  * Stops the motor.
  */
-void motormgr_stop(void);
+void motor_stop(void);
 
-enum motormgr_mode motormgr_get_mode(void);
+enum motor_control_mode motor_get_control_mode(void);
 
 /**
  * Returns the motor state.
  * @return True if the motor is running; false if starting or not running.
  */
-bool motormgr_is_running(void);
+bool motor_is_running(void);
 
 /**
  * Returns the bitmask of currently active limits.
  */
-int motormgr_get_limit_mask(void);
+int motor_get_limit_mask(void);
 
 /**
  * Returns filtered input voltage and current.
  * @param [out] out_voltage Volts
  * @param [out] out_current Amperes
  */
-void motormgr_get_input_voltage_current(float* out_voltage, float* out_current);
+void motor_get_input_voltage_current(float* out_voltage, float* out_current);
+
+/**
+ * Simple wrappers; refer to RTCTL API docs to learn more
+ * @{
+ */
+void motor_confirm_initialization(void);
+uint64_t motor_get_zc_failures_since_start(void);
+int motor_test_hardware(void);
+int motor_test_motor(void);
+void motor_beep(int frequency, int duration_msec);
+void motor_print_debug_info(void);
+void motor_emergency(void);
+/**
+ * @}
+ */
 
 __END_DECLS

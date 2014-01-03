@@ -40,10 +40,8 @@
 #include <shell.h>
 #include <watchdog.h>
 #include <config/config.h>
+#include <motor/motor.h>
 #include "console.h"
-#include "motor_lowlevel/motor.h"
-#include "motor_lowlevel/pwm.h"
-#include "motor_manager/motormgr.h"
 
 static char* getline(const char* prompt);
 static void print_status(int err);
@@ -164,40 +162,14 @@ static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_beep(freq, duration);
 }
 
-static void cmd_pwmmanip(BaseSequentialStream *chp, int argc, char *argv[])
-{
-	if (argc > 0 && !strcmp(argv[0], "help")) {
-		puts("pwmmanip [phase_a [phase_b [phase_c]]]");
-		return;
-	}
-
-	motormgr_stop();
-
-	enum motor_pwm_phase_manip manip_cmd[3];
-	for (int i = 0; i < 3; i++) {
-		int cmd = MOTOR_PWM_MANIP_FLOATING;
-		if (i < argc) {
-			cmd = atoi(argv[i]);
-			if (cmd < 0 || cmd >= MOTOR_PWM_MANIP_END_) {
-				puts("Error: Invalid command");
-				return;
-			}
-		}
-		manip_cmd[i] = cmd;
-		lowsyslog("%i ", cmd);
-	}
-	puts("");
-	motor_pwm_manip(manip_cmd);
-}
-
 static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	float voltage = 0, current = 0;
-	motormgr_get_input_voltage_current(&voltage, &current);
+	motor_get_input_voltage_current(&voltage, &current);
 
 	lowsyslog("Power V/A     %-9f %f\n", voltage, current);
-	lowsyslog("RPM/DC        %-9u %f\n", motormgr_get_rpm(), motormgr_get_duty_cycle());
-	lowsyslog("Active limits %i\n", motormgr_get_limit_mask());
+	lowsyslog("RPM/DC        %-9u %f\n", motor_get_rpm(), motor_get_duty_cycle());
+	lowsyslog("Active limits %i\n", motor_get_limit_mask());
 	lowsyslog("ZC failures   %U\n", (unsigned long)motor_get_zc_failures_since_start());
 }
 
@@ -220,7 +192,7 @@ static void cmd_sp(BaseSequentialStream *chp, int argc, char *argv[])
 	static const int TTL_MS = 30000;
 
 	if (argc == 0) {
-		motormgr_stop();
+		motor_stop();
 		puts("Usage:\n"
 			"  sp <duty cycle or RPM>\n"
 			"  sp arm\n"
@@ -245,10 +217,10 @@ static void cmd_sp(BaseSequentialStream *chp, int argc, char *argv[])
 
 	if (mode_rpm) {
 		lowsyslog("RPM %u\n", (unsigned)value);
-		motormgr_set_rpm((unsigned)value, TTL_MS);
+		motor_set_rpm((unsigned)value, TTL_MS);
 	} else {
 		lowsyslog("DC %f\n", value);
-		motormgr_set_duty_cycle(value, TTL_MS);
+		motor_set_duty_cycle(value, TTL_MS);
 	}
 }
 
@@ -261,7 +233,7 @@ static void cmd_md(BaseSequentialStream *chp, int argc, char *argv[])
 static void cmd_wdt(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	if (argc == 0) {
-		motormgr_stop();
+		motor_stop();
 		puts("Simulates a watchdog failure after X ms. Usage:\n  wdt <X>");
 		return;
 	}
@@ -280,7 +252,6 @@ static const ShellCommand _commands[] =
 	COMMAND(cfg)
 	COMMAND(reset)
 	COMMAND(beep)
-	COMMAND(pwmmanip)
 	COMMAND(stat)
 	COMMAND(test)
 	COMMAND(sp)

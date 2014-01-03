@@ -40,7 +40,7 @@
 #include <canaerospace/canaerospace.h>
 #include <canaerospace/generic_redundancy_resolver.h>
 #include <canaerospace/param_id/uav.h>
-#include <motor_manager/motormgr.h>
+#include <motor/motor.h>
 #include "can_iface.h"
 #include "can_binding.h"
 
@@ -85,7 +85,7 @@ static void cb_esc_command(CanasInstance* ci, CanasParamCallbackArgs* args)
 		return;  // Too bad, ignore
 	}
 
-	motormgr_set_duty_cycle(sp, _motor_command_ttl_ms);
+	motor_set_duty_cycle(sp, _motor_command_ttl_ms);
 }
 
 // ---------
@@ -100,14 +100,14 @@ static void publish_rpm(unsigned rpm)
 
 void canif_1hz_callback(void)
 {
-	if (!motormgr_is_running())
+	if (!motor_is_running())
 		publish_rpm(0);      // Publish 0 even if the motor is starting
 }
 
 void canif_10hz_callback(void)
 {
-	if (motormgr_is_running())
-		publish_rpm(motormgr_get_rpm());
+	if (motor_is_running())
+		publish_rpm(motor_get_rpm());
 
 	watchdog_reset(_watchdog_id);
 }

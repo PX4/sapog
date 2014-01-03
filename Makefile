@@ -36,14 +36,13 @@ PROJECT = px4esc
 # Sources
 #
 
-MOTOR_CSRC = src/motor_lowlevel/motor_pwm.c    \
-             src/motor_lowlevel/motor_timer.c  \
-             src/motor_lowlevel/motor_adc.c    \
-             src/motor_lowlevel/motor_test.c   \
-             src/motor_lowlevel/motor.c
-
-MOTORMGR_CSRC = src/motor_manager/motormgr.c   \
-                src/motor_manager/rpmctl.c
+MOTOR_CSRC = src/motor/realtime/motor_pwm.c        \
+             src/motor/realtime/motor_timer.c      \
+             src/motor/realtime/motor_adc.c        \
+             src/motor/realtime/motor_rtctl_test.c \
+             src/motor/realtime/motor_rtctl.c      \
+             src/motor/motor.c                     \
+             src/motor/rpmctl.c
 
 include ../../canaerospace/canaerospace/embedded_rules.mk
 include canaerospace/drivers/stm32/rules.mk
@@ -63,7 +62,7 @@ CSRC = src/main.c                       \
        src/sys/sys.c                    \
        src/config/config.c              \
        src/config/flash_storage.c       \
-       $(MOTOR_CSRC) $(MOTORMGR_CSRC)   \
+       $(MOTOR_CSRC)                    \
        $(CANAEROSPACE_SRC) $(CAN_SRC)   \
        $(CANIF_CSRC) $(SPL_SRC)
 

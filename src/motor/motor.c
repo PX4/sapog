@@ -36,12 +36,12 @@
 #include <ch.h>
 #include <watchdog.h>
 #include <config/config.h>
-#include "motormgr.h"
+#include "motor.h"
 #include "rpmctl.h"
-#include "../motor_lowlevel/motor.h"
-#include "../motor_lowlevel/timer.h"
+#include "realtime/api.h"
 
 #define IDLE_CONTROL_PERIOD_MSEC  10
+#define WATCHDOG_TIMEOUT_MSEC     1000
 
 #define MIN_VALID_INPUT_VOLTAGE 4.0
 #define MAX_VALID_INPUT_VOLTAGE 40.0
@@ -61,7 +61,7 @@ static WORKING_AREA(_wa_control_thread, 1024);
  */
 static struct state
 {
-	enum motormgr_mode mode;
+	enum motor_control_mode mode;
 	int limit_mask;
 
 	float dc_actual;
@@ -76,7 +76,7 @@ static struct state
 	float input_current;
 	float input_curent_offset;
 
-	enum motor_state motor_state;
+	enum motor_rtctl_state rtctl_state;
 } _state;
 
 static struct params
@@ -102,46 +102,46 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("motormgr_spinup_voltage",         1.5,    0.5,     20.0)
+CONFIG_PARAM_FLOAT("motor_spinup_voltage",         1.5,    0.5,     20.0)
 
-CONFIG_PARAM_FLOAT("motormgr_dc_min_voltage",         1.2,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("motormgr_dc_step_max",            0.2,    0.001,   0.5)
-CONFIG_PARAM_FLOAT("motormgr_dc_slope",               10.0,   0.1,     20.0)
+CONFIG_PARAM_FLOAT("motor_dc_min_voltage",         1.2,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("motor_dc_step_max",            0.2,    0.001,   0.5)
+CONFIG_PARAM_FLOAT("motor_dc_slope",               10.0,   0.1,     20.0)
 
-CONFIG_PARAM_INT("motormgr_num_poles",                14,     2,       100)
-CONFIG_PARAM_BOOL("motormgr_reverse",                 false)
+CONFIG_PARAM_INT("motor_num_poles",                14,     2,       100)
+CONFIG_PARAM_BOOL("motor_reverse",                 false)
 
-CONFIG_PARAM_INT("motormgr_rpm_min",                  700,    50,      5000)
+CONFIG_PARAM_INT("motor_rpm_min",                  700,    50,      5000)
 
-CONFIG_PARAM_FLOAT("motormgr_current_limit",          20.0,   1.0,     60.0)
-CONFIG_PARAM_FLOAT("motormgr_current_limit_p",        0.2,    0.01,    2.0)
+CONFIG_PARAM_FLOAT("motor_current_limit",          20.0,   1.0,     60.0)
+CONFIG_PARAM_FLOAT("motor_current_limit_p",        0.2,    0.01,    2.0)
 
-CONFIG_PARAM_FLOAT("motormgr_volt_curr_lowpass_freq", 10.0,   0.1,     100.0)
-CONFIG_PARAM_INT("motormgr_num_halts_to_latch",       7,      1,       100)
+CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_freq", 10.0,   0.1,     100.0)
+CONFIG_PARAM_INT("motor_num_halts_to_latch",       7,      1,       100)
 
 
 static void configure(void)
 {
-	_params.spinup_voltage = config_get("motormgr_spinup_voltage"); // spinup/min voltages are unrelated
+	_params.spinup_voltage = config_get("motor_spinup_voltage"); // spinup/min voltages are unrelated
 
-	_params.dc_min_voltage = config_get("motormgr_dc_min_voltage");
-	_params.dc_step_max    = config_get("motormgr_dc_step_max");
-	_params.dc_slope       = config_get("motormgr_dc_slope");
+	_params.dc_min_voltage = config_get("motor_dc_min_voltage");
+	_params.dc_step_max    = config_get("motor_dc_step_max");
+	_params.dc_slope       = config_get("motor_dc_slope");
 
-	_params.poles = config_get("motormgr_num_poles");
-	_params.reverse = config_get("motormgr_reverse");
+	_params.poles = config_get("motor_num_poles");
+	_params.reverse = config_get("motor_reverse");
 
-	_params.comm_period_limit = motor_get_min_comm_period_hnsec();
+	_params.comm_period_limit = motor_rtctl_get_min_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
-	_params.rpm_min = config_get("motormgr_rpm_min");
+	_params.rpm_min = config_get("motor_rpm_min");
 
-	_params.current_limit = config_get("motormgr_current_limit");
-	_params.current_limit_p = config_get("motormgr_current_limit_p");
+	_params.current_limit = config_get("motor_current_limit");
+	_params.current_limit_p = config_get("motor_current_limit_p");
 
-	_params.voltage_current_lowpass_tau = 1.0f / config_get("motormgr_volt_curr_lowpass_freq");
-	_params.num_unexpected_stops_to_latch = config_get("motormgr_num_halts_to_latch");
+	_params.voltage_current_lowpass_tau = 1.0f / config_get("motor_volt_curr_lowpass_freq");
+	_params.num_unexpected_stops_to_latch = config_get("motor_num_halts_to_latch");
 
-	lowsyslog("Motor manager: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
+	lowsyslog("Motor: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
 
 static float lowpass(float xold, float xnew, float tau, float dt)
@@ -152,16 +152,16 @@ static float lowpass(float xold, float xnew, float tau, float dt)
 static void init_filters(void)
 {
 	// Assuming that initial current is zero
-	motor_get_input_voltage_current(&_state.input_voltage, &_state.input_curent_offset);
+	motor_rtctl_get_input_voltage_current(&_state.input_voltage, &_state.input_curent_offset);
 	_state.input_current = 0.0f;
 }
 
 static void update_filters(float dt)
 {
 	float voltage = 0, current = 0;
-	motor_get_input_voltage_current(&voltage, &current);
+	motor_rtctl_get_input_voltage_current(&voltage, &current);
 
-	if (motor_get_state() == MOTOR_STATE_IDLE) {
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
 		// Current sensor offset calibration, corner frequency is much lower.
 		const float offset_tau = _params.voltage_current_lowpass_tau * 50;
 		_state.input_curent_offset = lowpass(_state.input_curent_offset, current, offset_tau, dt);
@@ -175,13 +175,13 @@ static void update_filters(float dt)
 
 static void stop(bool expected)
 {
-	motor_stop();
+	motor_rtctl_stop();
 	_state.limit_mask = 0;
 	_state.dc_actual = 0.0;
 	_state.dc_openloop_setpoint = 0.0;
 	_state.rpm_setpoint = 0;
 	_state.setpoint_ttl_ms = 0;
-	_state.motor_state = motor_get_state();
+	_state.rtctl_state = motor_rtctl_get_state();
 	if (expected)
 		_state.num_unexpected_stops = 0;
 	else
@@ -195,39 +195,39 @@ static void handle_unexpected_stop(void)
 	stop(false);
 
 	// Usually unexpected stop means that the control is fucked up, so it's good to have some insight
-	lowsyslog("Motor manager: Unexpected stop [%i of %i], below is some debug info\n",
+	lowsyslog("Motor: Unexpected stop [%i of %i], below is some debug info\n",
 		_state.num_unexpected_stops, _params.num_unexpected_stops_to_latch);
-	motor_print_debug_info();
+	motor_rtctl_print_debug_info();
 }
 
 static void update_control_non_running(void)
 {
 	// Do not change anything while the motor is starting
-	const enum motor_state motor_state = motor_get_state();
-	if (motor_state == MOTOR_STATE_STARTING)
+	const enum motor_rtctl_state rtctl_state = motor_rtctl_get_state();
+	if (rtctl_state == MOTOR_RTCTL_STATE_STARTING)
 		return;
 
 	// Start if necessary
 	const float spinup_dc = _params.spinup_voltage / _state.input_voltage;
 
 	const bool need_start =
-		(_state.mode == MOTORMGR_MODE_OPENLOOP && (_state.dc_openloop_setpoint > 0)) ||
-		(_state.mode == MOTORMGR_MODE_RPM && (_state.rpm_setpoint > 0));
+		(_state.mode == MOTOR_CONTROL_MODE_OPENLOOP && (_state.dc_openloop_setpoint > 0)) ||
+		(_state.mode == MOTOR_CONTROL_MODE_RPM && (_state.rpm_setpoint > 0));
 
 	if (need_start && (_state.num_unexpected_stops < _params.num_unexpected_stops_to_latch)) {
-		const uint64_t timestamp = motor_timer_hnsec();
+		const uint64_t timestamp = motor_rtctl_timestamp_hnsec();
 
 		_state.dc_actual = spinup_dc;
-		motor_start(spinup_dc, spinup_dc, _params.reverse);
-		_state.motor_state = motor_get_state();
+		motor_rtctl_start(spinup_dc, spinup_dc, _params.reverse);
+		_state.rtctl_state = motor_rtctl_get_state();
 
 		// This HACK prevents the setpoint TTL expiration in case of protracted startup
-		const int elapsed_ms = (motor_timer_hnsec() - timestamp) / HNSEC_PER_MSEC;
+		const int elapsed_ms = (motor_rtctl_timestamp_hnsec() - timestamp) / HNSEC_PER_MSEC;
 		_state.setpoint_ttl_ms += elapsed_ms;
 
-		lowsyslog("Motor manager: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
+		lowsyslog("Motor: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
 
-		if (_state.motor_state == MOTOR_STATE_IDLE)
+		if (_state.rtctl_state == MOTOR_RTCTL_STATE_IDLE)
 			handle_unexpected_stop();
 	}
 }
@@ -248,11 +248,11 @@ static float update_control_open_loop(uint32_t comm_period)
 		const float dc = (comm_period - c0) / (c1 - c0);
 
 		if (dc < _state.dc_openloop_setpoint) {
-			_state.limit_mask |= MOTORMGR_LIMIT_RPM;
+			_state.limit_mask |= MOTOR_LIMIT_RPM;
 			return dc;
 		}
 	}
-	_state.limit_mask &= ~MOTORMGR_LIMIT_RPM;
+	_state.limit_mask &= ~MOTOR_LIMIT_RPM;
 	return _state.dc_openloop_setpoint;
 }
 
@@ -289,9 +289,9 @@ static float update_control_current_limit(float new_duty_cycle)
 		if (new_duty_cycle < min_dc)
 			new_duty_cycle = min_dc;
 
-		_state.limit_mask |= MOTORMGR_LIMIT_CURRENT;
+		_state.limit_mask |= MOTOR_LIMIT_CURRENT;
 	} else {
-		_state.limit_mask &= ~MOTORMGR_LIMIT_CURRENT;
+		_state.limit_mask &= ~MOTOR_LIMIT_CURRENT;
 	}
 	return new_duty_cycle;
 }
@@ -309,9 +309,9 @@ static float update_control_dc_slope(float new_duty_cycle, float dt)
 			step = -step;
 
 		new_duty_cycle = _state.dc_actual + step;
-		_state.limit_mask |= MOTORMGR_LIMIT_ACCEL;
+		_state.limit_mask |= MOTOR_LIMIT_ACCEL;
 	} else {
-		_state.limit_mask &= ~MOTORMGR_LIMIT_ACCEL;
+		_state.limit_mask &= ~MOTOR_LIMIT_ACCEL;
 	}
 	return new_duty_cycle;
 }
@@ -321,14 +321,16 @@ static void update_control(uint32_t comm_period, float dt)
 	/*
 	 * Start/stop management
 	 */
-	const enum motor_state new_motor_state = motor_get_state();
+	const enum motor_rtctl_state new_rtctl_state = motor_rtctl_get_state();
 
-	const bool just_stopped = new_motor_state == MOTOR_STATE_IDLE && _state.motor_state != MOTOR_STATE_IDLE;
+	const bool just_stopped =
+		new_rtctl_state == MOTOR_RTCTL_STATE_IDLE &&
+		_state.rtctl_state != MOTOR_RTCTL_STATE_IDLE;
 	if (just_stopped)
 		handle_unexpected_stop();
 
-	_state.motor_state = new_motor_state;
-	if (comm_period == 0 || _state.motor_state != MOTOR_STATE_RUNNING) {
+	_state.rtctl_state = new_rtctl_state;
+	if (comm_period == 0 || _state.rtctl_state != MOTOR_RTCTL_STATE_RUNNING) {
 		update_control_non_running();
 		return;
 	}
@@ -337,10 +339,10 @@ static void update_control(uint32_t comm_period, float dt)
 	 * Primary control logic; can return NAN to stop the motor
 	 */
 	float new_duty_cycle = nan("");
-	if (_state.mode == MOTORMGR_MODE_OPENLOOP) {
+	if (_state.mode == MOTOR_CONTROL_MODE_OPENLOOP) {
 		new_duty_cycle = update_control_open_loop(comm_period);
 	}
-	else if (_state.mode == MOTORMGR_MODE_RPM) {
+	else if (_state.mode == MOTOR_CONTROL_MODE_RPM) {
 		new_duty_cycle = update_control_rpm(comm_period, dt);
 	}
 	else assert(0);
@@ -360,36 +362,36 @@ static void update_control(uint32_t comm_period, float dt)
 	 * Update
 	 */
 	_state.dc_actual = new_duty_cycle;
-	motor_set_duty_cycle(_state.dc_actual);
+	motor_rtctl_set_duty_cycle(_state.dc_actual);
 }
 
 static void update_setpoint_ttl(int dt_ms)
 {
-	const enum motor_state motor_state = motor_get_state();
-	if (_state.setpoint_ttl_ms <= 0 || motor_state != MOTOR_STATE_RUNNING)
+	const enum motor_rtctl_state rtctl_state = motor_rtctl_get_state();
+	if (_state.setpoint_ttl_ms <= 0 || rtctl_state != MOTOR_RTCTL_STATE_RUNNING)
 		return;
 
 	_state.setpoint_ttl_ms -= dt_ms;
 	if (_state.setpoint_ttl_ms <= 0) {
 		stop(true);
-		lowsyslog("Motor manager: Setpoint TTL expired, stop\n");
+		lowsyslog("Motor: Setpoint TTL expired, stop\n");
 	}
 }
 
 static msg_t control_thread(void* arg)
 {
-	chRegSetThreadName("motormgr");
+	chRegSetThreadName("motor");
 
 	EventListener listener;
 	chEvtRegisterMask(&_setpoint_update_event, &listener, ALL_EVENTS);
 
-	uint64_t timestamp_hnsec = motor_timer_hnsec();
+	uint64_t timestamp_hnsec = motor_rtctl_timestamp_hnsec();
 
 	while (1) {
 		/*
 		 * Control loop period adapts to comm period.
 		 */
-		const uint32_t comm_period = motor_get_comm_period_hnsec();
+		const uint32_t comm_period = motor_rtctl_get_comm_period_hnsec();
 
 		unsigned control_period_ms = IDLE_CONTROL_PERIOD_MSEC;
 		if (comm_period > 0)
@@ -407,7 +409,7 @@ static msg_t control_thread(void* arg)
 
 		if (desired_thread_priority != chThdGetPriority()) {
 			const tprio_t old = chThdSetPriority(desired_thread_priority);
-			lowsyslog("Motor manager: Priority changed: %i --> %i\n", old, desired_thread_priority);
+			lowsyslog("Motor: Priority changed: %i --> %i\n", old, desired_thread_priority);
 		}
 
 		/*
@@ -419,7 +421,7 @@ static msg_t control_thread(void* arg)
 
 		chMtxLock(&_mutex);
 
-		const uint64_t new_timestamp_hnsec = motor_timer_hnsec();
+		const uint64_t new_timestamp_hnsec = motor_rtctl_timestamp_hnsec();
 		const uint32_t dt_hnsec = new_timestamp_hnsec - timestamp_hnsec;
 		const float dt = dt_hnsec / (float)HNSEC_PER_SEC;
 		timestamp_hnsec = new_timestamp_hnsec;
@@ -439,13 +441,13 @@ static msg_t control_thread(void* arg)
 	return 0;
 }
 
-int motormgr_init(void)
+int motor_init(void)
 {
-	_watchdog_id = watchdog_create(IDLE_CONTROL_PERIOD_MSEC * 10);
+	_watchdog_id = watchdog_create(WATCHDOG_TIMEOUT_MSEC);
 	if (_watchdog_id < 0)
 		return _watchdog_id;
 
-	int ret = motor_init();
+	int ret = motor_rtctl_init();
 	if (ret)
 		return ret;
 
@@ -456,7 +458,7 @@ int motormgr_init(void)
 
 	init_filters();
 	if (_state.input_voltage < MIN_VALID_INPUT_VOLTAGE || _state.input_voltage > MAX_VALID_INPUT_VOLTAGE) {
-		lowsyslog("Motor manager: Invalid input voltage: %f\n", _state.input_voltage);
+		lowsyslog("Motor: Invalid input voltage: %f\n", _state.input_voltage);
 		return -1;
 	}
 
@@ -464,25 +466,25 @@ int motormgr_init(void)
 	if (ret)
 		return ret;
 
-	motormgr_stop();
+	motor_rtctl_stop();
 
 	assert_always(chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread),
 		HIGHPRIO, control_thread, NULL));
 	return 0;
 }
 
-void motormgr_stop(void)
+void motor_stop(void)
 {
 	chMtxLock(&_mutex);
 	stop(true);
 	chMtxUnlock();
 }
 
-void motormgr_set_duty_cycle(float dc, int ttl_ms)
+void motor_set_duty_cycle(float dc, int ttl_ms)
 {
 	chMtxLock(&_mutex);
 
-	_state.mode = MOTORMGR_MODE_OPENLOOP;
+	_state.mode = MOTOR_CONTROL_MODE_OPENLOOP;
 
 	if (dc < 0.0) dc = 0.0;
 	if (dc > 1.0) dc = 1.0;
@@ -498,11 +500,11 @@ void motormgr_set_duty_cycle(float dc, int ttl_ms)
 	chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS);
 }
 
-void motormgr_set_rpm(unsigned rpm, int ttl_ms)
+void motor_set_rpm(unsigned rpm, int ttl_ms)
 {
 	chMtxLock(&_mutex);
 
-	_state.mode = MOTORMGR_MODE_RPM;
+	_state.mode = MOTOR_CONTROL_MODE_RPM;
 
 	if (rpm > _params.rpm_max)
 		rpm = _params.rpm_max;
@@ -518,7 +520,7 @@ void motormgr_set_rpm(unsigned rpm, int ttl_ms)
 	chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS);
 }
 
-float motormgr_get_duty_cycle(void)
+float motor_get_duty_cycle(void)
 {
 	chMtxLock(&_mutex);
 	float ret = _state.dc_actual;
@@ -526,32 +528,32 @@ float motormgr_get_duty_cycle(void)
 	return ret;
 }
 
-unsigned motormgr_get_rpm(void)
+unsigned motor_get_rpm(void)
 {
 	chMtxLock(&_mutex);
-	uint32_t cp = motor_get_comm_period_hnsec();
+	uint32_t cp = motor_rtctl_get_comm_period_hnsec();
 	unsigned rpm = (cp > 0) ? comm_period_to_rpm(cp) : 0;
 	chMtxUnlock();
 	return rpm;
 }
 
-enum motormgr_mode motormgr_get_mode(void)
+enum motor_control_mode motor_get_control_mode(void)
 {
 	chMtxLock(&_mutex);
-	enum motormgr_mode ret = _state.mode;
+	enum motor_control_mode ret = _state.mode;
 	chMtxUnlock();
 	return ret;
 }
 
-bool motormgr_is_running(void)
+bool motor_is_running(void)
 {
 	chMtxLock(&_mutex);
-	bool ret = motor_get_state() == MOTOR_STATE_RUNNING;
+	bool ret = motor_rtctl_get_state() == MOTOR_RTCTL_STATE_RUNNING;
 	chMtxUnlock();
 	return ret;
 }
 
-int motormgr_get_limit_mask(void)
+int motor_get_limit_mask(void)
 {
 	chMtxLock(&_mutex);
 	int ret = _state.limit_mask;
@@ -559,7 +561,7 @@ int motormgr_get_limit_mask(void)
 	return ret;
 }
 
-void motormgr_get_input_voltage_current(float* out_voltage, float* out_current)
+void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 {
 	chMtxLock(&_mutex);
 
@@ -569,6 +571,65 @@ void motormgr_get_input_voltage_current(float* out_voltage, float* out_current)
 		*out_current = _state.input_current;
 
 	chMtxUnlock();
+}
+
+void motor_confirm_initialization(void)
+{
+	chMtxLock(&_mutex);
+	motor_rtctl_confirm_initialization();
+	chMtxUnlock();
+}
+
+uint64_t motor_get_zc_failures_since_start(void)
+{
+	// No lock needed
+	return motor_rtctl_get_zc_failures_since_start();
+}
+
+int motor_test_hardware(void)
+{
+	chMtxLock(&_mutex);
+
+	int res = motor_rtctl_test_hardware();
+	if (res > 0)  // Try harder in case of failure
+		res = motor_rtctl_test_hardware();
+
+	chMtxUnlock();
+	return res;
+}
+
+int motor_test_motor(void)
+{
+	chMtxLock(&_mutex);
+	const int res = motor_rtctl_test_motor();
+	chMtxUnlock();
+	return res;
+}
+
+void motor_beep(int frequency, int duration_msec)
+{
+	static const int MAX_DURATION = WATCHDOG_TIMEOUT_MSEC * 3 / 4;
+
+	chMtxLock(&_mutex);
+
+	if (duration_msec > MAX_DURATION)
+		duration_msec = MAX_DURATION;
+
+	motor_rtctl_beep(frequency, duration_msec);
+
+	chMtxUnlock();
+}
+
+void motor_print_debug_info(void)
+{
+	chMtxLock(&_mutex);
+	motor_rtctl_print_debug_info();
+	chMtxUnlock();
+}
+
+void motor_emergency(void)
+{
+	motor_rtctl_emergency();
 }
 
 // erpm_to_comm_period = lambda erpm: ((10000000 * 60) / erpm) / 6

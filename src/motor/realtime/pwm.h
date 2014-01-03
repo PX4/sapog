@@ -38,7 +38,7 @@
 #include <stdbool.h>
 #include <hal.h>
 #include <sys.h>
-#include "common.h"
+#include "internal.h"
 
 __BEGIN_DECLS
 

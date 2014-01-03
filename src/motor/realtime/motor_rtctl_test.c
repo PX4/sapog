@@ -37,10 +37,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "common.h"
+#include "api.h"
+#include "internal.h"
 #include "pwm.h"
 #include "adc.h"
-#include "test.h"
 
 
 static const int INITIAL_DELAY_MS = 300;
@@ -74,8 +74,11 @@ static int compare_samples(const void* p1, const void* p2)
     return (*(const int*)p1 - *(const int*)p2);
 }
 
-int motor_test_test_power_stage(void)
+int motor_rtctl_test_hardware(void)
 {
+	if (motor_rtctl_get_state() != MOTOR_RTCTL_STATE_IDLE)
+		return -1;
+
 	int result = 0;
 	int high_samples[MOTOR_NUM_PHASES];
 	memset(high_samples, 0, sizeof(high_samples));
@@ -131,8 +134,11 @@ int motor_test_test_power_stage(void)
 	return result;
 }
 
-int motor_test_test_motor(void) // What an awkward name.
+int motor_rtctl_test_motor(void)
 {
+	if (motor_rtctl_get_state() != MOTOR_RTCTL_STATE_IDLE)
+		return -1;
+
 	const int threshold = ((1 << MOTOR_ADC_RESOLUTION) * ANALOG_TOLERANCE_PERCENT) / 100;
 	struct motor_adc_sample sample;
 	int result = 0;

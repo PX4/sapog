@@ -39,7 +39,7 @@
 #include "pwm.h"
 #include "adc.h"
 #include "timer.h"
-#include "common.h"
+#include "internal.h"
 
 #define GLUE2_(A, B)     A##B
 #define GLUE2(A, B)      GLUE2_(A, B)

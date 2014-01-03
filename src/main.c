@@ -42,11 +42,8 @@
 #include <sys.h>
 #include <console.h>
 #include <watchdog.h>
-#include "motor_lowlevel/motor.h"
-#include "motor_lowlevel/pwm.h"
-#include "motor_lowlevel/adc.h"
-#include "motor_manager/motormgr.h"
-#include "can_iface/can_iface.h"
+#include <motor/motor.h>
+#include <can_iface/can_iface.h>
 
 static void led_set_status(bool state)
 {
@@ -84,7 +81,7 @@ static int init(void)
 	/*
 	 * Motor control
 	 */
-	res = motormgr_init();
+	res = motor_init();
 	if (res)
 		return res;
 
@@ -164,7 +161,7 @@ int main(void)
 		watchdog_reset(wdid);
 		// TODO: LED indication
 		usleep(10000);
-		led_set_error(motormgr_get_limit_mask());
+		led_set_error(motor_get_limit_mask());
 	}
 
 	return 0;

@@ -37,28 +37,29 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys.h>
+#include "timer.h"
 
 __BEGIN_DECLS
 
-enum motor_state
+enum motor_rtctl_state
 {
-	MOTOR_STATE_IDLE,
-	MOTOR_STATE_STARTING,
-	MOTOR_STATE_RUNNING
+	MOTOR_RTCTL_STATE_IDLE,
+	MOTOR_RTCTL_STATE_STARTING,
+	MOTOR_RTCTL_STATE_RUNNING
 };
 
 /**
  * Initialize the hardware and control logic
  * @return 0 on success, negative on error
  */
-int motor_init(void);
+int motor_rtctl_init(void);
 
 /**
  * Safety feature.
  * This function must be called when all the required software logic was initialized successfully;
  * otherwise the motor controller will refuse to start.
  */
-void motor_confirm_initialization(void);
+void motor_rtctl_confirm_initialization(void);
 
 /**
  * Start the motor.
@@ -66,61 +67,45 @@ void motor_confirm_initialization(void);
  * @param [in] normal_duty_cycle Normal PWM duty cycle that will be applied once the motor has started, (0; 1]
  * @param [in] reverse           Spin direction
  */
-void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse);
+void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse);
 
 /**
  * Engage freewheeling.
  */
-void motor_stop(void);
+void motor_rtctl_stop(void);
 
 /**
  * Configure PWM duty cycle
  * @param [in] duty_cycle PWM duty cycle [-1; 1], negative - braking, positive - forward
  */
-void motor_set_duty_cycle(float duty_cycle);
+void motor_rtctl_set_duty_cycle(float duty_cycle);
 
 /**
  * Returns motor state.
  */
-enum motor_state motor_get_state(void);
+enum motor_rtctl_state motor_rtctl_get_state(void);
 
 /**
  * Make noise.
  * Will work only if the motor is not running.
  */
-void motor_beep(int frequency, int duration_msec);
+void motor_rtctl_beep(int frequency, int duration_msec);
 
 /**
  * Returns the commutation period if running, 0 if not.
  */
-uint32_t motor_get_comm_period_hnsec(void);
+uint32_t motor_rtctl_get_comm_period_hnsec(void);
 
 /**
  * Number of zero cross detection failures since the motor has started.
  */
-uint64_t motor_get_zc_failures_since_start(void);
-
-/**
- * Perform the ESC self test.
- * @return 0        - test OK,
- *         negative - unable to run the test at the current state,
- *         positive - test failed.
- */
-int motor_test_hardware(void);
-
-/**
- * Test the connected motor (if any).
- * @return 0        - motor appears to be connected,
- *         negative - unable to run the test at the current state,
- *         positive - motor is not connected or went bananas.
- */
-int motor_test_motor(void);
+uint64_t motor_rtctl_get_zc_failures_since_start(void);
 
 /**
  * Emergency deactivation.
  * Can be executed from any context.
  */
-void motor_emergency(void);
+void motor_rtctl_emergency(void);
 
 /**
  * Returns input voltage and current.
@@ -130,17 +115,38 @@ void motor_emergency(void);
  * @param [out] out_voltage Volts
  * @param [out] out_current Amperes
  */
-void motor_get_input_voltage_current(float* out_voltage, float* out_current);
+void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_current);
 
 /**
  * Minimum safe comm period. Depends on PWM frequency.
  */
-uint32_t motor_get_min_comm_period_hnsec(void);
+uint32_t motor_rtctl_get_min_comm_period_hnsec(void);
 
 /**
  * Prints some debug info.
  * Shall never be called during normal operation because it can disrupt the control timings.
  */
-void motor_print_debug_info(void);
+void motor_rtctl_print_debug_info(void);
+
+/**
+ * Perform the ESC self test.
+ * @return 0        - test OK,
+ *         negative - unable to run the test at the current state,
+ *         positive - test failed.
+ */
+int motor_rtctl_test_hardware(void);
+
+/**
+ * Test the connected motor (if any).
+ * @return 0        - motor appears to be connected,
+ *         negative - unable to run the test at the current state,
+ *         positive - motor is not connected or went bananas.
+ */
+int motor_rtctl_test_motor(void);
+
+/**
+ * Current timestamp in hectonanoseconds since boot; never overflows.
+ */
+#define motor_rtctl_timestamp_hnsec() motor_timer_hnsec()
 
 __END_DECLS

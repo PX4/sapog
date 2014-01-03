@@ -38,12 +38,11 @@
 #include <assert.h>
 #include <limits.h>
 #include <config/config.h>
-#include "motor.h"
-#include "common.h"
+#include "api.h"
+#include "internal.h"
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"
-#include "test.h"
 
 
 #define STEP_SWITCHING_DELAY_HNSEC (1 * HNSEC_PER_USEC)
@@ -195,7 +194,7 @@ CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
-CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)
+CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)   // TODO: Replace with constant
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
@@ -237,7 +236,7 @@ static void configure(void)
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
-	lowsyslog("Motor: Config: Max comm period: %u usec, BEMF window denom: %i, Neutral LP: %i\n",
+	lowsyslog("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i, Neutral LP: %i\n",
 		_params.comm_period_max / HNSEC_PER_USEC,
 		_params.motor_bemf_window_len_denom,
 		_params.neutral_voltage_lowpass_alpha_reciprocal);
@@ -624,7 +623,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 // --- End of hard real time code ---
 #pragma GCC reset_options
 
-int motor_init(void)
+int motor_rtctl_init(void)
 {
 	int ret = motor_pwm_init(config_get("motor_pwm_frequency"), config_get("motor_pwm_strictly_linear"));
 	if (ret)
@@ -637,11 +636,11 @@ int motor_init(void)
 		return ret;
 
 	configure();
-	motor_stop();
+	motor_rtctl_stop();
 	return 0;
 }
 
-void motor_confirm_initialization(void)
+void motor_rtctl_confirm_initialization(void)
 {
 	assert(!_initialization_confirmed);
 	_initialization_confirmed = true;
@@ -793,12 +792,12 @@ static bool do_variable_inductance_spinup(void)
 	return success;
 }
 
-void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
+void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 {
 	assert(spinup_duty_cycle >= 0);
 	assert(normal_duty_cycle >= 0);
 
-	motor_stop();                          // Just in case
+	motor_rtctl_stop();                    // Just in case
 
 	if (!_initialization_confirmed)
 		return; // Go home you're drunk
@@ -839,7 +838,7 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
 		motor_timer_set_relative(0);
 	} else {
-		motor_stop();
+		motor_rtctl_stop();
 	}
 
 	chThdSetPriority(orig_priority);
@@ -848,7 +847,7 @@ void motor_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
 		(unsigned)(spinup_comm_period / HNSEC_PER_USEC), started ? "done" : "failed");
 }
 
-void motor_stop(void)
+void motor_rtctl_stop(void)
 {
 	_state.flags = 0;
 	motor_timer_cancel();
@@ -861,23 +860,23 @@ void motor_stop(void)
 	motor_pwm_set_freewheeling();
 }
 
-void motor_set_duty_cycle(float duty_cycle)
+void motor_rtctl_set_duty_cycle(float duty_cycle)
 {
 	// We don't need a critical section to write an integer
 	_state.pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
 }
 
-enum motor_state motor_get_state(void)
+enum motor_rtctl_state motor_rtctl_get_state(void)
 {
 	volatile const unsigned flags = _state.flags;
 
 	if (flags & FLAG_ACTIVE)
-		return (flags & FLAG_SPINUP) ? MOTOR_STATE_STARTING : MOTOR_STATE_RUNNING;
+		return (flags & FLAG_SPINUP) ? MOTOR_RTCTL_STATE_STARTING : MOTOR_RTCTL_STATE_RUNNING;
 	else
-		return MOTOR_STATE_IDLE;
+		return MOTOR_RTCTL_STATE_IDLE;
 }
 
-void motor_beep(int frequency, int duration_msec)
+void motor_rtctl_beep(int frequency, int duration_msec)
 {
 	if (_state.flags & FLAG_ACTIVE)
 		return;
@@ -901,16 +900,16 @@ void motor_beep(int frequency, int duration_msec)
 	usleep(10000);
 }
 
-uint32_t motor_get_comm_period_hnsec(void)
+uint32_t motor_rtctl_get_comm_period_hnsec(void)
 {
-	if (motor_get_state() == MOTOR_STATE_IDLE)
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE)
 		return 0;
 
 	const uint32_t val = _state.comm_period;
 	return val;
 }
 
-uint64_t motor_get_zc_failures_since_start(void)
+uint64_t motor_rtctl_get_zc_failures_since_start(void)
 {
 	irq_primask_disable();
 	const uint64_t ret = _diag.zc_failures_since_start;
@@ -918,24 +917,7 @@ uint64_t motor_get_zc_failures_since_start(void)
 	return ret;
 }
 
-int motor_test_hardware(void)
-{
-	if (_state.flags & FLAG_ACTIVE)
-		return -1;
-	int res = motor_test_test_power_stage();
-	if (res) // Try harder
-		res = motor_test_test_power_stage();
-	return res;
-}
-
-int motor_test_motor(void)
-{
-	if (_state.flags & FLAG_ACTIVE)
-		return -1;
-	return motor_test_test_motor();  // REDRUM
-}
-
-void motor_emergency(void)
+void motor_rtctl_emergency(void)
 {
 	const irqstate_t irqstate = irq_primask_save();
 	{
@@ -946,11 +928,11 @@ void motor_emergency(void)
 	irq_primask_restore(irqstate);
 }
 
-void motor_get_input_voltage_current(float* out_voltage, float* out_current)
+void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_current)
 {
 	int volt = 0, curr = 0;
 
-	if (motor_get_state() == MOTOR_STATE_IDLE) {
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
 		const struct motor_adc_sample smpl = motor_adc_get_last_sample();
 		volt = smpl.input_voltage;
 		curr = smpl.input_current;
@@ -965,13 +947,13 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 		*out_current = motor_adc_convert_input_current(curr);
 }
 
-uint32_t motor_get_min_comm_period_hnsec(void)
+uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
 {
 	// Ensure some number of ADC samples per comm period
 	return motor_adc_sampling_period_hnsec() * 5;
 }
 
-void motor_print_debug_info(void)
+void motor_rtctl_print_debug_info(void)
 {
 	static const int ALIGNMENT = 25;
 
@@ -985,7 +967,7 @@ void motor_print_debug_info(void)
 	const struct control_state state_copy = _state;
 	irq_primask_enable();
 
-	lowsyslog("Motor state\n");
+	lowsyslog("Motor RTCTL state\n");
 	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
 	PRINT_INT("flags",           state_copy.flags);
 	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
@@ -999,7 +981,7 @@ void motor_print_debug_info(void)
 	const struct diag_info diag_copy = _diag;
 	irq_primask_enable();
 
-	lowsyslog("Motor diag\n");
+	lowsyslog("Motor RTCTL diag\n");
 	PRINT_INT("zc failures",       diag_copy.zc_failures_since_start);
 	PRINT_INT("demagnetizations",  diag_copy.demagnetizations);
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
