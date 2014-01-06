@@ -166,7 +166,6 @@ static struct precomputed_params       /// Parameters are read only
 	unsigned zc_detects_min;
 	uint32_t comm_period_max;
 	int comm_blank_hnsec;
-	int input_volt_cur_lowpass_alpha_reciprocal;
 
 	uint32_t spinup_end_comm_period;
 	uint32_t spinup_timeout;
@@ -190,7 +189,6 @@ CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
-CONFIG_PARAM_FLOAT("motor_volt_curr_lpf_alpha",        0.2,   0.1,   1.0)   // TODO: Replace with constant
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
@@ -207,8 +205,6 @@ static void configure(void)
 	_params.zc_detects_min   = config_get("motor_zc_detects_to_start");
 	_params.comm_period_max  = config_get("motor_comm_period_max_usec") * HNSEC_PER_USEC;
 	_params.comm_blank_hnsec = config_get("motor_comm_blank_usec") * HNSEC_PER_USEC;
-	_params.input_volt_cur_lowpass_alpha_reciprocal =
-		(int)(1.0f / config_get("motor_volt_curr_lpf_alpha")) - 1;
 
 	_params.spinup_end_comm_period     = config_get("motor_spinup_end_comm_period_usec") * HNSEC_PER_USEC;
 	_params.spinup_timeout             = config_get("motor_spinup_timeout_ms") * HNSEC_PER_MSEC;
@@ -218,8 +214,6 @@ static void configure(void)
 	/*
 	 * Validation
 	 */
-	assert_always(_params.input_volt_cur_lowpass_alpha_reciprocal >= 0);
-
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 
@@ -397,9 +391,9 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 
 static void update_input_voltage_current(const struct motor_adc_sample* sample)
 {
-	const int alpha = _params.input_volt_cur_lowpass_alpha_reciprocal;
-	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage, alpha);
-	_state.input_current = LOWPASS(_state.input_current, sample->input_current, alpha);
+	static const int ALPHA_RCPR = 7; // A power of two minus one (1, 3, 7)
+	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage, ALPHA_RCPR);
+	_state.input_current = LOWPASS(_state.input_current, sample->input_current, ALPHA_RCPR);
 }
 
 static void add_bemf_sample(const int bemf, const uint64_t timestamp)

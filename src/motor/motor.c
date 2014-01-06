@@ -116,7 +116,7 @@ CONFIG_PARAM_INT("motor_rpm_min",                  700,    50,      5000)
 CONFIG_PARAM_FLOAT("motor_current_limit",          20.0,   1.0,     60.0)
 CONFIG_PARAM_FLOAT("motor_current_limit_p",        0.2,    0.01,    2.0)
 
-CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_freq", 10.0,   0.1,     100.0)
+CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_freq", 20.0,   1.0,     200.0)
 CONFIG_PARAM_INT("motor_num_halts_to_latch",       7,      1,       100)
 
 
@@ -163,7 +163,7 @@ static void update_filters(float dt)
 
 	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
 		// Current sensor offset calibration, corner frequency is much lower.
-		const float offset_tau = _params.voltage_current_lowpass_tau * 50;
+		const float offset_tau = _params.voltage_current_lowpass_tau * 100;
 		_state.input_curent_offset = lowpass(_state.input_curent_offset, current, offset_tau, dt);
 	}
 
