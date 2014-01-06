@@ -160,8 +160,6 @@ static struct control_state            /// Control state
 static struct precomputed_params       /// Parameters are read only
 {
 	int timing_advance_deg64;
-	int neutral_voltage_lowpass_alpha_reciprocal;
-
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
 	unsigned zc_failures_max;
@@ -186,9 +184,7 @@ CONFIG_PARAM_BOOL("motor_pwm_strictly_linear",         true)
 CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         0.5,   0.01,  10.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_timing_advance_deg",           0,     0,     15)
-CONFIG_PARAM_FLOAT("motor_neutral_volt_lpf_alpha",     1.0,   0.1,   1.0)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
-// Something not so important
 CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     3,     8)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
@@ -204,12 +200,9 @@ CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1500,  1000,  4000)
 
 static void configure(void)
 {
-	_params.timing_advance_deg64 = config_get("motor_timing_advance_deg") * 64 / 60;
-	_params.neutral_voltage_lowpass_alpha_reciprocal =
-		(int)(1.0f / config_get("motor_neutral_volt_lpf_alpha") + 0.5f) - 1;
-
-	_params.motor_bemf_window_len_denom      = config_get("motor_bemf_window_len_denom");
-	_params.bemf_valid_range_pct128          = config_get("motor_bemf_valid_range_pct") * 128 / 100;
+	_params.timing_advance_deg64        = config_get("motor_timing_advance_deg") * 64 / 60;
+	_params.motor_bemf_window_len_denom = config_get("motor_bemf_window_len_denom");
+	_params.bemf_valid_range_pct128     = config_get("motor_bemf_valid_range_pct") * 128 / 100;
 	_params.zc_failures_max  = config_get("motor_zc_failures_to_stop");
 	_params.zc_detects_min   = config_get("motor_zc_detects_to_start");
 	_params.comm_period_max  = config_get("motor_comm_period_max_usec") * HNSEC_PER_USEC;
@@ -225,7 +218,6 @@ static void configure(void)
 	/*
 	 * Validation
 	 */
-	assert_always(_params.neutral_voltage_lowpass_alpha_reciprocal >= 0);
 	assert_always(_params.input_volt_cur_lowpass_alpha_reciprocal >= 0);
 
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
@@ -236,10 +228,9 @@ static void configure(void)
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
-	lowsyslog("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i, Neutral LP: %i\n",
+	lowsyslog("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i\n",
 		_params.comm_period_max / HNSEC_PER_USEC,
-		_params.motor_bemf_window_len_denom,
-		_params.neutral_voltage_lowpass_alpha_reciprocal);
+		_params.motor_bemf_window_len_denom);
 }
 
 // --- Hard real time code below ---
@@ -437,9 +428,7 @@ static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
 {
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	const int avg_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
-	_state.neutral_voltage =
-		LOWPASS(_state.neutral_voltage, avg_voltage, _params.neutral_voltage_lowpass_alpha_reciprocal);
+	_state.neutral_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 }
 
 static bool is_past_zc(const int bemf)
