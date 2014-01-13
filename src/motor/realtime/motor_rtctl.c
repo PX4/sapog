@@ -192,7 +192,7 @@ CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
-CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       75,    10,    200) // TODO: Replace the RC filter; adjust this
+CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       75,    10,    100)
 CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1500,  1000,  4000)
 
 
