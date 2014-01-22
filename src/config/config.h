@@ -69,8 +69,8 @@ struct config_param
 	}
 
 /**
- * Parameter declaration macros.
- * Each parameters will be defined in one place; then it can be accessed through config_get("param-name").
+ * Parameter definition macros.
+ * Defined parameter can be accessed through config_get("param-name"), config_get_descr(...).
  */
 #define CONFIG_PARAM_FLOAT(name, default_, min, max)  CONFIG_PARAM_RAW_(name, default_, min, max, CONFIG_TYPE_FLOAT)
 #define CONFIG_PARAM_INT(name, default_, min, max)    CONFIG_PARAM_RAW_(name, default_, min, max, CONFIG_TYPE_INT)
@@ -90,7 +90,7 @@ int config_init(void);
 
 /**
  * Saves the config into the non-volatile memory.
- * Will enter a huge critical section, so it shall never be called concurrently with hard real time processes.
+ * May enter a huge critical section, so it shall never be called concurrently with hard real time processes.
  */
 int config_save(void);
 
