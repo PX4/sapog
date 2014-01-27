@@ -105,7 +105,7 @@ def add_efficiency_plots(data, ax, color, label):
     x = data['rpm']
     y = data['power']
 
-    ax.scatter(x, y, marker=',', color=color, s=0.1, alpha=0.1)
+    #ax.scatter(x, y, marker=',', color=color, s=0.1, alpha=0.1)
     ax.set_xlabel('RPM')
     ax.set_ylabel('Power (W)')
 
@@ -161,7 +161,7 @@ def plot_efficiency(filenames):
     for color,fn in zip(COLORS, filenames):
         data = prepare_input_data(fn)
         add_efficiency_plots(data, ax, color, fn)
-    legend()
+    legend(loc=2)
     return fig
 
 def plot_ripple(filenames):
@@ -171,7 +171,7 @@ def plot_ripple(filenames):
         data = prepare_input_data(fn)
         add_ripple_plots(data, (ax1, ax2), color, fn, 'rpm', 'RPM')
         add_ripple_plots(data, (ax3, ax4), color, fn, 'power_lpf', 'Power')
-    legend()
+    legend(loc=2)
     return fig
 
 # -----------------
@@ -184,7 +184,7 @@ mpl.rcParams['grid.linestyle'] = '-'
 mpl.rcParams['font.size'] = 10
 
 if len(sys.argv) < 3:
-    print sys.argv[0], '<dynamic|efficiency> <CSV path [...]>'
+    print sys.argv[0], '<dynamic|efficiency|ripple> <CSV path [...]>'
     exit(1)
 plot_type = sys.argv[1].lower()
 filenames = sys.argv[2:]
@@ -199,7 +199,7 @@ else:
     print 'Invalid plot type:', plot_type
     exit(1)
 
-fig.set_size_inches(16, 12)
+fig.set_size_inches(9, 7)
 #savefig(plot_type + '.svg', bbox_inches='tight')
 savefig(plot_type + '.png', bbox_inches='tight')
 show()
