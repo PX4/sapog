@@ -44,7 +44,7 @@ MOTOR_CSRC = src/motor/realtime/motor_pwm.c        \
              src/motor/motor.c                     \
              src/motor/rpmctl.c
 
-include ../../canaerospace/canaerospace/embedded_rules.mk
+include canaerospace/canaerospace/embedded_rules.mk
 include canaerospace/drivers/stm32/rules.mk
 #CANAEROSPACE_DEF += -DCANAEROSPACE_DEBUG=1
 
@@ -104,7 +104,7 @@ INCDIR = $(PORTINC) $(KERNINC) $(HALINC) $(PLATFORMINC) $(CHIBIOS)/os/various
 # Build configuration
 #
 
-USE_OPT = -falign-functions=16 --std=c99 -fno-strict-aliasing -Wno-unused-parameter -U__STRICT_ANSI__
+USE_OPT = -falign-functions=16 --std=c99 -U__STRICT_ANSI__
 USE_COPT =
 USE_CPPOPT = -fno-rtti
 

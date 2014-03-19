@@ -380,6 +380,7 @@ static void update_setpoint_ttl(int dt_ms)
 
 static msg_t control_thread(void* arg)
 {
+	(void)arg;
 	chRegSetThreadName("motor");
 
 	EventListener listener;

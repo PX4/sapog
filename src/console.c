@@ -43,6 +43,8 @@
 #include <motor/motor.h>
 #include "console.h"
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 static char* getline(const char* prompt);
 static void print_status(int err);
 

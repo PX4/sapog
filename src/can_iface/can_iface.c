@@ -59,6 +59,7 @@ static int _watchdog_id;
 
 static void cb_esc_command(CanasInstance* ci, CanasParamCallbackArgs* args)
 {
+	(void)ci;
 	// Redundancy resolution
 	CanasGrrInstance* grr = args->parg;
 	const float figure_of_merit = args->message.service_code;
