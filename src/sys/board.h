@@ -34,40 +34,29 @@
 
 #pragma once
 
-/// Assert is needed for STM32 SPL
-#include <assert.h>
-#define assert_param(x) assert(x)
+#define STM32_HSECLK            24000000
 
-#define STM32_HSECLK            8000000
-
-#define STM32F10X_MD
+#define STM32F10X_CL
 
 /*
  * GPIO
  */
 // Misc
-#define GPIO_PORT_SERIAL_RX     GPIOA
-#define GPIO_PIN_SERIAL_RX      10
-
-// LED
-#define GPIO_PORT_LED_ERROR     GPIOB
-#define GPIO_PIN_LED_ERROR      4
-
-#define GPIO_PORT_LED_STATUS    GPIOB
-#define GPIO_PIN_LED_STATUS     3
+#define GPIO_PORT_SERIAL_RX     GPIOB
+#define GPIO_PIN_SERIAL_RX      7
 
 // Testpoints
 #define GPIO_PORT_TEST_A        GPIOB
 #define GPIO_PIN_TEST_A         15
 // TODO: ADC testpoint is temporarily allocated on the I2C SCL pin
 #define GPIO_PORT_TEST_ADC      GPIOB
-#define GPIO_PIN_TEST_ADC       10
+#define GPIO_PIN_TEST_ADC       8
 // TODO: Motor timer testpoint is temporarily allocated on the I2C SDA pin
 #define GPIO_PORT_TEST_MTIM     GPIOB
-#define GPIO_PIN_TEST_MTIM      11
+#define GPIO_PIN_TEST_MTIM      9
 // TODO: Zero cross monitor testpoint is temporarily allocated on the PPM input pin
 #define GPIO_PORT_TEST_MZC      GPIOA
-#define GPIO_PIN_TEST_MZC       8
+#define GPIO_PIN_TEST_MZC       0
 
 /*
  * I/O ports initial setup, this configuration is established soon after reset
@@ -93,18 +82,18 @@
  * Please refer to the STM32 Reference Manual for details.
  */
 
-#define VAL_GPIOACRL            0xb8000008      // 7..0
-// TODO: remove testpad output from PPM pin:
-#define VAL_GPIOACRH            0x888b88b3      // 15..8
+// TODO: remove testpad output from PPM pin
+#define VAL_GPIOACRL            0xb8000003      // 7..0
+#define VAL_GPIOACRH            0x888b8bbb      // 15..8
 #define VAL_GPIOAODR            0x00000000
 
-#define VAL_GPIOBCRL            0xbb8222bb
-// TODO: remove testpad outputs from I2C pins:
-#define VAL_GPIOBCRH            0x3888338b
+// TODO: remove testpad outputs from I2C pins
+#define VAL_GPIOBCRL            0x8b8888bb
+#define VAL_GPIOBCRH            0x38b88833
 #define VAL_GPIOBODR            0x00000000
 
-#define VAL_GPIOCCRL            0x88888888
-#define VAL_GPIOCCRH            0x88888888
+#define VAL_GPIOCCRL            0xbb884444
+#define VAL_GPIOCCRH            0x8888888b
 #define VAL_GPIOCODR            0x00000000
 
 #define VAL_GPIODCRL            0x88888888
@@ -120,7 +109,6 @@
 extern "C" {
 #endif
     void boardInit(void);
-    void debugPortDisable(void);
 #ifdef __cplusplus
 }
 #endif

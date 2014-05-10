@@ -118,7 +118,7 @@ static struct diag_info                /// This data is never used by the contro
 	int64_t zc_solution_slope;
 	int64_t zc_solution_yintercept;
 	int zc_solution_num_samples;
-#if DEBUG
+#if DEBUG_BUILD
 	int zc_solution_samples[MAX_BEMF_SAMPLES];
 #endif
 
@@ -489,7 +489,7 @@ static uint64_t solve_zc_approximation(void)
 	_diag.zc_solution_slope = slope;
 	_diag.zc_solution_yintercept = yintercept;
 	_diag.zc_solution_num_samples = _state.zc_bemf_samples_acquired;
-#if DEBUG
+#if DEBUG_BUILD
 	memcpy(_diag.zc_solution_samples, _state.zc_bemf_samples,
 		_state.zc_bemf_samples_acquired * sizeof(_state.zc_bemf_samples[0]));
 #endif
@@ -977,7 +977,7 @@ void motor_rtctl_print_debug_info(void)
 	/*
 	 * ZC fitting
 	 */
-#if DEBUG
+#if DEBUG_BUILD
 	if (_diag.zc_solution_num_samples > 0) {
 		lowsyslog("Motor ZC solution data\n");
 

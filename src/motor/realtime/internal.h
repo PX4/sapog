@@ -45,7 +45,7 @@ __BEGIN_DECLS
 /**
  * Faster alternatives for GPIO API that can be used from IRQ handlers.
  */
-#if DEBUG
+#if DEBUG_BUILD
 #  define TESTPAD_SET(port, pin)        (port)->BSRR = 1 << (pin)
 #  define TESTPAD_CLEAR(port, pin)      (port)->BRR = 1 << (pin)
 #else

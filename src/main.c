@@ -46,12 +46,12 @@
 
 static void led_set_status(bool state)
 {
-	palWritePad(GPIO_PORT_LED_STATUS, GPIO_PIN_LED_STATUS, !state);
+	(void)state;
 }
 
 static void led_set_error(bool state)
 {
-	palWritePad(GPIO_PORT_LED_ERROR, GPIO_PIN_LED_ERROR, !state);
+	(void)state;
 }
 
 void application_halt_hook(void)
@@ -80,19 +80,19 @@ static int init(void)
 	/*
 	 * Motor control
 	 */
-	res = motor_init();
-	if (res)
-		return res;
-
-	res = motor_test_hardware();
-	if (res)
-		return res;
-	lowsyslog("Power stage OK\n");
-
-	if (motor_test_motor())
-		lowsyslog("Motor is not connected or damaged\n");
-	else
-		lowsyslog("Motor OK\n");
+//	res = motor_init();
+//	if (res)
+//		return res;
+//
+//	res = motor_test_hardware();
+//	if (res)
+//		return res;
+//	lowsyslog("Power stage OK\n");
+//
+//	if (motor_test_motor())
+//		lowsyslog("Motor is not connected or damaged\n");
+//	else
+//		lowsyslog("Motor OK\n");
 
 	return 0;
 }
@@ -136,13 +136,13 @@ int main(void)
 	if (init_status)
 		die(init_status);
 
-	motor_beep(500, 150);
-	usleep(150 * 1000);
-	motor_beep(500, 150);
-
-	motor_confirm_initialization();
-	led_set_status(false);
-	led_set_error(false);
+//	motor_beep(500, 150);
+//	usleep(150 * 1000);
+//	motor_beep(500, 150);
+//
+//	motor_confirm_initialization();
+//	led_set_status(false);
+//	led_set_error(false);
 
 	chThdSetPriority(LOWPRIO);
 
@@ -152,7 +152,7 @@ int main(void)
 		watchdog_reset(wdid);
 		// TODO: LED indication
 		usleep(10000);
-		led_set_error(motor_get_limit_mask());
+		//led_set_error(motor_get_limit_mask());
 	}
 
 	return 0;

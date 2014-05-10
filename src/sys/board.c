@@ -35,6 +35,17 @@
 #include <ch.h>
 #include <hal.h>
 
+// Clock config validation
+#if STM32_PREDIV1_VALUE != 2
+# error STM32_PREDIV1_VALUE
+#endif
+#if STM32_SYSCLK != 72000000
+# error STM32_SYSCLK
+#endif
+#if STM32_PCLK2 != 72000000
+# error STM32_PCLK2
+#endif
+
 const PALConfig pal_default_config = {
 	{ VAL_GPIOAODR, VAL_GPIOACRL, VAL_GPIOACRH },
 	{ VAL_GPIOBODR, VAL_GPIOBCRL, VAL_GPIOBCRH },
@@ -48,19 +59,6 @@ void __early_init(void)
 	stm32_clock_init();
 }
 
-void debugPortDisable(void)
-{
-	__disable_irq();
-	uint32_t mapr = AFIO->MAPR;
-	mapr &= ~AFIO_MAPR_SWJ_CFG; // these bits are write-only
-
-	// Disable both SWD and JTAG:
-	mapr |= AFIO_MAPR_SWJ_CFG_DISABLE;
-
-	AFIO->MAPR = mapr;
-	__enable_irq();
-}
-
 void boardInit(void)
 {
 	uint32_t mapr = AFIO->MAPR;
@@ -68,6 +66,15 @@ void boardInit(void)
 
 	// Enable SWJ only, JTAG is not needed at all:
 	mapr |= AFIO_MAPR_SWJ_CFG_JTAGDISABLE;
+
+	// TIM1 - motor control
+	mapr |= AFIO_MAPR_TIM1_REMAP_0;
+
+	// Serial CLI
+	mapr |= AFIO_MAPR_USART1_REMAP;
+
+	// On-board I2C (not used)
+	mapr |= AFIO_MAPR_I2C1_REMAP;
 
 	AFIO->MAPR = mapr;
 }

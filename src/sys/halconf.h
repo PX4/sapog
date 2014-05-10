@@ -43,7 +43,7 @@
 #define HAL_USE_DAC                 FALSE
 #define HAL_USE_EXT                 FALSE
 #define HAL_USE_GPT                 FALSE
-#define HAL_USE_I2C                 TRUE
+#define HAL_USE_I2C                 FALSE
 #define HAL_USE_ICU                 FALSE
 #define HAL_USE_MAC                 FALSE
 #define HAL_USE_MMC_SPI             FALSE
