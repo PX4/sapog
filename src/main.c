@@ -43,7 +43,6 @@
 #include <console.h>
 #include <watchdog.h>
 #include <motor/motor.h>
-#include <can_iface/can_iface.h>
 
 static void led_set_status(bool state)
 {
@@ -94,14 +93,6 @@ static int init(void)
 		lowsyslog("Motor is not connected or damaged\n");
 	else
 		lowsyslog("Motor OK\n");
-
-	/*
-	 * CAN
-	 */
-	res = canif_init();
-	if (res)
-		return res;
-	lowsyslog("CAN OK\n");
 
 	return 0;
 }

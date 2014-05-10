@@ -50,9 +50,6 @@ void system_tick_hook(void)
 	const int period_usec = 1000000 / CH_FREQUENCY;
 
 	_timestamp_usec += period_usec;
-
-	extern void canTimerEmulIncrementIrq(int usec);
-	canTimerEmulIncrementIrq(period_usec);
 }
 
 uint64_t sys_timestamp_usec(void)
