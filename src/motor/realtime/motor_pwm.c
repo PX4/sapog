@@ -42,12 +42,6 @@
 #include "adc.h"
 #include "timer.h"
 
-#undef TIM3
-#undef TIM4
-#undef TIM5
-#undef TIM6
-#undef TIM7
-
 #define PWM_TIMER_FREQUENCY     STM32_TIMCLK2
 
 #define PWM_DEAD_TIME_NANOSEC   400
@@ -302,19 +296,30 @@ static inline void phase_reset_i(uint_fast8_t phase)
 __attribute__((optimize(3)))
 static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool inverted)
 {
-	if (inverted) {
-		pwm_val = _pwm_top - pwm_val;
-	}
-	assert(pwm_val <= _pwm_top);
-
+	// Channel must be enabled in the last order when it is fully configured
 	if (phase == 0) {
 		TIM1->CCR1 = pwm_val;
+		if (inverted) {
+			TIM1->CCMR1 |=  TIM_CCMR1_OC1M_0;  // Switching to PWM mode 2 - inverted
+		} else {
+			TIM1->CCMR1 &= ~TIM_CCMR1_OC1M_0;  // Switching to PWM mode 1 - non inverted
+		}
 		TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE);
 	} else if (phase == 1) {
 		TIM1->CCR2 = pwm_val;
+		if (inverted) {
+			TIM1->CCMR1 |=  TIM_CCMR1_OC2M_0;
+		} else {
+			TIM1->CCMR1 &= ~TIM_CCMR1_OC2M_0;
+		}
 		TIM1->CCER |= (TIM_CCER_CC2E | TIM_CCER_CC2NE);
 	} else {
 		TIM1->CCR3 = pwm_val;
+		if (inverted) {
+			TIM1->CCMR2 |=  TIM_CCMR2_OC3M_0;
+		} else {
+			TIM1->CCMR2 &= ~TIM_CCMR2_OC3M_0;
+		}
 		TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
 	}
 }
@@ -363,7 +368,7 @@ void motor_pwm_align(const int polarity[MOTOR_NUM_PHASES], int pwm_val)
 
 	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		const int pol = polarity[phase];
-		if (pol != 0) {
+		if (pol == 0) {
 			continue;
 		}
 
