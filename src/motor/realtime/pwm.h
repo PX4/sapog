@@ -42,7 +42,7 @@
 
 __BEGIN_DECLS
 
-#define MOTOR_ADC1_2_TRIGGER    (ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_2)
+#define MOTOR_ADC1_2_TRIGGER    (ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_0)
 
 struct motor_pwm_commutation_step
 {
@@ -103,7 +103,14 @@ uint32_t motor_adc_sampling_period_hnsec(void);
  */
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES]);
 
-void motor_pwm_align(const int polarities[MOTOR_NUM_PHASES], int pwm_val);
+/**
+ * Applies pwm_val to selected phases.
+ * Phase polarity can be defined as:
+ *  -1 - negative
+ *  0  - floating
+ *  1  - positive
+ */
+void motor_pwm_align(const int polarity[MOTOR_NUM_PHASES], int pwm_val);
 
 void motor_pwm_set_freewheeling(void);
 

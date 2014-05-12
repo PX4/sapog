@@ -644,3 +644,19 @@ static unsigned comm_period_to_rpm(uint32_t comm_period_hnsec)
 	const uint32_t x = (120ULL * (uint64_t)HNSEC_PER_SEC) / (_params.poles * 6);
 	return x / comm_period_hnsec;
 }
+
+void motor_execute_cli_command(int argc, const char* argv[])
+{
+	if (motor_is_running()) {
+		lowsyslog("Unable to execute CLI command now\n");
+		return;
+	}
+
+	chMtxLock(&_mutex);
+	if (argc >= 0 && argv != NULL) {
+		motor_rtctl_execute_cli_command(argc, argv);
+	} else {
+		assert(0);
+	}
+	chMtxUnlock();
+}

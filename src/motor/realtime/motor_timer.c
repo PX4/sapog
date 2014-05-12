@@ -49,7 +49,7 @@
 /**
  * Timer declaration
  */
-#define TIMER_NUMBER   2
+#define TIMER_NUMBER   3
 
 #define TIMX           GLUE2(TIM, TIMER_NUMBER)
 #define TIMX_IRQn       GLUE3(TIM, TIMER_NUMBER, _IRQn)

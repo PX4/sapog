@@ -149,4 +149,9 @@ int motor_rtctl_test_motor(void);
  */
 #define motor_rtctl_timestamp_hnsec() motor_timer_hnsec()
 
+/**
+ * Designed for debug purposes. May be removed later.
+ */
+void motor_rtctl_execute_cli_command(int argc, const char* argv[]);
+
 __END_DECLS

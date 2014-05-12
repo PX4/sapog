@@ -80,19 +80,19 @@ static int init(void)
 	/*
 	 * Motor control
 	 */
-//	res = motor_init();
-//	if (res)
-//		return res;
-//
-//	res = motor_test_hardware();
-//	if (res)
-//		return res;
-//	lowsyslog("Power stage OK\n");
-//
-//	if (motor_test_motor())
-//		lowsyslog("Motor is not connected or damaged\n");
-//	else
-//		lowsyslog("Motor OK\n");
+	res = motor_init();
+	if (res)
+		return res;
+
+	res = motor_test_hardware();
+	if (res)
+		return res;
+	lowsyslog("Power stage OK\n");
+
+	if (motor_test_motor())
+		lowsyslog("Motor is not connected or damaged\n");
+	else
+		lowsyslog("Motor OK\n");
 
 	return 0;
 }
@@ -126,6 +126,7 @@ int main(void)
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
+	sleep(5);               // TODO remove when the power stage is tested
 	usleep(300000);
 	print_banner();
 
@@ -136,13 +137,13 @@ int main(void)
 	if (init_status)
 		die(init_status);
 
-//	motor_beep(500, 150);
-//	usleep(150 * 1000);
-//	motor_beep(500, 150);
-//
-//	motor_confirm_initialization();
-//	led_set_status(false);
-//	led_set_error(false);
+	motor_beep(500, 150);
+	usleep(150 * 1000);
+	motor_beep(500, 150);
+
+	motor_confirm_initialization();
+	led_set_status(false);
+	led_set_error(false);
 
 	chThdSetPriority(LOWPRIO);
 

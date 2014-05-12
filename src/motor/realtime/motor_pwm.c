@@ -42,49 +42,15 @@
 #include "adc.h"
 #include "timer.h"
 
-#define PWM_TIMER_FREQUENCY     STM32_TIMCLK1
+#undef TIM3
+#undef TIM4
+#undef TIM5
+#undef TIM6
+#undef TIM7
 
-#define PWM_DEAD_TIME_NANOSEC   600
+#define PWM_TIMER_FREQUENCY     STM32_TIMCLK2
 
-/**
- * PWM channel mapping
- */
-static volatile uint16_t* const PWM_REG_HIGH[MOTOR_NUM_PHASES] = {
-	&TIM4->CCR1,
-	&TIM4->CCR2,
-	&TIM4->CCR3
-};
-static volatile uint16_t* const PWM_REG_LOW[MOTOR_NUM_PHASES] = {
-	&TIM3->CCR2,
-	&TIM3->CCR3,
-	&TIM3->CCR4
-};
-
-static const uint16_t TIM4_HIGH_CCER_POL[MOTOR_NUM_PHASES] = {
-	TIM_CCER_CC1P,
-	TIM_CCER_CC2P,
-	TIM_CCER_CC3P
-};
-static const uint16_t TIM3_LOW_CCER_POL[MOTOR_NUM_PHASES] = {
-	TIM_CCER_CC2P,
-	TIM_CCER_CC3P,
-	TIM_CCER_CC4P
-};
-static const uint16_t TIM4_HIGH_CCER_POL_MASK = TIM_CCER_CC1P | TIM_CCER_CC2P | TIM_CCER_CC3P;
-static const uint16_t TIM3_LOW_CCER_POL_MASK  = TIM_CCER_CC2P | TIM_CCER_CC3P | TIM_CCER_CC4P;
-
-static const uint16_t TIM4_HIGH_CCER_EN[MOTOR_NUM_PHASES] = {
-	TIM_CCER_CC1E,
-	TIM_CCER_CC2E,
-	TIM_CCER_CC3E
-};
-static const uint16_t TIM3_LOW_CCER_EN[MOTOR_NUM_PHASES] = {
-	TIM_CCER_CC2E,
-	TIM_CCER_CC3E,
-	TIM_CCER_CC4E
-};
-static const uint16_t TIM4_HIGH_CCER_EN_MASK = TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E;
-static const uint16_t TIM3_LOW_CCER_EN_MASK  = TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E;
+#define PWM_DEAD_TIME_NANOSEC   400
 
 /**
  * Local constants, initialized once
@@ -93,8 +59,7 @@ static uint16_t _pwm_top;
 static uint16_t _pwm_half_top;
 static uint16_t _pwm_min;
 
-static uint16_t _pwm_dead_time_ticks;
-static bool _prevent_full_duty_cycle_bump = true;
+static bool _prevent_full_duty_cycle_bump = true; /// TODO IMPLEMENT LATER
 
 
 static int init_constants(unsigned frequency)
@@ -139,19 +104,7 @@ static int init_constants(unsigned frequency)
 	_pwm_min = pwm_half_adc_window_ticks;
 	assert(_pwm_min <= _pwm_half_top);
 
-	/*
-	 * PWM dead time
-	 */
-	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
-	const float pwm_dead_time_ticks_float = pwm_dead_time / pwm_clock_period;
-	assert(pwm_dead_time_ticks_float >= 0);
-	assert(pwm_dead_time_ticks_float < (_pwm_top * 0.2f));
-
-	// Dead time shall not be halved
-	_pwm_dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
-
-	lowsyslog("Motor: PWM range: [%u; %u]; Dead time: %u ticks\n",
-		(unsigned)_pwm_min, (unsigned)_pwm_top, (unsigned)_pwm_dead_time_ticks);
+	lowsyslog("Motor: PWM range [%u; %u]\n", (unsigned)_pwm_min, (unsigned)_pwm_top);
 	return 0;
 }
 
@@ -161,33 +114,68 @@ static void init_timers(void)
 
 	chSysDisable();
 
-	// Enable and reset
-	const uint32_t enr_mask = RCC_APB1ENR_TIM3EN | RCC_APB1ENR_TIM4EN;
-	const uint32_t rst_mask = RCC_APB1RSTR_TIM3RST | RCC_APB1RSTR_TIM4RST;
-	RCC->APB1ENR |= enr_mask;
-	RCC->APB1RSTR |= rst_mask;
-	RCC->APB1RSTR &= ~rst_mask;
+	// TIM1
+	RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+	RCC->APB2RSTR |=  RCC_APB2RSTR_TIM1RST;
+	RCC->APB2RSTR &= ~RCC_APB2RSTR_TIM1RST;
+
+	// TIM2
+	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+	RCC->APB1RSTR |=  RCC_APB1RSTR_TIM2RST;
+	RCC->APB1RSTR &= ~RCC_APB1RSTR_TIM2RST;
 
 	chSysEnable();
 
 	// Reload value
-	TIM3->ARR = TIM4->ARR = _pwm_top;
+	TIM2->ARR = TIM1->ARR = _pwm_top;
 
-	// Buffered update, center-aligned PWM
-	TIM3->CR1 = TIM4->CR1 = TIM_CR1_ARPE | TIM_CR1_CMS_0;
+	// Buffered update, center-aligned PWM (will be enabled later)
+	TIM2->CR1 = TIM1->CR1 = TIM_CR1_ARPE | TIM_CR1_CMS_0;
 
-	// OC channels (all enabled)
-	TIM3->CCMR1 = TIM4->CCMR1 =
+	// Output idle state 0, buffered updates
+	TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
+
+	/*
+	 * OC channels
+	 * TIM1 CC1, CC2, CC3 are used to control the FETs; TIM1 CC4 is not used.
+	 * TIM2 CC2 is used to trigger the ADC conversion.
+	 */
+	// Phase A, phase B
+	TIM1->CCMR1 =
 		TIM_CCMR1_OC1FE | TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 |
 		TIM_CCMR1_OC2FE | TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2;
 
-	TIM3->CCMR2 = TIM4->CCMR2 =
-		TIM_CCMR2_OC3FE | TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_2 |
-		TIM_CCMR2_OC4FE | TIM_CCMR2_OC4PE | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_2;
+	// Phase C
+	TIM1->CCMR2 =
+		TIM_CCMR2_OC3FE | TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_2;
 
-	// OC polarity (no inversion by default; all phases are disabled by default except ADC sync)
-	TIM3->CCER = 0;
-	TIM4->CCER = TIM_CCER_CC4E; // ADC sync
+	// ADC sync
+	TIM2->CCMR1 =
+		TIM_CCMR1_OC2FE | TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2;
+
+	// OC polarity (no inversion, all disabled except ADC sync)
+	TIM1->CCER = 0;
+	TIM2->CCER = TIM_CCER_CC2E;
+
+	/*
+	 * Dead time generator setup.
+	 * DTS clock divider set 0, hence fDTS = input clock.
+	 * DTG bit 7 must be 0, otherwise it will change multiplier which is not supported yet.
+	 * At 72 MHz one tick ~ 13.9 nsec, max 127 * 13.9 ~ 1.764 usec, which is large enough.
+	 */
+	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
+	const float pwm_dead_time_ticks_float = pwm_dead_time / (1.f / PWM_TIMER_FREQUENCY);
+	assert(pwm_dead_time_ticks_float > 0);
+	assert(pwm_dead_time_ticks_float < (_pwm_top * 0.2f));
+
+	uint16_t dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
+	if (dead_time_ticks > 127) {
+		assert(0);
+		dead_time_ticks = 127;
+	}
+	lowsyslog("Motor: PWM dead time %u ticks\n", (unsigned)dead_time_ticks);
+
+	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
 	/*
 	 * ADC synchronization
@@ -197,46 +185,49 @@ static void init_timers(void)
 	 * 25%    /    \  /
 	 * 0%    /      \/
 	 *             A  B
-	 * Complementary PWM operates in range (50%, 100%], thus a FET commutation will never happen in range
-	 * between points A and B on the diagram above (save the braking mode, but it's negligible).
+	 * Complementary PWM operates in the range (50%, 100%], thus a FET commutation will never happen in
+	 * between A and B on the diagram above (save the braking mode, but it's negligible).
 	 * ADC shall be triggered either at PWM top or PWM bottom in order to catch the moment when the instant
 	 * winding current matches with average winding current - this helps to eliminate the current ripple
-	 * caused by the PWM switching.
-	 * Thus we trigger ADC at the bottom minus advance.
+	 * caused by the PWM switching. Thus we trigger ADC at the bottom minus advance.
 	 * Refer to "Synchronizing the On-Chip Analog-to-Digital Converter on 56F80x Devices" for some explanation.
 	 */
 	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
 	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
 	assert(adc_trigger_advance_ticks_float >= 0);
 	assert(adc_trigger_advance_ticks_float < (_pwm_top * 0.4f));
-	TIM4->CCR4 = (uint16_t)adc_trigger_advance_ticks_float;
-	if (TIM4->CCR4 == 0)
-		TIM4->CCR4 = 1;
+	TIM2->CCR2 = (uint16_t)adc_trigger_advance_ticks_float;
+	if (TIM2->CCR2 == 0) {
+		TIM2->CCR2 = 1;
+	}
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
-	TIM3->EGR = TIM_EGR_UG;
-	TIM4->EGR = TIM_EGR_UG | TIM_EGR_COMG;
+	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
+	TIM2->EGR = TIM_EGR_UG | TIM_EGR_COMG;
 }
 
 static void start_timers(void)
 {
+	const irqstate_t irqstate = irq_primask_save();
+
 	// Make sure the timers are not running
-	assert_always(!(TIM3->CR1 & TIM_CR1_CEN));
-	assert_always(!(TIM4->CR1 & TIM_CR1_CEN));
+	assert_always(!(TIM1->CR1 & TIM_CR1_CEN));
+	assert_always(!(TIM2->CR1 & TIM_CR1_CEN));
 
 	// Start synchronously
-	TIM3->CR2 |= TIM_CR2_MMS_0;                                   // TIM3 is master
-	TIM4->SMCR = TIM_SMCR_SMS_1 | TIM_SMCR_SMS_2 | TIM_SMCR_MSM | TIM_SMCR_TS_1; // TIM4 is slave
+	TIM1->CR2 |= TIM_CR2_MMS_0;                   // TIM1 is master
+	TIM2->SMCR = TIM_SMCR_SMS_1 | TIM_SMCR_SMS_2; // TIM2 is slave
 
-	TIM3->CR1 |= TIM_CR1_CEN;                                     // Start
+	TIM1->CR1 |= TIM_CR1_CEN;                     // Start all
 
 	// Remove the synchronization
-	TIM3->CR2 &= ~TIM_CR2_MMS;
-	TIM4->SMCR = 0;
+	TIM2->SMCR = 0;
 
 	// Make sure the timers have started now
-	assert_always(TIM3->CR1 & TIM_CR1_CEN);
-	assert_always(TIM4->CR1 & TIM_CR1_CEN);
+	assert_always(TIM1->CR1 & TIM_CR1_CEN);
+	assert_always(TIM2->CR1 & TIM_CR1_CEN);
+
+	irq_primask_restore(irqstate);
 }
 
 int motor_pwm_init(unsigned frequency, bool prevent_full_duty_cycle_bump)
@@ -280,19 +271,8 @@ uint32_t motor_adc_sampling_period_hnsec(void)
  */
 static void phase_reset_all_i(void)
 {
-	/*
-	 * Outputs must be disabled until the phase setup is done.
-	 * Otherwise there might occur an occasional shoot-through while the
-	 * phase inversion is configured but PWM register is not, or vice versa.
-	 */
-	// Disable inversions and outputs:
-	TIM3->CCER &= ~(TIM3_LOW_CCER_EN_MASK  | TIM3_LOW_CCER_POL_MASK);
-	TIM4->CCER &= ~(TIM4_HIGH_CCER_EN_MASK | TIM4_HIGH_CCER_POL_MASK);
-	// Reset PWM registers:
-	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
-		*PWM_REG_HIGH[phase] = 0;
-		*PWM_REG_LOW[phase] = 0;
-	}
+	TIM1->CCER = 0;
+	TIM1->EGR = TIM_EGR_COMG;
 }
 
 /**
@@ -301,82 +281,44 @@ static void phase_reset_all_i(void)
  *  - motor IRQs are disabled
  */
 __attribute__((optimize(3)))
-static inline void phase_reset_i(int phase)
+static inline void phase_reset_i(uint_fast8_t phase)
 {
-	assert(phase >= 0 && phase < MOTOR_NUM_PHASES);
-	// Disable inversions and outputs:
-	TIM3->CCER &= ~(TIM3_LOW_CCER_EN[phase]  | TIM3_LOW_CCER_POL[phase]);
-	TIM4->CCER &= ~(TIM4_HIGH_CCER_EN[phase] | TIM4_HIGH_CCER_POL[phase]);
-	// Reset PWM registers:
-	*PWM_REG_HIGH[phase] = 0;
-	*PWM_REG_LOW[phase] = 0;
-}
-
-/**
- * Turns the given phase on.
- * Assumes:
- *  - motor IRQs are disabled
- */
-__attribute__((optimize(3)))
-static inline void phase_enable_i(int phase)
-{
-	assert(phase >= 0 && phase < MOTOR_NUM_PHASES);
-	TIM3->CCER |= TIM3_LOW_CCER_EN[phase];
-	TIM4->CCER |= TIM4_HIGH_CCER_EN[phase];
-}
-
-/**
- * Assumes:
- *  - motor IRQs are disabled
- *
- * TODO: Current implementation generates unwanted spikes when switching from floating mode to driving mode.
- * This shall be fixed with the new hardware, where the PWM logic is completely different.
- * Scope traces showing this bug:
- *    http://habrastorage.org/storage3/532/7b3/c10/5327b3c1085aa8df7628299e400bc9f6.png
- *    http://habrastorage.org/storage3/50b/348/e6b/50b348e6b903d934fd2a891db336d392.png
- */
-__attribute__((optimize(3)))
-static inline void phase_set_i(int phase, const int pwm_val, bool inverted)
-{
-	assert(phase >= 0 && phase < MOTOR_NUM_PHASES);
-
-	const bool apply_dead_time = _prevent_full_duty_cycle_bump || (pwm_val != _pwm_top);
-
-	uint_fast16_t duty_cycle_high = pwm_val;
-	uint_fast16_t duty_cycle_low  = pwm_val;
-
-	if (inverted) {
-		// Inverted - high PWM is inverted, low is not
-		if (TIM3->CCER & TIM3_LOW_CCER_POL[phase] || !(TIM4->CCER & TIM4_HIGH_CCER_POL[phase])) {
-			phase_reset_i(phase);
-			TIM4->CCER |= TIM4_HIGH_CCER_POL[phase];
-		}
-
-		// Inverted phase shall have greater PWM value than non-inverted one
-		if (apply_dead_time) {
-			if (pwm_val > _pwm_half_top)
-				duty_cycle_low  -= _pwm_dead_time_ticks;
-			else
-				duty_cycle_high += _pwm_dead_time_ticks;
-		}
+	if (phase == 0) {
+		TIM1->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC1NE);
+	} else if (phase == 1) {
+		TIM1->CCER &= ~(TIM_CCER_CC2E | TIM_CCER_CC2NE);
 	} else {
-		// Normal - low PWM is inverted, high is not
-		if (TIM4->CCER & TIM4_HIGH_CCER_POL[phase] || !(TIM3->CCER & TIM3_LOW_CCER_POL[phase])) {
-			phase_reset_i(phase);
-			TIM3->CCER |= TIM3_LOW_CCER_POL[phase];
-		}
-
-		if (apply_dead_time) {
-			if (pwm_val > _pwm_half_top)
-				duty_cycle_high -= _pwm_dead_time_ticks;
-			else
-				duty_cycle_low  += _pwm_dead_time_ticks;
-		}
+		TIM1->CCER &= ~(TIM_CCER_CC3E | TIM_CCER_CC3NE);
 	}
+}
 
-	// And as always, thanks for watching.
-	*PWM_REG_HIGH[phase] = duty_cycle_high;
-	*PWM_REG_LOW[phase] = duty_cycle_low;
+/**
+ * Assumes:
+ *  - motor IRQs are disabled
+ */
+__attribute__((optimize(3)))
+static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool inverted)
+{
+	if (inverted) {
+		pwm_val = _pwm_top - pwm_val;
+	}
+	assert(pwm_val <= _pwm_top);
+
+	if (phase == 0) {
+		TIM1->CCR1 = pwm_val;
+		TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE);
+	} else if (phase == 1) {
+		TIM1->CCR2 = pwm_val;
+		TIM1->CCER |= (TIM_CCER_CC2E | TIM_CCER_CC2NE);
+	} else {
+		TIM1->CCR3 = pwm_val;
+		TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
+	}
+}
+
+static inline void apply_phase_config(void)
+{
+	TIM1->EGR = TIM_EGR_COMG;
 }
 
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
@@ -385,75 +327,52 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 	phase_reset_all_i();
 	irq_primask_enable();
 
-	const uint64_t dead_time_expiration = motor_timer_hnsec() + PWM_DEAD_TIME_NANOSEC / NSEC_PER_HNSEC;
-
 	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
-		switch (command[phase]) {
-		case MOTOR_PWM_MANIP_HIGH:
-		case MOTOR_PWM_MANIP_HALF: {
+		if (command[phase] == MOTOR_PWM_MANIP_HIGH) {
 			// We don't want to engage 100% duty cycle because the high side pump needs switching
-			const float duty_cycle = (command[phase] == MOTOR_PWM_MANIP_HIGH) ? 0.95f : 0.f;
-
-			const int pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
-
+			const int pwm_val = motor_pwm_compute_pwm_val(0.95f);
 			irq_primask_disable();
 			phase_set_i(phase, pwm_val, false);
 			irq_primask_enable();
-			break;
-		}
-		case MOTOR_PWM_MANIP_LOW:
-			*PWM_REG_HIGH[phase] = 0;
-			*PWM_REG_LOW[phase] = _pwm_top;
-			break;
-		case MOTOR_PWM_MANIP_FLOATING:
+		} else if (command[phase] == MOTOR_PWM_MANIP_HALF) {
+			irq_primask_disable();
+			phase_set_i(phase, _pwm_half_top, false);
+			irq_primask_enable();
+		} else if (command[phase] == MOTOR_PWM_MANIP_LOW) {
+			irq_primask_disable();
+			phase_set_i(phase, 0, false);
+			irq_primask_enable();
+		} else if (command[phase] == MOTOR_PWM_MANIP_FLOATING) {
 			// Nothing to do
-			break;
-		default:
+		} else {
 			assert(0);
 		}
 	}
 
-	// This loop should be skipped immediately because all the processing above takes enough time.
-	while (motor_timer_hnsec() <= dead_time_expiration) { }
-
-	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
-		if (command[phase] == MOTOR_PWM_MANIP_FLOATING)
-			continue;
-		irq_primask_disable();
-		phase_enable_i(phase);
-		irq_primask_enable();
-	}
+	apply_phase_config();
 }
 
-void motor_pwm_align(const int polarities[MOTOR_NUM_PHASES], int pwm_val)
+void motor_pwm_align(const int polarity[MOTOR_NUM_PHASES], int pwm_val)
 {
 	irq_primask_disable();
 	phase_reset_all_i();
 	irq_primask_enable();
 
-	const uint64_t dead_time_expiration = motor_timer_hnsec() + PWM_DEAD_TIME_NANOSEC / NSEC_PER_HNSEC;
-
 	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
-		const int pol = polarities[phase];
-		assert(pol == 0 || pol == 1 || pol == -1);
+		const int pol = polarity[phase];
+		if (pol != 0) {
+			continue;
+		}
+
+		assert(pol == 1 || pol == -1);
+		const bool reverse = pol < 0;
 
 		irq_primask_disable();
-		if (pol > 0)
-			phase_set_i(phase, pwm_val, false);
-		else if (pol == 0)
-			phase_set_i(phase, pwm_val, true);
+		phase_set_i(phase, pwm_val, reverse);
 		irq_primask_enable();
 	}
 
-	// Just in case
-	while (motor_timer_hnsec() <= dead_time_expiration) { }
-
-	irq_primask_disable();
-	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
-		if (polarities[phase] >= 0)
-			phase_enable_i(phase);
-	}
-	irq_primask_enable();
+	apply_phase_config();
 }
 
 void motor_pwm_set_freewheeling(void)
@@ -516,8 +435,7 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 	phase_set_i(step->positive, pwm_val, false);
 	phase_set_i(step->negative, pwm_val, true);
 
-	phase_enable_i(step->positive);
-	phase_enable_i(step->negative);
+	apply_phase_config();
 }
 
 void motor_pwm_beep(int frequency, int duration_msec)
@@ -562,18 +480,16 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	 * Commutations
 	 * No high side pumping
 	 */
-	*PWM_REG_LOW[low_phase_first]  = _pwm_top;
-	*PWM_REG_LOW[low_phase_second] = _pwm_top;
-	phase_enable_i(low_phase_first);
-	phase_enable_i(low_phase_second);
-	phase_enable_i(high_phase);
+	phase_set_i(low_phase_first, 0, false);
+	phase_set_i(low_phase_second, 0, false);
+	phase_set_i(high_phase, 0, false);
 
 	while (end_time > motor_timer_hnsec()) {
 		chSysSuspend();
 
-		*PWM_REG_HIGH[high_phase] = _pwm_top;
+		phase_set_i(high_phase, _pwm_top, false);
 		motor_timer_hndelay(active_hnsec);
-		*PWM_REG_HIGH[high_phase] = 0;
+		phase_set_i(high_phase, 0, false);
 
 		chSysEnable();
 

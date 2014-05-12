@@ -673,14 +673,14 @@ static int detect_rotor_position_as_step_index(void)
 	 *       Using Variable Inductance Sensing Method"
 	 */
 	static const int ENERGIZING_TABLE_FORWARD[3][3] = {
-		{1, 0, 0},
-		{0, 0, 1},
-		{0, 1, 0}
+		{ 1, -1, -1},
+		{-1, -1,  1},
+		{-1,  1, -1}
 	};
 	static const int ENERGIZING_TABLE_REVERSE[3][3] = {
-		{0, 1, 1},
-		{1, 1, 0},
-		{1, 0, 1}
+		{-1,  1,  1},
+		{ 1,  1, -1},
+		{ 1, -1,  1}
 	};
 	static const int POSITION_CODE_TO_STEP_INDEX[6] = {2, 0, 1, 4, 3, 5}; // Step order: 1 2 0 4 3 5
 

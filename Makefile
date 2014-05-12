@@ -41,6 +41,7 @@ MOTOR_CSRC = src/motor/realtime/motor_pwm.c        \
              src/motor/realtime/motor_adc.c        \
              src/motor/realtime/motor_rtctl_test.c \
              src/motor/realtime/motor_rtctl.c      \
+             src/motor/realtime/motor_debug_cli.c  \
              src/motor/motor.c                     \
              src/motor/rpmctl.c
 

@@ -231,6 +231,11 @@ static void cmd_md(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_print_debug_info();
 }
 
+static void cmd_m(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	motor_execute_cli_command(argc, (const char**)argv);
+}
+
 #if DEBUG_BUILD
 static void cmd_wdt(BaseSequentialStream *chp, int argc, char *argv[])
 {
@@ -258,6 +263,7 @@ static const ShellCommand _commands[] =
 	COMMAND(test)
 	COMMAND(sp)
 	COMMAND(md)
+	COMMAND(m)
 #if DEBUG_BUILD
 	COMMAND(wdt)
 #endif
