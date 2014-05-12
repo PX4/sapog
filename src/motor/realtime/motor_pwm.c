@@ -272,6 +272,9 @@ uint32_t motor_adc_sampling_period_hnsec(void)
 static void phase_reset_all_i(void)
 {
 	TIM1->CCER = 0;
+	TIM1->CCR1 = 0;
+	TIM1->CCR2 = 0;
+	TIM1->CCR3 = 0;
 	TIM1->EGR = TIM_EGR_COMG;
 }
 
@@ -483,13 +486,22 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	phase_set_i(low_phase_first, 0, false);
 	phase_set_i(low_phase_second, 0, false);
 	phase_set_i(high_phase, 0, false);
+	apply_phase_config();
 
 	while (end_time > motor_timer_hnsec()) {
 		chSysSuspend();
 
+		irq_primask_disable();
 		phase_set_i(high_phase, _pwm_top, false);
+		apply_phase_config();
+		irq_primask_enable();
+
 		motor_timer_hndelay(active_hnsec);
+
+		irq_primask_disable();
 		phase_set_i(high_phase, 0, false);
+		apply_phase_config();
+		irq_primask_enable();
 
 		chSysEnable();
 

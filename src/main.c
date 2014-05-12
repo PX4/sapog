@@ -126,7 +126,6 @@ int main(void)
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
-	sleep(5);               // TODO remove when the power stage is tested
 	usleep(300000);
 	print_banner();
 
