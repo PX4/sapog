@@ -36,6 +36,7 @@
 #include "adc.h"
 #include "pwm.h"
 #include <string.h>
+#include <stdlib.h>
 
 static enum motor_pwm_phase_manip arg_to_pwm_manip(const char* arg)
 {
@@ -64,7 +65,21 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 
 	lowsyslog("ADC raw vtg/cur: V=%i  I=%i\n", adc_sample.input_voltage, adc_sample.input_current);
 
-	if (argc >= 1 && argc <= 3) {
+	if ((argc > 0) && !strcmp("align", argv[0])) {
+		if (argc != 5) {
+			lowsyslog("Invalid num args\n");
+			return;
+		}
+		const int polarity[MOTOR_NUM_PHASES] = {
+			atoi(argv[1]),
+			atoi(argv[2]),
+			atoi(argv[3])
+		};
+		const float duty_cycle = atoff(argv[4]);
+		const int pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
+		lowsyslog("Align %i %i %i %f[-->%i]\n", polarity[0], polarity[1], polarity[2], duty_cycle, pwm_val);
+		motor_pwm_align(polarity, pwm_val);
+	} else if ((argc >= 1) && (argc <= 3)) {
 		const enum motor_pwm_phase_manip manip_cmd[MOTOR_NUM_PHASES] = {
 			arg_to_pwm_manip(argv[0]),
 			(argc > 1) ? arg_to_pwm_manip(argv[1]) : MOTOR_PWM_MANIP_FLOATING,
