@@ -44,7 +44,7 @@
 
 #define PWM_TIMER_FREQUENCY     STM32_TIMCLK2
 
-#define PWM_DEAD_TIME_NANOSEC   400
+#define PWM_DEAD_TIME_NANOSEC   300
 
 /**
  * Local constants, initialized once
@@ -351,7 +351,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		if (command[phase] == MOTOR_PWM_MANIP_HIGH) {
 			// We don't want to engage 100% duty cycle because the high side pump needs switching
-			const int pwm_val = motor_pwm_compute_pwm_val(0.95f);
+			const int pwm_val = motor_pwm_compute_pwm_val(0.90f);
 			irq_primask_disable();
 			phase_set_i(phase, pwm_val, false);
 			irq_primask_enable();
