@@ -450,7 +450,7 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 
 void motor_pwm_beep(int frequency, int duration_msec)
 {
-	static const float DUTY_CYCLE = 0.008;
+	static const float DUTY_CYCLE = 0.01;
 	static const int ACTIVE_USEC_MAX = 20;
 
 	motor_pwm_set_freewheeling();
