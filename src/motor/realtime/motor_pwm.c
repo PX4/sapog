@@ -281,12 +281,23 @@ static void phase_reset_all_i(void)
 __attribute__((optimize(3)))
 static inline void phase_reset_i(uint_fast8_t phase)
 {
+	/*
+	 * HACK
+	 * The timer needs to overflow once before new PWM settings will be applied.
+	 * When the next comm step needs to be activated, there's no time to wait for the next overflow,
+	 * thus we pre-configure PWM here so its settings will be reloaded while the CC channel is inactive
+	 * (phase is floating). Due to the cyclic nature of 3-phase control we know that the next active state
+	 * will be the opposite of the current active state, hence we flip the PWM mode bit 0.
+	 */
 	if (phase == 0) {
 		TIM1->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC1NE);
+		TIM1->CCMR1 ^= TIM_CCMR1_OC1M_0;
 	} else if (phase == 1) {
 		TIM1->CCER &= ~(TIM_CCER_CC2E | TIM_CCER_CC2NE);
+		TIM1->CCMR1 ^= TIM_CCMR1_OC2M_0;
 	} else {
 		TIM1->CCER &= ~(TIM_CCER_CC3E | TIM_CCER_CC3NE);
+		TIM1->CCMR2 ^= TIM_CCMR2_OC3M_0;
 	}
 }
 
