@@ -101,15 +101,21 @@ __attribute__((noreturn))
 static void die(int status)
 {
 	usleep(100000);
-	lowsyslog("Now I am dead. %i\n", status);
-	motor_beep(100, 1000);
+	lowsyslog("Init failed (%i)\n", status);
 	// Really there is nothing left to do; just sit there and beep sadly:
 	while (1) {
+		motor_beep(100, 400);
 		led_set_status(false);
 		led_set_error(true);
-		sleep(2);
-		motor_beep(100, 100);
+		sleep(3);
 	}
+}
+
+static void do_startup_beep(void)
+{
+	motor_beep(1000, 100);
+	usleep(100 * 1000);
+	motor_beep(1000, 100);
 }
 
 static void print_banner(void)
@@ -136,9 +142,7 @@ int main(void)
 	if (init_status)
 		die(init_status);
 
-	motor_beep(500, 150);
-	usleep(150 * 1000);
-	motor_beep(500, 150);
+	do_startup_beep();
 
 	motor_confirm_initialization();
 	led_set_status(false);
