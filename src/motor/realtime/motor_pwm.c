@@ -265,6 +265,9 @@ static void phase_reset_all_i(void)
 	TIM1->CCR1 = 0;
 	TIM1->CCR2 = 0;
 	TIM1->CCR3 = 0;
+	TIM1->CCMR1 &= ~TIM_CCMR1_OC1M_0;
+	TIM1->CCMR1 &= ~TIM_CCMR1_OC2M_0;
+	TIM1->CCMR2 &= ~TIM_CCMR2_OC3M_0;
 	TIM1->EGR = TIM_EGR_COMG;
 }
 
@@ -381,10 +384,13 @@ void motor_pwm_align(const int polarity[MOTOR_NUM_PHASES], int pwm_val)
 		}
 
 		assert(pol == 1 || pol == -1);
-		const bool reverse = pol < 0;
 
 		irq_primask_disable();
-		phase_set_i(phase, pwm_val, reverse);
+		if (pol > 0) {
+			phase_set_i(phase, pwm_val, false);
+		} else {
+			phase_set_i(phase, _pwm_top - pwm_val, false);
+		}
 		irq_primask_enable();
 	}
 
