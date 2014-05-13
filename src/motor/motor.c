@@ -105,8 +105,8 @@ static struct params
 CONFIG_PARAM_FLOAT("motor_spinup_voltage",         1.5,    0.5,     20.0)
 
 CONFIG_PARAM_FLOAT("motor_dc_min_voltage",         1.2,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("motor_dc_step_max",            0.2,    0.001,   0.5)
-CONFIG_PARAM_FLOAT("motor_dc_slope",               10.0,   0.1,     20.0)
+CONFIG_PARAM_FLOAT("motor_dc_step_max",            0.1,    0.001,   0.5)
+CONFIG_PARAM_FLOAT("motor_dc_slope",               5.0,    0.1,     20.0)
 
 CONFIG_PARAM_INT("motor_num_poles",                14,     2,       100)
 CONFIG_PARAM_BOOL("motor_reverse",                 false)
