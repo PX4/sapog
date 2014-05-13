@@ -104,13 +104,13 @@ uint32_t motor_adc_sampling_period_hnsec(void);
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES]);
 
 /**
- * Applies pwm_val to selected phases.
+ * Activates 100% duty cycle of specified polarity on all phases.
  * Phase polarity can be defined as:
  *  -1 - negative
  *  0  - floating
  *  1  - positive
  */
-void motor_pwm_align(const int polarity[MOTOR_NUM_PHASES], int pwm_val);
+void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES]);
 
 void motor_pwm_set_freewheeling(void);
 

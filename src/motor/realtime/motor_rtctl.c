@@ -683,8 +683,6 @@ static int detect_rotor_position_as_step_index(void)
 	};
 	static const int POSITION_CODE_TO_STEP_INDEX[6] = {2, 0, 1, 4, 3, 5}; // Step order: 1 2 0 4 3 5
 
-	const int pwm_val = motor_pwm_compute_pwm_val(1.0);
-
 	// With proper rounding
 	int num_samples_energize =
 		(_params.spinup_vipd_probe_duration + _params.adc_sampling_period / 2) / _params.adc_sampling_period;
@@ -702,14 +700,14 @@ static int detect_rotor_position_as_step_index(void)
 		// We don't care about absolute current values so we don't use offset or scaling
 		// Forward
 		wait_adc_samples(num_samples_sleep);
-		motor_pwm_align(ENERGIZING_TABLE_FORWARD[i], pwm_val);
+		motor_pwm_energize(ENERGIZING_TABLE_FORWARD[i]);
 		wait_adc_samples(num_samples_energize);
 		const int forward_current = motor_adc_get_last_sample().input_current;
 		motor_pwm_set_freewheeling();
 
 		// Reverse
 		wait_adc_samples(num_samples_sleep);
-		motor_pwm_align(ENERGIZING_TABLE_REVERSE[i], pwm_val);
+		motor_pwm_energize(ENERGIZING_TABLE_REVERSE[i]);
 		wait_adc_samples(num_samples_energize);
 		const int reverse_current = motor_adc_get_last_sample().input_current;
 		motor_pwm_set_freewheeling();

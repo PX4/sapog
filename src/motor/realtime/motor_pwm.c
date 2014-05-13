@@ -371,7 +371,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 	apply_phase_config();
 }
 
-void motor_pwm_align(const int polarity[MOTOR_NUM_PHASES], int pwm_val)
+void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
 {
 	irq_primask_disable();
 	phase_reset_all_i();
@@ -382,15 +382,9 @@ void motor_pwm_align(const int polarity[MOTOR_NUM_PHASES], int pwm_val)
 		if (pol == 0) {
 			continue;
 		}
-
 		assert(pol == 1 || pol == -1);
-
 		irq_primask_disable();
-		if (pol > 0) {
-			phase_set_i(phase, pwm_val, false);
-		} else {
-			phase_set_i(phase, _pwm_top - pwm_val, false);
-		}
+		phase_set_i(phase, (pol > 0) ? _pwm_top : 0, false);
 		irq_primask_enable();
 	}
 
@@ -401,6 +395,7 @@ void motor_pwm_set_freewheeling(void)
 {
 	irq_primask_disable();
 	phase_reset_all_i();
+	apply_phase_config();
 	irq_primask_enable();
 }
 
@@ -408,6 +403,7 @@ void motor_pwm_emergency(void)
 {
 	const irqstate_t irqstate = irq_primask_save();
 	phase_reset_all_i();
+	apply_phase_config();
 	irq_primask_restore(irqstate);
 }
 
