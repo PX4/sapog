@@ -53,8 +53,6 @@ static uint16_t _pwm_top;
 static uint16_t _pwm_half_top;
 static uint16_t _pwm_min;
 
-static bool _prevent_full_duty_cycle_bump = true; /// TODO IMPLEMENT LATER
-
 
 static int init_constants(unsigned frequency)
 {
@@ -225,14 +223,11 @@ static void start_timers(void)
 	irq_primask_restore(irqstate);
 }
 
-int motor_pwm_init(unsigned frequency, bool prevent_full_duty_cycle_bump)
+int motor_pwm_init(unsigned frequency)
 {
 	const int ret = init_constants(frequency);
 	if (ret)
 		return ret;
-
-	_prevent_full_duty_cycle_bump = prevent_full_duty_cycle_bump;
-	lowsyslog("Motor: PWM bump suppression: %i\n", (int)_prevent_full_duty_cycle_bump);
 
 	init_timers();
 	start_timers();
