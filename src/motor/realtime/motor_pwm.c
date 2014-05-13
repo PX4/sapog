@@ -214,12 +214,13 @@ static void start_timers(void)
 
 	TIM1->CR1 |= TIM_CR1_CEN;                     // Start all
 
-	// Remove the synchronization
-	TIM2->SMCR = 0;
-
 	// Make sure the timers have started now
 	assert_always(TIM1->CR1 & TIM_CR1_CEN);
 	assert_always(TIM2->CR1 & TIM_CR1_CEN);
+
+	// Configure the synchronous reset - TIM1 master, TIM2 slave
+	TIM1->CR2 &= ~TIM_CR2_MMS;                    // Master, UG bit triggers TRGO
+	TIM2->SMCR = TIM_SMCR_SMS_2;                  // Slave, TRGI triggers UG
 
 	irq_primask_restore(irqstate);
 }
@@ -326,7 +327,8 @@ static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool i
 
 static inline void apply_phase_config(void)
 {
-	TIM1->EGR = TIM_EGR_COMG;
+	// This will reload the shadow PWM registers and restart both timers synchronously
+	TIM1->EGR = TIM_EGR_COMG | TIM_EGR_UG;
 }
 
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
