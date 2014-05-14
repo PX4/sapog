@@ -190,7 +190,7 @@ CONFIG_PARAM_INT("motor_zc_detects_to_start",          200,   6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
-CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
+CONFIG_PARAM_INT("motor_spinup_timeout_ms",            2000,  100,   10000)
 CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       60,    10,    100)
 CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1000,  200,   2000)
 
@@ -754,11 +754,12 @@ static bool do_variable_inductance_spinup(void)
 
 		if (_state.comm_period < _params.spinup_end_comm_period) {
 			good_steps++;
-			if (good_steps > NUM_COMMUTATION_STEPS * 10) { // Just in case, do multiple commutations
-				success = true;
+			success = true;
+			if (good_steps > NUM_COMMUTATION_STEPS * 5) { // Just in case, do multiple commutations
 				break;
 			}
 		} else {
+			success = false;
 			good_steps = 0;
 		}
 	}
@@ -766,7 +767,7 @@ static bool do_variable_inductance_spinup(void)
 	motor_pwm_set_freewheeling();
 
 	if (success) {
-		_state.current_comm_step = (_state.current_comm_step + 2) % NUM_COMMUTATION_STEPS;
+		_state.current_comm_step = (_state.current_comm_step + 1) % NUM_COMMUTATION_STEPS;
 		if (_state.comm_period > _params.comm_period_max) {
 			_state.comm_period = _params.comm_period_max;
 		}
