@@ -186,13 +186,13 @@ CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     3,     8)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
-CONFIG_PARAM_INT("motor_zc_detects_to_start",          100,   6,     500)
+CONFIG_PARAM_INT("motor_zc_detects_to_start",          200,   6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   4000)
-CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       75,    10,    100)
-CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1500,  1000,  4000)
+CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       60,    10,    100)
+CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1000,  200,   2000)
 
 
 static void configure(void)
@@ -335,7 +335,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	case ZC_NOT_DETECTED:
 	case ZC_FAILED:
-		if (_state.flags & FLAG_SPINUP)
+		if ((_state.flags & FLAG_SPINUP) && !(_state.flags & FLAG_SYNC_RECOVERY))
 			engage_current_comm_step();
 		else
 			motor_pwm_set_freewheeling();
@@ -689,7 +689,7 @@ static int detect_rotor_position_as_step_index(void)
 	if (num_samples_energize == 0)
 		num_samples_energize = 1;
 
-	const int num_samples_sleep = num_samples_energize * 2;
+	const int num_samples_sleep = num_samples_energize * 1;
 
 	chSysSuspend();
 	motor_pwm_set_freewheeling();
@@ -730,7 +730,7 @@ static bool do_variable_inductance_spinup(void)
 	int good_steps = 0;
 	bool success = false;
 
-	_state.comm_period = _params.comm_period_max;
+	_state.comm_period = _params.comm_period_max * 4;
 	_state.current_comm_step = detect_rotor_position_as_step_index();
 
 	while (motor_timer_hnsec() < deadline) {
@@ -749,12 +749,12 @@ static bool do_variable_inductance_spinup(void)
 		_state.current_comm_step = this_step;
 
 		const uint64_t timestamp = motor_timer_hnsec();
-		_state.comm_period = (_state.comm_period + (timestamp - prev_step_timestamp)) / 2;
+		_state.comm_period = (_state.comm_period * 7 + (timestamp - prev_step_timestamp)) / 8;
 		prev_step_timestamp = timestamp;
 
 		if (_state.comm_period < _params.spinup_end_comm_period) {
 			good_steps++;
-			if (good_steps > NUM_COMMUTATION_STEPS) { // Just in case, do multiple commutations
+			if (good_steps > NUM_COMMUTATION_STEPS * 10) { // Just in case, do multiple commutations
 				success = true;
 				break;
 			}
@@ -763,11 +763,13 @@ static bool do_variable_inductance_spinup(void)
 		}
 	}
 
+	motor_pwm_set_freewheeling();
+
 	if (success) {
-		// Account for the extremely low resolution
-		_state.comm_period += _params.spinup_vipd_drive_duration;
-		if (_state.comm_period > _params.spinup_end_comm_period)
-			_state.comm_period = _params.spinup_end_comm_period;
+		_state.current_comm_step = (_state.current_comm_step + 2) % NUM_COMMUTATION_STEPS;
+		if (_state.comm_period > _params.comm_period_max) {
+			_state.comm_period = _params.comm_period_max;
+		}
 	}
 	return success;
 }
@@ -801,7 +803,11 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 	init_adc_filters();
 
 	/*
-	 * Low speed spin-up based on variable inductance position detection
+	 * Low speed spin-up based on variable inductance position detection.
+	 * Rotor is accelerated using VIPD, then freewheeling is activated. While the rotor freewheels,
+	 * BEMF controller has enough time to learn the timing and resume driving. Vital part for this
+	 * approach is to ensure that the rotor can freewheel for at least 100 ms during VIPD --> BEMF
+	 * transition.
 	 */
 	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 
@@ -815,7 +821,8 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 	if (started) {
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
 		_state.zc_detection_result = ZC_NOT_DETECTED;
-		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
+		_state.flags = FLAG_ACTIVE | FLAG_SPINUP | FLAG_SYNC_RECOVERY;
+		motor_pwm_set_freewheeling();
 		motor_timer_set_relative(0);
 	} else {
 		motor_rtctl_stop();
