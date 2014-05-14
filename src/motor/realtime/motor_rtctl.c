@@ -102,7 +102,7 @@ enum zc_detection_result
 	ZC_NOT_DETECTED,
 	ZC_DETECTED,
 	ZC_FAILED,
-	ZC_DEMAGNETIZATION
+	ZC_DESATURATION
 };
 
 static struct diag_info                /// This data is never used by the control algorithms, it is write only
@@ -112,7 +112,7 @@ static struct diag_info                /// This data is never used by the contro
 	uint32_t zc_solution_failures;
 	uint32_t bemf_samples_out_of_range;
 	uint32_t bemf_samples_premature_zc;
-	uint32_t demagnetizations;
+	uint32_t desaturations;
 
 	/// Last ZC solution
 	int64_t zc_solution_slope;
@@ -327,7 +327,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		_state.flags &= ~FLAG_SYNC_RECOVERY;
 		break;
 
-	case ZC_DEMAGNETIZATION:
+	case ZC_DESATURATION:
 		engage_current_comm_step();
 		fake_missed_zc_detection(timestamp_hnsec);
 		_state.flags |= FLAG_SYNC_RECOVERY;
@@ -539,11 +539,11 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (past_zc && (_state.zc_bemf_samples_acquired == 0) && !(_state.flags & FLAG_SPINUP)) {
 		_diag.bemf_samples_premature_zc++;
 		/*
-		 * BEMF signal may be affected by extreme magnetic saturation, which we can detect
+		 * BEMF signal may be affected by extreme saturation, which we can detect
 		 * as BEMF readings on the wrong side of neutral voltage past 30 degrees since
 		 * the last commutation. In this case we simply turn off the light and freewheel
 		 * towards the next scheduled commutation.
-		 * Usually, magnetic saturation occurs under low RPM with very high duty cycle
+		 * Usually, saturation occurs under low RPM with very high duty cycle
 		 * (because of large W * sec), as in case of rapid acceleration or high constant load.
 		 * In both cases the powerskipping naturally keeps the power within acceptable range for
 		 * the given motor.
@@ -552,8 +552,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			_state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period / 2;
 		if (sample->timestamp >= deadline) {
 			motor_pwm_set_freewheeling();
-			_state.zc_detection_result = ZC_DEMAGNETIZATION;
-			_diag.demagnetizations++;
+			_state.zc_detection_result = ZC_DESATURATION;
+			_diag.desaturations++;
 		}
 		return;
 	}
@@ -970,7 +970,7 @@ void motor_rtctl_print_debug_info(void)
 
 	lowsyslog("Motor RTCTL diag\n");
 	PRINT_INT("zc failures",       diag_copy.zc_failures_since_start);
-	PRINT_INT("demagnetizations",  diag_copy.demagnetizations);
+	PRINT_INT("desaturations",     diag_copy.desaturations);
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
 	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
 	PRINT_INT("zc sol failures",   diag_copy.zc_solution_failures);
