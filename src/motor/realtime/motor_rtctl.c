@@ -108,11 +108,11 @@ enum zc_detection_result
 static struct diag_info                /// This data is never used by the control algorithms, it is write only
 {
 	/// Increment-only counters
-	uint64_t zc_failures_since_start;
-	uint64_t zc_solution_failures;
-	uint64_t bemf_samples_out_of_range;
-	uint64_t bemf_samples_premature_zc;
-	uint64_t demagnetizations;
+	uint32_t zc_failures_since_start;
+	uint32_t zc_solution_failures;
+	uint32_t bemf_samples_out_of_range;
+	uint32_t bemf_samples_premature_zc;
+	uint32_t demagnetizations;
 
 	/// Last ZC solution
 	int64_t zc_solution_slope;
@@ -899,10 +899,8 @@ uint32_t motor_rtctl_get_comm_period_hnsec(void)
 
 uint64_t motor_rtctl_get_zc_failures_since_start(void)
 {
-	irq_primask_disable();
-	const uint64_t ret = _diag.zc_failures_since_start;
-	irq_primask_enable();
-	return ret;
+	// Atomic
+	return _diag.zc_failures_since_start;
 }
 
 void motor_rtctl_emergency(void)
@@ -961,6 +959,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
 	PRINT_INT("input voltage",   state_copy.input_voltage);
 	PRINT_INT("input current",   state_copy.input_current);
+	PRINT_INT("pwm val",         state_copy.pwm_val);
 
 	/*
 	 * Diagnostics
