@@ -43,6 +43,9 @@
 #include "timer.h"
 
 #define PWM_TIMER_FREQUENCY     STM32_TIMCLK2
+#if STM32_TIMCLK2 != STM32_TIMCLK1
+# error "Invalid timer clock"
+#endif
 
 #define PWM_DEAD_TIME_NANOSEC   300
 
