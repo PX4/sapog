@@ -298,7 +298,7 @@ static float update_control_current_limit(float new_duty_cycle)
 
 static float update_control_dc_slope(float new_duty_cycle, float dt)
 {
-	const float dc_step_max = ((new_duty_cycle + _state.dc_actual) / 2.0f) * _params.dc_step_max;
+	const float dc_step_max = (fabsf(new_duty_cycle) + fabsf(_state.dc_actual)) * 0.5f * _params.dc_step_max;
 	if (fabsf(new_duty_cycle - _state.dc_actual) > dc_step_max) {
 		float step = _params.dc_slope * dt;
 
