@@ -32,8 +32,9 @@
  *
  ****************************************************************************/
 
-#include <config/config.h>
 #include "rpmctl.h"
+#include <config/config.h>
+#include <math.h>
 
 
 static struct state
@@ -50,7 +51,7 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("rpmctl_p",  0.0005,    0.0,     1.0)
+CONFIG_PARAM_FLOAT("rpmctl_p",  0.0003,   0.0,     1.0)
 CONFIG_PARAM_FLOAT("rpmctl_d",  1e-8,     0.0,     1.0)
 CONFIG_PARAM_FLOAT("rpmctl_i",  0.003,    0.0,     10.0)
 
@@ -66,7 +67,7 @@ int rpmctl_init(void)
 void rpmctl_reset(void)
 {
 	_state.integrated = 0.0;
-	_state.prev_error = 0.0;
+	_state.prev_error = nan("");
 }
 
 float rpmctl_update(const struct rpmctl_input* input)
@@ -75,6 +76,12 @@ float rpmctl_update(const struct rpmctl_input* input)
 	 * This PID is only a proof of concept, not intended for real use
 	 */
 	const float error = input->sp - input->pv;
+	assert(isfinite(error));
+
+	if (!isfinite(_state.prev_error)) {
+		_state.prev_error = error;
+	}
+
 	const float p = error * _params.p;
 	const float i = _state.integrated + error * input->dt * _params.i;
 	const float d = ((error - _state.prev_error) / input->dt) * _params.d;

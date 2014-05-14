@@ -111,7 +111,7 @@ CONFIG_PARAM_FLOAT("motor_dc_slope",               5.0,    0.1,     20.0)
 CONFIG_PARAM_INT("motor_num_poles",                14,     2,       100)
 CONFIG_PARAM_BOOL("motor_reverse",                 false)
 
-CONFIG_PARAM_INT("motor_rpm_min",                  700,    50,      5000)
+CONFIG_PARAM_INT("motor_rpm_min",                  1000,   50,      5000)
 
 CONFIG_PARAM_FLOAT("motor_current_limit",          20.0,   1.0,     60.0)
 CONFIG_PARAM_FLOAT("motor_current_limit_p",        0.2,    0.01,    2.0)
