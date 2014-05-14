@@ -50,7 +50,7 @@
 static unsigned comm_period_to_rpm(uint32_t comm_period);
 
 
-static int _watchdog_id;
+//static int _watchdog_id;
 static Mutex _mutex;
 static EVENTSOURCE_DECL(_setpoint_update_event);
 static WORKING_AREA(_wa_control_thread, 1024);
@@ -435,7 +435,7 @@ static msg_t control_thread(void* arg)
 
 		chMtxUnlock();
 
-		watchdog_reset(_watchdog_id);
+		//watchdog_reset(_watchdog_id);
 	}
 
 	assert_always(0);
@@ -444,9 +444,10 @@ static msg_t control_thread(void* arg)
 
 int motor_init(void)
 {
-	_watchdog_id = watchdog_create(WATCHDOG_TIMEOUT_MSEC);
-	if (_watchdog_id < 0)
-		return _watchdog_id;
+	// TODO: Watchdog reset logic must be fixed - currently it may timeout while starting the motor
+//	_watchdog_id = watchdog_create(WATCHDOG_TIMEOUT_MSEC);
+//	if (_watchdog_id < 0)
+//		return _watchdog_id;
 
 	int ret = motor_rtctl_init();
 	if (ret)
