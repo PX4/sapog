@@ -436,10 +436,11 @@ int motor_pwm_compute_pwm_val(float duty_cycle)
 	 */
 	const float abs_duty_cycle = fabs(duty_cycle);
 	uint_fast16_t int_duty_cycle = 0;
-	if (abs_duty_cycle > 0.999)
+	if (abs_duty_cycle > 0.999) {
 		int_duty_cycle = _pwm_top;
-	else
+	} else {
 		int_duty_cycle = (uint_fast16_t)(abs_duty_cycle * _pwm_top);
+	}
 
 	/*
 	 * Compute the complementary duty cycle
@@ -457,8 +458,9 @@ int motor_pwm_compute_pwm_val(float duty_cycle)
 		// Braking mode
 		output = (_pwm_top - int_duty_cycle) / 2;
 
-		if (output < _pwm_min)
+		if (output < _pwm_min) {
 			output = _pwm_min;
+		}
 
 		assert(output >= 0);
 		assert(output <= _pwm_half_top);
@@ -499,8 +501,9 @@ void motor_pwm_beep(int frequency, int duration_msec)
 
 	int active_hnsec = half_period_hnsec * DUTY_CYCLE;
 
-	if (active_hnsec > ACTIVE_USEC_MAX * HNSEC_PER_USEC)
+	if (active_hnsec > ACTIVE_USEC_MAX * HNSEC_PER_USEC) {
 		active_hnsec = ACTIVE_USEC_MAX * HNSEC_PER_USEC;
+	}
 
 	const int idle_hnsec = half_period_hnsec - active_hnsec;
 
