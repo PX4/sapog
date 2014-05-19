@@ -139,8 +139,8 @@ static void init_timers(void)
 	// Reload value
 	TIM2->ARR = TIM1->ARR = _pwm_top;
 
-	// Left-aligned PWM, direction up (will be enabled later)
-	TIM2->CR1 = TIM1->CR1 = 0;
+	// Left-aligned PWM, direction down (will be enabled later)
+	TIM2->CR1 = TIM1->CR1 = TIM_CR1_DIR;
 
 	// Output idle state 0, buffered updates
 	TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
@@ -159,9 +159,9 @@ static void init_timers(void)
 	TIM1->CCMR2 =
 		TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 
-	// ADC sync - inverted PWM mode!
+	// ADC sync
 	TIM2->CCMR1 =
-		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
+		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
 
 	// OC polarity (no inversion, all disabled except ADC sync)
 	TIM1->CCER = 0;
@@ -188,13 +188,9 @@ static void init_timers(void)
 	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
 	/*
-	 * Default ADC sync config
+	 * Default ADC sync config, will be adjusted dynamically
 	 */
-	int adc_trigger_value = (int)(_pwm_top / 4) - (int)_adc_advance_ticks;
-	if (adc_trigger_value < 1) {
-		adc_trigger_value = 1;
-	}
-	TIM2->CCR2 = adc_trigger_value;
+	TIM2->CCR2 = _pwm_half_top;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -283,23 +279,12 @@ static void phase_reset_all_i(void)
 __attribute__((optimize(3)))
 static inline void phase_reset_i(uint_fast8_t phase)
 {
-	/*
-	 * HACK
-	 * The timer needs to overflow once before new PWM settings will be applied.
-	 * When the next comm step needs to be activated, there's no time to wait for the next overflow,
-	 * thus we pre-configure PWM here so its settings will be reloaded while the CC channel is inactive
-	 * (phase is floating). Due to the cyclic nature of 3-phase control we know that the next active state
-	 * will be the opposite of the current active state, hence we flip the PWM mode bit 0.
-	 */
 	if (phase == 0) {
 		TIM1->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC1NE);
-		TIM1->CCMR1 ^= TIM_CCMR1_OC1M_0;
 	} else if (phase == 1) {
 		TIM1->CCER &= ~(TIM_CCER_CC2E | TIM_CCER_CC2NE);
-		TIM1->CCMR1 ^= TIM_CCMR1_OC2M_0;
 	} else {
 		TIM1->CCER &= ~(TIM_CCER_CC3E | TIM_CCER_CC3NE);
-		TIM1->CCMR2 ^= TIM_CCMR2_OC3M_0;
 	}
 }
 
@@ -341,9 +326,12 @@ static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool i
 __attribute__((optimize(3)))
 static inline void adjust_adc_sync(int pwm_val)
 {
-	register int adc_trigger_value = (int)(pwm_val / 2) - (int)_adc_advance_ticks;
+	// The timer is DOWNCOUNTING, hence the advance must be added, not subtracted
+	register int adc_trigger_value = (int)(pwm_val / 2) + (int)_adc_advance_ticks;
 	if (adc_trigger_value < 1) {
 		adc_trigger_value = 1;
+	} else if (adc_trigger_value > pwm_val) {
+		adc_trigger_value = pwm_val;
 	}
 	TIM2->CCR2 = adc_trigger_value;
 }
