@@ -55,6 +55,7 @@
 static uint16_t _pwm_top;
 static uint16_t _pwm_half_top;
 static uint16_t _pwm_min;
+static uint16_t _adc_advance_ticks;
 
 
 static int init_constants(unsigned frequency)
@@ -68,8 +69,8 @@ static int init_constants(unsigned frequency)
 		return -1;
 	}
 
-	const int pwm_steps = PWM_TIMER_FREQUENCY / (2 * frequency);
-	if (pwm_steps > 65536) {
+	const int pwm_steps = PWM_TIMER_FREQUENCY / frequency;
+	if ((pwm_steps < 2) || (pwm_steps > 65536)) {
 		assert(0);
 		return -1;
 	}
@@ -78,7 +79,7 @@ static int init_constants(unsigned frequency)
 	_pwm_half_top = pwm_steps / 2;
 
 	const int effective_steps = pwm_steps / 2;
-	const float true_frequency = PWM_TIMER_FREQUENCY / (float)(pwm_steps * 2);
+	const float true_frequency = PWM_TIMER_FREQUENCY / (float)pwm_steps;
 	const unsigned adc_period_usec = motor_adc_sampling_period_hnsec() / HNSEC_PER_USEC;
 	lowsyslog("Motor: PWM freq: %f; Effective steps: %i; ADC period: %u usec\n",
 		true_frequency, effective_steps, adc_period_usec);
@@ -91,15 +92,29 @@ static int init_constants(unsigned frequency)
 	const float pwm_adc_window_ticks_float = pwm_adc_window_len / pwm_clock_period;
 	assert(pwm_adc_window_ticks_float >= 0);
 
-	// We need to divide the min value by 2 since we're using the center-aligned PWM
-	uint16_t pwm_half_adc_window_ticks = ((uint16_t)pwm_adc_window_ticks_float) / 2;
-	if (pwm_half_adc_window_ticks > _pwm_half_top)
+	uint16_t pwm_half_adc_window_ticks = (uint16_t)pwm_adc_window_ticks_float;
+	if (pwm_half_adc_window_ticks > _pwm_half_top) {
 		pwm_half_adc_window_ticks = _pwm_half_top;
+	}
 
 	_pwm_min = pwm_half_adc_window_ticks;
 	assert(_pwm_min <= _pwm_half_top);
 
-	lowsyslog("Motor: PWM range [%u; %u]\n", (unsigned)_pwm_min, (unsigned)_pwm_top);
+	/*
+	 * ADC synchronization.
+	 * ADC shall be triggered in the middle of a PWM cycle in order to catch the moment when the instant
+	 * winding current matches with average winding current - this helps to eliminate the current ripple
+	 * caused by the PWM switching. Thus we trigger ADC at the point ((pwm_value / 2) - adc_advance).
+	 * Refer to "Synchronizing the On-Chip Analog-to-Digital Converter on 56F80x Devices" for some explanation.
+	 */
+	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
+	const float adc_trigger_advance_ticks_float = adc_trigger_advance / pwm_clock_period;
+	assert(adc_trigger_advance_ticks_float >= 0);
+	assert(adc_trigger_advance_ticks_float < (_pwm_top * 0.4f));
+	_adc_advance_ticks = (uint16_t)adc_trigger_advance_ticks_float;
+
+	lowsyslog("Motor: PWM range [%u; %u], ADC advance ticks %u\n",
+		(unsigned)_pwm_min, (unsigned)_pwm_top, (unsigned)_adc_advance_ticks);
 	return 0;
 }
 
@@ -124,8 +139,8 @@ static void init_timers(void)
 	// Reload value
 	TIM2->ARR = TIM1->ARR = _pwm_top;
 
-	// Buffered update, center-aligned PWM (will be enabled later)
-	TIM2->CR1 = TIM1->CR1 = TIM_CR1_ARPE | TIM_CR1_CMS_0;
+	// Left-aligned PWM, direction up (will be enabled later)
+	TIM2->CR1 = TIM1->CR1 = 0;
 
 	// Output idle state 0, buffered updates
 	TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
@@ -137,16 +152,16 @@ static void init_timers(void)
 	 */
 	// Phase A, phase B
 	TIM1->CCMR1 =
-		TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 |
-		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2;
+		TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
+		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
 
 	// Phase C
 	TIM1->CCMR2 =
-		TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_2;
+		TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 
-	// ADC sync
+	// ADC sync - inverted PWM mode!
 	TIM2->CCMR1 =
-		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2;
+		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
 
 	// OC polarity (no inversion, all disabled except ADC sync)
 	TIM1->CCER = 0;
@@ -173,28 +188,13 @@ static void init_timers(void)
 	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
 	/*
-	 * ADC synchronization
-	 *
-	 * 100%     /\      /
-	 * 75%     /  \    /
-	 * 25%    /    \  /
-	 * 0%    /      \/
-	 *             A  B
-	 * Complementary PWM operates in the range (50%, 100%], thus a FET commutation will never happen in
-	 * between A and B on the diagram above (save the braking mode, but it's negligible).
-	 * ADC shall be triggered either at PWM top or PWM bottom in order to catch the moment when the instant
-	 * winding current matches with average winding current - this helps to eliminate the current ripple
-	 * caused by the PWM switching. Thus we trigger ADC at the bottom minus advance.
-	 * Refer to "Synchronizing the On-Chip Analog-to-Digital Converter on 56F80x Devices" for some explanation.
+	 * Default ADC sync config
 	 */
-	const float adc_trigger_advance = MOTOR_ADC_SYNC_ADVANCE_NANOSEC / 1e9f;
-	const float adc_trigger_advance_ticks_float = adc_trigger_advance / (1.f / PWM_TIMER_FREQUENCY);
-	assert(adc_trigger_advance_ticks_float >= 0);
-	assert(adc_trigger_advance_ticks_float < (_pwm_top * 0.4f));
-	TIM2->CCR2 = (uint16_t)adc_trigger_advance_ticks_float;
-	if (TIM2->CCR2 == 0) {
-		TIM2->CCR2 = 1;
+	int adc_trigger_value = (int)(_pwm_top / 4) - (int)_adc_advance_ticks;
+	if (adc_trigger_value < 1) {
+		adc_trigger_value = 1;
 	}
+	TIM2->CCR2 = adc_trigger_value;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -229,8 +229,9 @@ static void start_timers(void)
 int motor_pwm_init(unsigned frequency)
 {
 	const int ret = init_constants(frequency);
-	if (ret)
+	if (ret) {
 		return ret;
+	}
 
 	init_timers();
 	start_timers();
@@ -254,7 +255,7 @@ void motor_pwm_prepare_to_start(void)
 
 uint32_t motor_adc_sampling_period_hnsec(void)
 {
-	return HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / (((int)_pwm_top + 1) * 2));
+	return HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((int)_pwm_top + 1));
 }
 
 /**
@@ -337,6 +338,21 @@ static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool i
 	}
 }
 
+__attribute__((optimize(3)))
+static inline void adjust_adc_sync(int pwm_val)
+{
+	register int adc_trigger_value = (int)(pwm_val / 2) - (int)_adc_advance_ticks;
+	if (adc_trigger_value < 1) {
+		adc_trigger_value = 1;
+	}
+	TIM2->CCR2 = adc_trigger_value;
+}
+
+static inline void adjust_adc_sync_default(void)
+{
+	adjust_adc_sync(_pwm_half_top);
+}
+
 static inline void apply_phase_config(void)
 {
 	// This will reload the shadow PWM registers and restart both timers synchronously
@@ -371,6 +387,7 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 		}
 	}
 
+	adjust_adc_sync(_pwm_half_top);  // Default for phase manip
 	apply_phase_config();
 }
 
@@ -391,6 +408,7 @@ void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
 		irq_primask_enable();
 	}
 
+	adjust_adc_sync(_pwm_top);
 	apply_phase_config();
 }
 
@@ -398,6 +416,7 @@ void motor_pwm_set_freewheeling(void)
 {
 	irq_primask_disable();
 	phase_reset_all_i();
+	adjust_adc_sync_default();
 	apply_phase_config();
 	irq_primask_enable();
 }
@@ -456,6 +475,7 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 	phase_set_i(step->positive, pwm_val, false);
 	phase_set_i(step->negative, pwm_val, true);
 
+	adjust_adc_sync(pwm_val);
 	apply_phase_config();
 }
 

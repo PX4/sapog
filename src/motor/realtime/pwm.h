@@ -68,20 +68,9 @@ enum motor_pwm_phase_manip
 
 /**
  * Initialize the PWM hardware.
- *
- * PWM mode is center-aligned, so the frequency is defined as:
- *      f = pwm_clock / ((pwm_top + 1) * 2)
- *
- * For 72 MHz clock:
- *   PWM steps - Eff. steps - Frequency
- *   512         256          70312.5
- *   720         360          50000.0
- *   800         400          45000.0
- *   1024        512          35156.25
- *   2048        1024         17578.125
- *
- * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2 * 2)
- *
+ * PWM mode is edge-aligned, the frequency is defined as:
+ *      f = pwm_clock / (pwm_top + 1)
+ * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2)
  * @param [in] frequency - PWM frequency, Hz
  * @param [in] prevent_full_duty_cycle_bump - Limit the duty cycle range so that there will be no jump near 100%
  * @return 0 on success, anything else if the requested frequency is invalid
