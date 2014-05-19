@@ -47,7 +47,7 @@
 # error "Invalid timer clock"
 #endif
 
-#define PWM_DEAD_TIME_NANOSEC   300
+#define PWM_DEAD_TIME_NANOSEC   400
 
 /**
  * Local constants, initialized once
