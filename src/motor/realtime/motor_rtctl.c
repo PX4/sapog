@@ -191,8 +191,8 @@ CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            2000,  100,   10000)
-CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       40,    10,    100)
-CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       1000,  200,   2000)
+CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       60,    10,    100)
+CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       800,   200,   2000)
 
 
 static void configure(void)
