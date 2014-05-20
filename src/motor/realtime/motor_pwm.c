@@ -255,20 +255,19 @@ uint32_t motor_adc_sampling_period_hnsec(void)
 }
 
 /**
- * Safely turns off all phases avoiding shoot-through.
+ * Safely turns off all phases.
  * Assumes:
  *  - motor IRQs are disabled
  */
 static void phase_reset_all_i(void)
 {
-	TIM1->CCER = 0;
-	TIM1->CCR1 = 0;
+	TIM1->CCER = 0;                                     // Disable CC outputs
+	TIM1->CCMR1 &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_OC2M);  // Set FROZEN PWM mode
+	TIM1->CCMR2 &= ~TIM_CCMR2_OC3M_0;
+	TIM1->CCR1 = 0;                                     // Reset CC registers
 	TIM1->CCR2 = 0;
 	TIM1->CCR3 = 0;
-	TIM1->CCMR1 &= ~TIM_CCMR1_OC1M_0;
-	TIM1->CCMR1 &= ~TIM_CCMR1_OC2M_0;
-	TIM1->CCMR2 &= ~TIM_CCMR2_OC3M_0;
-	TIM1->EGR = TIM_EGR_COMG;
+	TIM1->EGR = TIM_EGR_COMG;                           // Reload shadow registers
 }
 
 /**
@@ -281,10 +280,13 @@ static inline void phase_reset_i(uint_fast8_t phase)
 {
 	if (phase == 0) {
 		TIM1->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC1NE);
+		TIM1->CCMR1 &= ~TIM_CCMR1_OC1M;
 	} else if (phase == 1) {
 		TIM1->CCER &= ~(TIM_CCER_CC2E | TIM_CCER_CC2NE);
+		TIM1->CCMR1 &= ~TIM_CCMR1_OC2M;
 	} else {
 		TIM1->CCER &= ~(TIM_CCER_CC3E | TIM_CCER_CC3NE);
+		TIM1->CCMR2 &= ~TIM_CCMR2_OC3M;
 	}
 }
 
@@ -299,25 +301,25 @@ static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool i
 	if (phase == 0) {
 		TIM1->CCR1 = pwm_val;
 		if (inverted) {
-			TIM1->CCMR1 |=  TIM_CCMR1_OC1M_0;  // Switching to PWM mode 2 - inverted
+			TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;  // PWM mode 2 inverted
 		} else {
-			TIM1->CCMR1 &= ~TIM_CCMR1_OC1M_0;  // Switching to PWM mode 1 - non inverted
+			TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;                 // PWM mode 1 non inverted
 		}
 		TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE);
 	} else if (phase == 1) {
 		TIM1->CCR2 = pwm_val;
 		if (inverted) {
-			TIM1->CCMR1 |=  TIM_CCMR1_OC2M_0;
+			TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
 		} else {
-			TIM1->CCMR1 &= ~TIM_CCMR1_OC2M_0;
+			TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
 		}
 		TIM1->CCER |= (TIM_CCER_CC2E | TIM_CCER_CC2NE);
 	} else {
 		TIM1->CCR3 = pwm_val;
 		if (inverted) {
-			TIM1->CCMR2 |=  TIM_CCMR2_OC3M_0;
+			TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
 		} else {
-			TIM1->CCMR2 &= ~TIM_CCMR2_OC3M_0;
+			TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 		}
 		TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
 	}
