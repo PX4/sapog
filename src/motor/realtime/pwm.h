@@ -78,19 +78,9 @@ enum motor_pwm_phase_manip
 int motor_pwm_init(unsigned frequency);
 
 /**
- * Prepare PWM logic for spinup.
+ * Prepares the power stage harware to start the motor
  */
-void motor_pwm_set_spinup_mode(void);
-
-/**
- * When the stable rotation is established, this function should be called from the timer ISR.
- */
-void motor_pwm_set_normal_mode_from_isr(void);
-
-/**
- * This mode should be activated when the motor is not running.
- */
-void motor_pwm_set_default_mode(void);
+void motor_pwm_prepare_to_start(void);
 
 /**
  * ADC converstions are triggered by the PWM hardware, so this function is here

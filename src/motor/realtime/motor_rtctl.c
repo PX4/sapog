@@ -260,8 +260,6 @@ static void register_good_step(void)
 		if (is_stable) {
 			_state.flags &= ~FLAG_SPINUP;
 			_state.pwm_val = _state.pwm_val_after_spinup;
-			// Stable operation is reached, so we can switch PWM logic to normal mode
-			motor_pwm_set_normal_mode_from_isr();
 		}
 	}
 }
@@ -814,7 +812,7 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 	 */
 	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 
-	motor_pwm_set_spinup_mode();
+	motor_pwm_prepare_to_start();
 	const bool started = do_variable_inductance_spinup();
 	const uint32_t spinup_comm_period = _state.comm_period;
 
@@ -848,7 +846,6 @@ void motor_rtctl_stop(void)
 	irq_primask_enable();
 
 	motor_pwm_set_freewheeling();
-	motor_pwm_set_default_mode();
 }
 
 void motor_rtctl_set_duty_cycle(float duty_cycle)

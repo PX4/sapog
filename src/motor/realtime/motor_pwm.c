@@ -47,8 +47,7 @@
 # error "Invalid timer clock"
 #endif
 
-#define PWM_DEAD_TIME_NORMAL_NANOSEC   400
-#define PWM_DEAD_TIME_SPINUP_NANOSEC   600
+#define PWM_DEAD_TIME_NANOSEC   400
 
 /**
  * Local constants, initialized once
@@ -57,8 +56,7 @@ static uint16_t _pwm_top;
 static uint16_t _pwm_half_top;
 static uint16_t _pwm_min;
 static uint16_t _adc_advance_ticks;
-static uint16_t _bdtr_normal;
-static uint16_t _bdtr_spinup;
+
 
 static int init_constants(unsigned frequency)
 {
@@ -170,31 +168,24 @@ static void init_timers(void)
 	TIM2->CCER = TIM_CCER_CC2E;
 
 	/*
-	 * Dead time generator pre-setup.
+	 * Dead time generator setup.
 	 * DTS clock divider set 0, hence fDTS = input clock.
 	 * DTG bit 7 must be 0, otherwise it will change multiplier which is not supported yet.
 	 * At 72 MHz one tick ~ 13.9 nsec, max 127 * 13.9 ~ 1.764 usec, which is large enough.
 	 */
-	// Normal mode
-	_bdtr_normal = (uint16_t)((PWM_DEAD_TIME_NORMAL_NANOSEC / 1e9f) / (1.f / PWM_TIMER_FREQUENCY));
-	assert(_bdtr_normal > 0);
-	if (_bdtr_normal > 127) {
-		assert(0);
-		_bdtr_normal = 127;
-	}
-	_bdtr_normal |= TIM_BDTR_AOE | TIM_BDTR_MOE;
+	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
+	const float pwm_dead_time_ticks_float = pwm_dead_time / (1.f / PWM_TIMER_FREQUENCY);
+	assert(pwm_dead_time_ticks_float > 0);
+	assert(pwm_dead_time_ticks_float < (_pwm_top * 0.2f));
 
-	// Spinup mode
-	_bdtr_spinup = (uint16_t)((PWM_DEAD_TIME_SPINUP_NANOSEC / 1e9f) / (1.f / PWM_TIMER_FREQUENCY));
-	assert(_bdtr_spinup > 0);
-	if (_bdtr_spinup > 127) {
+	uint16_t dead_time_ticks = (uint16_t)pwm_dead_time_ticks_float;
+	if (dead_time_ticks > 127) {
 		assert(0);
-		_bdtr_spinup = 127;
+		dead_time_ticks = 127;
 	}
-	_bdtr_spinup |= TIM_BDTR_AOE | TIM_BDTR_MOE;
+	lowsyslog("Motor: PWM dead time %u ticks\n", (unsigned)dead_time_ticks);
 
-	// Initializing default
-	TIM1->BDTR = _bdtr_spinup;
+	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
 	/*
 	 * Default ADC sync config, will be adjusted dynamically
@@ -245,7 +236,7 @@ int motor_pwm_init(unsigned frequency)
 	return 0;
 }
 
-void motor_pwm_set_spinup_mode(void)
+void motor_pwm_prepare_to_start(void)
 {
 	// High side drivers cap precharge
 	const enum motor_pwm_phase_manip cmd[3] = {
@@ -257,18 +248,6 @@ void motor_pwm_set_spinup_mode(void)
 	usleep(1000);
 	motor_pwm_set_freewheeling();
 	usleep(10000);
-
-	TIM1->BDTR = _bdtr_spinup;
-}
-
-void motor_pwm_set_normal_mode_from_isr(void)
-{
-	TIM1->BDTR = _bdtr_normal;
-}
-
-void motor_pwm_set_default_mode(void)
-{
-	TIM1->BDTR = _bdtr_spinup;
 }
 
 uint32_t motor_adc_sampling_period_hnsec(void)
