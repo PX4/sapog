@@ -6,10 +6,10 @@ Under construction.
 ### Hardware timer usage
 * TIM1 - 3-phase FET bridge PWM
 * TIM2 - ADC synchronization, works in lockstep with TIM1
-* TIM3 - Hard real time callout interface for motor control logic (preempts the kernel)
-* TIM4 - High precision timestamping for motor control logic (sub-microsecond resolution, never overflows)
+* TIM3 - RGB LED PWM
+* TIM4 - Hard real time callout interface for motor control logic (preempts the kernel)
 * TIM5 - RC PWM input capture
-* TIM6 - Unused
+* TIM6 - High precision timestamping for motor control logic (sub-microsecond resolution, never overflows)
 * TIM7 - General purpose timestamping
 
 ### Build instructions

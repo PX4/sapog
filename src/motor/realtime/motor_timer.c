@@ -41,6 +41,14 @@
 #include "timer.h"
 #include "internal.h"
 
+// To prevent occasional use of a wrong timer
+#undef TIM1
+#undef TIM2
+#undef TIM3
+#undef TIM5
+#undef TIM7
+#undef TIM8
+
 #define GLUE2_(A, B)     A##B
 #define GLUE2(A, B)      GLUE2_(A, B)
 #define GLUE3_(A, B, C)  A##B##C
@@ -49,7 +57,7 @@
 /**
  * Timer declaration
  */
-#define TIMER_NUMBER   3
+#define TIMER_NUMBER   4
 
 #define TIMX           GLUE2(TIM, TIMER_NUMBER)
 #define TIMX_IRQn       GLUE3(TIM, TIMER_NUMBER, _IRQn)
