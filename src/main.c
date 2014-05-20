@@ -45,21 +45,10 @@
 #include <watchdog.h>
 #include <motor/motor.h>
 
-static void led_set_status(bool state)
-{
-	(void)state;
-}
-
-static void led_set_error(bool state)
-{
-	(void)state;
-}
-
 void application_halt_hook(void)
 {
 	motor_emergency();
-	led_set_error(true);
-	led_set_status(true);
+	led_set_rgb(1, 0, 0);
 }
 
 static int init(void)
@@ -67,7 +56,7 @@ static int init(void)
 	int res = 0;
 
 	led_init();
-	led_set_rgb(0.1, 0.1, 0.1);
+	led_set_rgb(0.05, 0.05, 0.05);
 
 	/*
 	 * Config
@@ -109,8 +98,7 @@ static void die(int status)
 	// Really there is nothing left to do; just sit there and beep sadly:
 	while (1) {
 		motor_beep(100, 400);
-		led_set_status(false);
-		led_set_error(true);
+		led_set_rgb(1, 0, 0);
 		sleep(3);
 	}
 }
@@ -149,8 +137,6 @@ int main(void)
 	do_startup_beep();
 
 	motor_confirm_initialization();
-	led_set_status(false);
-	led_set_error(false);
 
 	chThdSetPriority(LOWPRIO);
 
@@ -158,9 +144,7 @@ int main(void)
 
 	while (1) {
 		watchdog_reset(wdid);
-		// TODO: LED indication
 		usleep(10000);
-		//led_set_error(motor_get_limit_mask());
 	}
 
 	return 0;
