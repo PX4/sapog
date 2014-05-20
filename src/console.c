@@ -39,6 +39,7 @@
 #include <hal.h>
 #include <shell.h>
 #include <watchdog.h>
+#include <led.h>
 #include <config/config.h>
 #include <motor/motor.h>
 #include "console.h"
@@ -236,6 +237,14 @@ static void cmd_m(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_execute_cli_command(argc, (const char**)argv);
 }
 
+static void cmd_led(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	const float r = (argc > 0) ? atoff(argv[0]) : 0;
+	const float g = (argc > 1) ? atoff(argv[1]) : 0;
+	const float b = (argc > 2) ? atoff(argv[2]) : 0;
+	led_set_rgb(r, g, b);
+}
+
 #if DEBUG_BUILD
 static void cmd_wdt(BaseSequentialStream *chp, int argc, char *argv[])
 {
@@ -264,6 +273,7 @@ static const ShellCommand _commands[] =
 	COMMAND(sp)
 	COMMAND(md)
 	COMMAND(m)
+	COMMAND(led)
 #if DEBUG_BUILD
 	COMMAND(wdt)
 #endif

@@ -40,6 +40,7 @@
 #include <unistd.h>
 #include <config/config.h>
 #include <sys.h>
+#include <led.h>
 #include <console.h>
 #include <watchdog.h>
 #include <motor/motor.h>
@@ -64,6 +65,9 @@ void application_halt_hook(void)
 static int init(void)
 {
 	int res = 0;
+
+	led_init();
+	led_set_rgb(0.1, 0.1, 0.1);
 
 	/*
 	 * Config

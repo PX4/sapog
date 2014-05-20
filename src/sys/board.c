@@ -73,6 +73,9 @@ void boardInit(void)
 	// Serial CLI
 	mapr |= AFIO_MAPR_USART1_REMAP;
 
+	// TIM3 - RGB LED PWM
+	mapr |= AFIO_MAPR_TIM3_REMAP_FULLREMAP;
+
 	// On-board I2C (not used)
 	mapr |= AFIO_MAPR_I2C1_REMAP;
 
