@@ -245,8 +245,9 @@ void motor_pwm_prepare_to_start(void)
 		MOTOR_PWM_MANIP_LOW
 	};
 	motor_pwm_manip(cmd);
-	usleep(50);
+	usleep(1000);
 	motor_pwm_set_freewheeling();
+	usleep(10000);
 }
 
 uint32_t motor_adc_sampling_period_hnsec(void)
