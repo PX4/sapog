@@ -593,8 +593,9 @@ int motor_test_hardware(void)
 	chMtxLock(&_mutex);
 
 	int res = motor_rtctl_test_hardware();
-	if (res > 0)  // Try harder in case of failure
+	if (res > 0) { // Try harder in case of failure
 		res = motor_rtctl_test_hardware();
+	}
 
 	chMtxUnlock();
 	return res;

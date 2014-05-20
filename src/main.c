@@ -77,6 +77,7 @@ static int init(void)
 	if (res)
 		return res;
 
+	usleep(10000);
 	res = motor_test_hardware();
 	if (res)
 		return res;
