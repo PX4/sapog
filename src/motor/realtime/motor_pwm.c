@@ -139,8 +139,8 @@ static void init_timers(void)
 	// Reload value
 	TIM2->ARR = TIM1->ARR = _pwm_top;
 
-	// Left-aligned PWM, direction down (will be enabled later)
-	TIM2->CR1 = TIM1->CR1 = TIM_CR1_DIR;
+	// Left-aligned PWM, direction up (will be enabled later)
+	TIM2->CR1 = TIM1->CR1 = 0;
 
 	// Output idle state 0, buffered updates
 	TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
@@ -161,7 +161,7 @@ static void init_timers(void)
 
 	// ADC sync
 	TIM2->CCMR1 =
-		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
+		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
 
 	// OC polarity (no inversion, all disabled except ADC sync)
 	TIM1->CCER = 0;
@@ -190,7 +190,7 @@ static void init_timers(void)
 	/*
 	 * Default ADC sync config, will be adjusted dynamically
 	 */
-	TIM2->CCR2 = _pwm_half_top;
+	TIM2->CCR2 = _pwm_top / 4;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -326,12 +326,9 @@ static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool i
 __attribute__((optimize(3)))
 static inline void adjust_adc_sync(int pwm_val)
 {
-	// The timer is DOWNCOUNTING, hence the advance must be added, not subtracted
-	register int adc_trigger_value = (int)(pwm_val / 2) + (int)_adc_advance_ticks;
+	register int adc_trigger_value = (int)(pwm_val / 2) - (int)_adc_advance_ticks;
 	if (adc_trigger_value < 1) {
 		adc_trigger_value = 1;
-	} else if (adc_trigger_value > pwm_val) {
-		adc_trigger_value = pwm_val;
 	}
 	TIM2->CCR2 = adc_trigger_value;
 }
