@@ -55,28 +55,49 @@
 #define GLUE3(A, B, C)   GLUE3_(A, B, C)
 
 /**
- * Timer declaration
+ * Event callout timer declaration
  */
-#define TIMER_NUMBER   4
+#define TIMEVT_NUM   4
 
-#define TIMX           GLUE2(TIM, TIMER_NUMBER)
-#define TIMX_IRQn       GLUE3(TIM, TIMER_NUMBER, _IRQn)
-#define TIMX_IRQHandler GLUE3(TIM, TIMER_NUMBER, _IRQHandler)
+#define TIMEVT            GLUE2(TIM, TIMEVT_NUM)
+#define TIMEVT_IRQn       GLUE3(TIM, TIMEVT_NUM, _IRQn)
+#define TIMEVT_IRQHandler GLUE3(TIM, TIMEVT_NUM, _IRQHandler)
 
-#if TIMER_NUMBER == 1 || (TIMER_NUMBER >= 8 && TIMER_NUMBER <= 11)
-#  define TIMX_RCC_ENR          RCC->APB2ENR
-#  define TIMX_RCC_RSTR         RCC->APB2RSTR
-#  define TIMX_RCC_ENR_MASK     GLUE3(RCC_APB2ENR_TIM,  TIMER_NUMBER, EN)
-#  define TIMX_RCC_RSTR_MASK    GLUE3(RCC_APB2RSTR_TIM, TIMER_NUMBER, RST)
-#  define TIMX_INPUT_CLOCK      STM32_TIMCLK2
+#if TIMEVT_NUM == 1 || (TIMEVT_NUM >= 8 && TIMEVT_NUM <= 11)
+#  error Nope
 #else
-#  define TIMX_RCC_ENR          RCC->APB1ENR
-#  define TIMX_RCC_RSTR         RCC->APB1RSTR
-#  define TIMX_RCC_ENR_MASK     GLUE3(RCC_APB1ENR_TIM,  TIMER_NUMBER, EN)
-#  define TIMX_RCC_RSTR_MASK    GLUE3(RCC_APB1RSTR_TIM, TIMER_NUMBER, RST)
-#  define TIMX_INPUT_CLOCK      STM32_TIMCLK1
+#  define TIMEVT_RCC_ENR          RCC->APB1ENR
+#  define TIMEVT_RCC_RSTR         RCC->APB1RSTR
+#  define TIMEVT_RCC_ENR_MASK     GLUE3(RCC_APB1ENR_TIM,  TIMEVT_NUM, EN)
+#  define TIMEVT_RCC_RSTR_MASK    GLUE3(RCC_APB1RSTR_TIM, TIMEVT_NUM, RST)
+#  define TIMEVT_INPUT_CLOCK      STM32_TIMCLK1
 #endif
 
+/**
+ * Timestamping timer declaration
+ */
+#define TIMSTP_NUM   6
+
+#define TIMSTP            GLUE2(TIM, TIMSTP_NUM)
+#define TIMSTP_IRQn       GLUE3(TIM, TIMSTP_NUM, _IRQn)
+#define TIMSTP_IRQHandler GLUE3(TIM, TIMSTP_NUM, _IRQHandler)
+
+#if TIMSTP_NUM == 1 || (TIMSTP_NUM >= 8 && TIMSTP_NUM <= 11)
+#  error Nope
+#else
+#  define TIMSTP_RCC_ENR          RCC->APB1ENR
+#  define TIMSTP_RCC_RSTR         RCC->APB1RSTR
+#  define TIMSTP_RCC_ENR_MASK     GLUE3(RCC_APB1ENR_TIM,  TIMSTP_NUM, EN)
+#  define TIMSTP_RCC_RSTR_MASK    GLUE3(RCC_APB1RSTR_TIM, TIMSTP_NUM, RST)
+#  define TIMSTP_INPUT_CLOCK      STM32_TIMCLK1
+#endif
+
+/**
+ * Sanity check
+ */
+#if TIMSTP_INPUT_CLOCK != TIMEVT_INPUT_CLOCK
+# error "Invalid timer clocks"
+#endif
 
 /**
  * The timer frequency is a compromise between maximum delay and timer resolution
@@ -90,101 +111,109 @@ static const uint64_t INT_1E9 = 1000000000ul;
 static const uint32_t TICKS_PER_OVERFLOW = 0xFFFF + 1;
 
 static uint32_t _nanosec_per_tick = 0;    // 0 means uninitialized
-static uint64_t _raw_ticks = 0;
+static volatile uint64_t _raw_ticks = 0;
 
-
-/*
- * I'd like to take a moment to speak about the timers.
- * Our STM32 is unlucky enough to not have enough timers to implement the firmware
- * logic properly, this is why we do two different tasks of different priorities
- * inside the same ISR:
- * 1. Managing callout interface for phase switching. This should be executed with
- *    nearly zero delay since it directly affects the primary function.
- * 2. Updating the counter for submicrosecond timestamping. This IRQ can be delayed
- *    for up to (nanosec_per_tick * 2^16) nanoseconds with no side effects, which
- *    effectively allows to drop it to the kernel IRQ priority.
- * Since there is only one ISR, we do both things at hard real time priority level.
- *
- * TODO either:
- * 1. Allocate another general purpose timer for timestamping.
- * 2. Use advanced timer (advanced timers have independent IRQ vectors for overflow
- *    event and compare match).
+/**
+ * Event timer ISR
  */
 __attribute__((optimize(3)))
-CH_FAST_IRQ_HANDLER(TIMX_IRQHandler)
+CH_FAST_IRQ_HANDLER(TIMEVT_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
 
-	// It is not necessary to check DIER because UIE is always enabled
-	if (TIMX->SR & TIM_SR_UIF) {
-		TIMX->SR = ~TIM_SR_UIF;
-		_raw_ticks += TICKS_PER_OVERFLOW;
-	}
-
-	if ((TIMX->SR & TIM_SR_CC1IF) && (TIMX->DIER & TIM_DIER_CC1IE)) {
-		TIMX->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
-		TIMX->SR = ~TIM_SR_CC1IF;
+	if ((TIMEVT->SR & TIM_SR_CC1IF) && (TIMEVT->DIER & TIM_DIER_CC1IE)) {
+		TIMEVT->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
+		TIMEVT->SR = ~TIM_SR_CC1IF;
 		// Callback must be called when the IRQ has been ACKed, not other way
-		const uint64_t timestamp = motor_timer_hnsec() - 5;
+		const uint64_t timestamp = motor_timer_hnsec() - 2;
 		motor_timer_callback(timestamp);
 	}
 
 	TESTPAD_CLEAR(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
 }
 
+/**
+ * Timestamping timer overflow ISR
+ * TODO: There must be some way to lower the priority of this IRQ to prevent it from interfering with motor control.
+ *       This should be implemented in the future, because in theory that should improve stability, reduce the
+ *       torque ripple and increase efficiency. The problem with lowering the priority is that this ISR will be
+ *       occasionally preempted by the motor control IRQs that will need the timestamping too, hence the race
+ *       condition.
+ */
+__attribute__((optimize(3)))
+CH_FAST_IRQ_HANDLER(TIMSTP_IRQHandler)
+{
+	assert(TIMSTP->SR & TIM_SR_UIF);
+	TIMSTP->SR = ~TIM_SR_UIF;
+	_raw_ticks += TICKS_PER_OVERFLOW;
+}
+
 /*
 max_freq = 10000000
-for prescaler in xrange(int(TIMX_INPUT_CLOCK / float(max_freq) + 0.5), 65535 + 1):
-    if TIMX_INPUT_CLOCK % prescaler:
+for prescaler in xrange(int(TIMEVT_INPUT_CLOCK / float(max_freq) + 0.5), 65535 + 1):
+    if TIMEVT_INPUT_CLOCK % prescaler:
             continue
-    if int(1e9) % (TIMX_INPUT_CLOCK / prescaler):
+    if int(1e9) % (TIMEVT_INPUT_CLOCK / prescaler):
             continue
-    print prescaler, TIMX_INPUT_CLOCK / prescaler, int(1e9) / (TIMX_INPUT_CLOCK / prescaler)
+    print prescaler, TIMEVT_INPUT_CLOCK / prescaler, int(1e9) / (TIMEVT_INPUT_CLOCK / prescaler)
  */
 void motor_timer_init(void)
 {
 	chSysDisable();
 
 	// Power-on and reset
-	TIMX_RCC_ENR |= TIMX_RCC_ENR_MASK;
-	TIMX_RCC_RSTR |=  TIMX_RCC_RSTR_MASK;
-	TIMX_RCC_RSTR &= ~TIMX_RCC_RSTR_MASK;
+	TIMEVT_RCC_ENR |= TIMEVT_RCC_ENR_MASK;
+	TIMEVT_RCC_RSTR |=  TIMEVT_RCC_RSTR_MASK;
+	TIMEVT_RCC_RSTR &= ~TIMEVT_RCC_RSTR_MASK;
+
+	TIMSTP_RCC_ENR |= TIMSTP_RCC_ENR_MASK;
+	TIMSTP_RCC_RSTR |=  TIMSTP_RCC_RSTR_MASK;
+	TIMSTP_RCC_RSTR &= ~TIMSTP_RCC_RSTR_MASK;
 
 	chSysEnable();
 
 	// Find the optimal prescaler value
-	uint32_t prescaler = (uint32_t)(TIMX_INPUT_CLOCK / ((float)MAX_FREQUENCY)); // Initial value
+	uint32_t prescaler = (uint32_t)(TIMEVT_INPUT_CLOCK / ((float)MAX_FREQUENCY)); // Initial value
 	if (prescaler < 1)
 		prescaler = 1;
 
 	for (;; prescaler++) {
 		assert_always(prescaler < 0xFFFF);
 
-		if (TIMX_INPUT_CLOCK % prescaler)
+		if (TIMEVT_INPUT_CLOCK % prescaler) {
 			continue;
-
-		const uint32_t prescaled_clock = TIMX_INPUT_CLOCK / prescaler;
-		if (INT_1E9 % prescaled_clock)
+		}
+		const uint32_t prescaled_clock = TIMEVT_INPUT_CLOCK / prescaler;
+		if (INT_1E9 % prescaled_clock) {
 			continue;
-
+		}
 		break; // Ok, current prescaler value can divide the timer frequency with no remainder
 	}
-	_nanosec_per_tick = INT_1E9 / (TIMX_INPUT_CLOCK / prescaler);
+	_nanosec_per_tick = INT_1E9 / (TIMEVT_INPUT_CLOCK / prescaler);
 	assert_always(_nanosec_per_tick < 1000);      // Make sure it is sane
 
-	lowsyslog("Motor: Timer resolution: %u nanosec\n", _nanosec_per_tick);
+	lowsyslog("Motor: Timer resolution: %u nanosec\n", (unsigned)_nanosec_per_tick);
 
 	// Enable IRQ
-	nvicEnableVector(TIMX_IRQn,  MOTOR_IRQ_PRIORITY_MASK);
+	nvicEnableVector(TIMEVT_IRQn,  MOTOR_IRQ_PRIORITY_MASK);
+	nvicEnableVector(TIMSTP_IRQn,  MOTOR_IRQ_PRIORITY_MASK);
 
-	// Start the timer
-	TIMX->ARR = 0xFFFF;
-	TIMX->PSC = (uint16_t)(prescaler - 1);
-	TIMX->CR1 = TIM_CR1_URS;
-	TIMX->SR = 0;
-	TIMX->EGR = TIM_EGR_UG;     // Reload immediately
-	TIMX->DIER = TIM_DIER_UIE;
-	TIMX->CR1 = TIM_CR1_CEN;    // Start
+	// Start the event timer
+	TIMEVT->ARR = 0xFFFF;
+	TIMEVT->PSC = (uint16_t)(prescaler - 1);
+	TIMEVT->CR1 = TIM_CR1_URS;
+	TIMEVT->SR  = 0;
+	TIMEVT->EGR = TIM_EGR_UG;     // Reload immediately
+	TIMEVT->CR1 = TIM_CR1_CEN;    // Start
+
+	// Start the timestamping timer
+	TIMSTP->ARR = 0xFFFF;
+	TIMSTP->PSC = (uint16_t)(prescaler - 1);
+	TIMSTP->CR1 = TIM_CR1_URS;
+	TIMSTP->SR  = 0;
+	TIMSTP->EGR = TIM_EGR_UG;     // Reload immediately
+	TIMSTP->DIER = TIM_DIER_UIE;
+	TIMSTP->CR1 = TIM_CR1_CEN;    // Start
 }
 
 uint64_t motor_timer_get_max_delay_hnsec(void)
@@ -193,79 +222,81 @@ uint64_t motor_timer_get_max_delay_hnsec(void)
 	return (_nanosec_per_tick * TICKS_PER_OVERFLOW) / 100;
 }
 
-__attribute__((optimize(3)))
+__attribute__((optimize(1)))          // To prevent the code reordering
 uint64_t motor_timer_hnsec(void)
 {
 	assert(_nanosec_per_tick > 0);  // Make sure the timer was initialized
 
-	/*
-	 * We don't want the timer IRQ to interrupt this sequence.
-	 * If the priority of the timestamping IRQ were lower, we could
-	 * raise BASEPRI to its level and let other higher-priority IRQs
-	 * interrupt and even re-enter this function, it would be fine.
-	 *
-	 * Note that BASEPRI must be restored correctly upon the exit,
-	 * despite the fact that ChibiOS simply does not have API for that.
-	 *
-	 * Also, we can't use port_disable()/port_enable() here, because
-	 * port_enable() not only restores PRIMASK state but also resets
-	 * the BASEPRI register to the default value (0 - all enabled),
-	 * which actually may break some interrupted critical section
-	 * inside the kernel.
-	 */
+#if !NDEBUG
+	static volatile uint64_t prev_output;
 	irq_primask_disable();
+	const volatile uint64_t prev_output_sample = prev_output;
+	irq_primask_enable();
+#endif
 
-	volatile uint64_t ticks = _raw_ticks;
-	volatile uint_fast16_t sample = TIMX->CNT;
+	volatile uint64_t ticks = 0;
+	volatile uint_fast16_t sample = 0;
 
-	if (TIMX->SR & TIM_SR_UIF) {
-		/*
-		 * The timer has overflowed either before or after SR was checked.
-		 * We need to sample it once more to be sure that the obtained
-		 * counter value was wrapped over zero.
-		 */
-		sample = TIMX->CNT;
-		/*
-		 * The timer interrupt was set, but not handled yet.
-		 * Thus we need to adjust the tick counter manually.
-		 */
-		ticks += TICKS_PER_OVERFLOW;
+	while (1) {
+		ticks = _raw_ticks;
+		sample = TIMSTP->CNT;
+
+		const volatile uint64_t ticks2 = _raw_ticks;
+
+		if (ticks == ticks2) {
+			if (TIMSTP->SR & TIM_SR_UIF) {
+				sample = TIMSTP->CNT;
+				ticks += TICKS_PER_OVERFLOW;
+			}
+			break;
+		}
 	}
 
-	irq_primask_enable();
+	const uint64_t output = ((ticks + sample) * _nanosec_per_tick) / 100;
 
-	return (ticks + sample) * _nanosec_per_tick / 100;
+#if !NDEBUG
+	irq_primask_disable();
+	// Make sure the prev output was not modified from another context.
+	if (prev_output_sample == prev_output) {
+		assert(prev_output <= output);
+		prev_output = output;
+	}
+	irq_primask_enable();
+#endif
+	return output;
 }
 
 __attribute__((optimize(3)))
 void motor_timer_set_relative(int delay_hnsec)
 {
 	delay_hnsec -= 1 * HNSEC_PER_USEC;
-	if (delay_hnsec < 0)
+	if (delay_hnsec < 0) {
 		delay_hnsec = 0;
+	}
 
 	assert(_nanosec_per_tick > 0);
 	int delay_ticks = (delay_hnsec * 100) / _nanosec_per_tick;
 
-	assert(delay_ticks <= 0xFFFF);
-	if (delay_ticks > 0xFFFF)
+	if (delay_ticks > 0xFFFF) {
+		assert(0);
 		delay_ticks = 0xFFFF;
+	}
 
 	/*
 	 * Interrupts must be disabled completely because the following
 	 * sequence requires strict timing.
-	 * No port_*() functions shall be used here!
+	 * No port_*() functions are allowed here!
 	 */
 	irq_primask_disable();
 
 	if (delay_hnsec > HNSEC_PER_USEC) {
-		TIMX->CCR1 = TIMX->CNT + delay_ticks;
-		TIMX->SR = ~TIM_SR_CC1IF;             // Acknowledge IRQ
-		TIMX->DIER |= TIM_DIER_CC1IE;         // Enable this compare match
+		TIMEVT->CCR1 = TIMEVT->CNT + delay_ticks;
+		TIMEVT->SR = ~TIM_SR_CC1IF;             // Acknowledge IRQ
+		TIMEVT->DIER |= TIM_DIER_CC1IE;         // Enable this compare match
 	} else {
 		// Force the update event immediately because the delay is too small
-		TIMX->DIER |= TIM_DIER_CC1IE;  // Either here or at the next statement IRQ will be generated
-		TIMX->EGR = TIM_EGR_CC1G;
+		TIMEVT->DIER |= TIM_DIER_CC1IE;  // Either here or at the next statement IRQ will be generated
+		TIMEVT->EGR = TIM_EGR_CC1G;
 	}
 
 	irq_primask_enable();
@@ -275,30 +306,27 @@ __attribute__((optimize(3)))
 void motor_timer_set_absolute(uint64_t timestamp_hnsec)
 {
 	const uint64_t current_timestamp = motor_timer_hnsec();
-	if (timestamp_hnsec > current_timestamp)
+	if (timestamp_hnsec > current_timestamp) {
 		motor_timer_set_relative(timestamp_hnsec - current_timestamp);
-	else
+	} else {
 		motor_timer_set_relative(0);
+	}
 }
 
 void motor_timer_cancel(void)
 {
-	TIMX->DIER &= ~TIM_DIER_CC1IE;
-	TIMX->SR = ~TIM_SR_CC1IF;
-}
-
-void motor_timer_udelay(int usecs)
-{
-	motor_timer_hndelay(usecs * HNSEC_PER_USEC);
+	TIMEVT->DIER &= ~TIM_DIER_CC1IE;
+	TIMEVT->SR = ~TIM_SR_CC1IF;
 }
 
 void motor_timer_hndelay(int hnsecs)
 {
 	static const int OVERHEAD_HNSEC = 1 * HNSEC_PER_USEC;
-	if (hnsecs > OVERHEAD_HNSEC)
+	if (hnsecs > OVERHEAD_HNSEC) {
 		hnsecs -= OVERHEAD_HNSEC;
-	else
+	} else {
 		hnsecs = 0;
+	}
 	const uint64_t deadline = motor_timer_hnsec() + hnsecs;
 	while (motor_timer_hnsec() < deadline) { }
 }

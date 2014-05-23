@@ -54,6 +54,7 @@ uint64_t motor_timer_get_max_delay_hnsec(void);
 
 /**
  * Returns the current timestamp in hectonanoseconds (10^-7).
+ * Can be called from any context (IRQ safe, thread safe).
  */
 uint64_t motor_timer_hnsec(void);
 
@@ -69,7 +70,6 @@ extern void motor_timer_callback(uint64_t timestamp_hnsec);
 /**
  * Busy loop delay
  */
-void motor_timer_udelay(int usecs);
 void motor_timer_hndelay(int hnsecs);
 
 __END_DECLS

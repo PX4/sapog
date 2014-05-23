@@ -143,9 +143,22 @@ int main(void)
 
 	const int wdid = watchdog_create(500);
 
+#if !NDEBUG
+	// Debugging code, will be removed later
+	extern uint64_t motor_timer_hnsec(void);
+	uint64_t prev_ts = motor_timer_hnsec();
+#endif
+
 	while (1) {
+#if !NDEBUG
+		// Timer debugging
+		const uint64_t ts = motor_timer_hnsec();
+		assert(ts > prev_ts);
+		prev_ts = ts;
+#endif
+
 		watchdog_reset(wdid);
-		usleep(10000);
+		chThdYield();
 	}
 
 	return 0;
