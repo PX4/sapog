@@ -48,6 +48,7 @@ MOTOR_CSRC = src/motor/realtime/motor_pwm.c        \
 CSRC = src/main.c                       \
        src/sys/board.c                  \
        src/sys/sys.c                    \
+       src/sys/traps.c                  \
        src/led.c                        \
        src/console.c                    \
        src/watchdog.c                   \

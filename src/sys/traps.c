@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2014 PX4 Development Team. All rights reserved.
  *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,104 +32,20 @@
  *
  ****************************************************************************/
 
+#include <hal.h>
 #include "sys.h"
-#include <stm32f10x.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <assert.h>
 
-#if !CH_DBG_ENABLED
-const char *dbg_panic_msg;
-#endif
-
-static uint64_t _timestamp_usec = 0;
-
-
-void system_tick_hook(void)
+/**
+ * This function will safely terminate the power stage in case of a software failure
+ */
+void unhandled_exception_trap(void)
 {
-	const int period_usec = 1000000 / CH_FREQUENCY;
-
-	_timestamp_usec += period_usec;
-}
-
-uint64_t sys_timestamp_usec(void)
-{
-	chSysDisable();
-	const volatile uint64_t val = _timestamp_usec;
-	chSysEnable();
-	return val;
-}
-
-static void writepoll(const char* str)
-{
-	for (const char *p = str; *p; p++) {
-		while (!(USART1->SR & USART_SR_TXE)) { }
-		USART1->DR = *p;
-	}
-}
-
-void system_halt_hook(void)
-{
-	application_halt_hook();
-
-	port_disable();
-	writepoll("\nPANIC [");
-	const Thread *pthread = chThdSelf();
-	if (pthread && pthread->p_name) {
-		writepoll(pthread->p_name);
-	}
-	writepoll("] ");
-
-	if (dbg_panic_msg != NULL) {
-		writepoll(dbg_panic_msg);
-	}
-	writepoll("\n");
-}
-
-__attribute__((weak))
-void application_halt_hook(void)
-{
-}
-
-void __assert_func(const char* file, int line, const char* func, const char* expr)
-{
-	port_disable();
-
-	char buf[128]; // We don't care about possible stack overflow because going to die anyway
-	snprintf(buf, sizeof(buf), "%s:%i at %s(..): %s", file, line, func, expr);
-	dbg_panic_msg = buf;
-
+	dbg_panic_msg = "TRAP";
 	chSysHalt();
-	while (1) { }
 }
 
-void _exit(int status)
-{
-	(void) status;
-	chSysHalt();
-	while (1) { }
-}
-
-pid_t _getpid(void)
-{
-	return 1;
-}
-
-void _kill(pid_t id)
-{
-	(void) id;
-}
-
-/// From unistd
-int usleep(useconds_t useconds)
-{
-	chThdSleepMicroseconds(useconds);
-	return 0;
-}
-
-/// From unistd
-unsigned sleep(unsigned int seconds)
-{
-	chThdSleepSeconds(seconds);
-	return 0;
-}
+void NMIVector(void) __attribute__((alias("unhandled_exception_trap")));
+void HardFaultVector(void) __attribute__((alias("unhandled_exception_trap")));
+void MemManageVector(void) __attribute__((alias("unhandled_exception_trap")));
+void BusFaultVector(void) __attribute__((alias("unhandled_exception_trap")));
+void UsageFaultVector(void) __attribute__((alias("unhandled_exception_trap")));
