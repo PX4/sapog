@@ -246,8 +246,9 @@ static void register_good_step(void)
 {
 	if (_state.immediate_zc_failures > 0) {
 		_state.immediate_zc_detects++;
-		if (_state.immediate_zc_detects > NUM_COMMUTATION_STEPS)
+		if (_state.immediate_zc_detects > NUM_COMMUTATION_STEPS) {
 			_state.immediate_zc_failures = 0;
+		}
 	}
 
 	if (_state.flags & FLAG_SPINUP) {
@@ -273,8 +274,9 @@ static void register_bad_step(bool* need_to_stop)
 	*need_to_stop = _state.immediate_zc_failures > _params.zc_failures_max;
 
 	// There may be some ZC failures during spinup, it's OK but we don't want to count them
-	if (!(_state.flags & FLAG_SPINUP))
+	if (!(_state.flags & FLAG_SPINUP)) {
 		_diag.zc_failures_since_start++;
+	}
 }
 
 static void fake_missed_zc_detection(uint64_t timestamp_hnsec)
@@ -300,9 +302,9 @@ static void prepare_zc_detector_for_next_step(void)
 
 	_state.zc_bemf_samples_optimal = (_state.comm_period / _params.adc_sampling_period) / denom + 2;
 
-	if (_state.zc_bemf_samples_optimal > MAX_BEMF_SAMPLES)
+	if (_state.zc_bemf_samples_optimal > MAX_BEMF_SAMPLES) {
 		_state.zc_bemf_samples_optimal = MAX_BEMF_SAMPLES;
-
+	}
 	_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal / 2;
 }
 
@@ -315,8 +317,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	// Next comm step
 	_state.current_comm_step++;
-	if (_state.current_comm_step >= NUM_COMMUTATION_STEPS)
+	if (_state.current_comm_step >= NUM_COMMUTATION_STEPS) {
 		_state.current_comm_step = 0;
+	}
 
 	bool stop_now = false;
 
@@ -368,8 +371,9 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
 	_state.prev_zc_timestamp = zc_timestamp;
 
-	if (new_comm_period > _params.comm_period_max)
+	if (new_comm_period > _params.comm_period_max) {
 	        new_comm_period = _params.comm_period_max;
+	}
 
 	if (_state.flags & FLAG_SYNC_RECOVERY) {
 		_state.comm_period = new_comm_period;
@@ -449,8 +453,9 @@ static void solve_least_squares(const int n, const int x[], const int y[], int64
 	const int64_t a = sum_x * sum_y - n * sum_xy;
 	const int64_t b = sum_x * sum_x - n * sum_xx;
 
-	if (b == 0)
+	if (b == 0) {
 		return; // Garbage in - garbage out
+	}
 
 	const int64_t slope = (LEAST_SQUARES_MULT * a + b / 2) / b;
 
@@ -511,9 +516,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		(_state.zc_detection_result == ZC_NOT_DETECTED) &&
 		(sample->timestamp >= _state.blank_time_deadline);
 
-	if (!proceed)
+	if (!proceed) {
 		return;
-
+	}
 	assert(_state.comm_table);
 
 	/*
@@ -564,8 +569,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
 
-	if (past_zc)
+	if (past_zc) {
 		update_input_voltage_current(sample);
+	}
 
 	/*
 	 * Is there enough samples collected?
@@ -583,8 +589,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		}
 	}
 
-	if (!enough_samples)
+	if (!enough_samples) {
 		return;
+	}
 
 	/*
 	 * Find the exact ZC position using the collected samples
@@ -608,14 +615,16 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 int motor_rtctl_init(void)
 {
 	int ret = motor_pwm_init(config_get("motor_pwm_frequency"));
-	if (ret)
+	if (ret) {
 		return ret;
+	}
 
 	motor_timer_init();
 
 	ret = motor_adc_init(config_get("motor_current_shunt_mohm") / 1000.0f);
-	if (ret)
+	if (ret) {
 		return ret;
+	}
 
 	configure();
 	motor_rtctl_stop();
@@ -634,15 +643,17 @@ static void init_adc_filters(void)
 	enum motor_pwm_phase_manip manip_cmd[3];
 
 	// Low phase
-	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++)
+	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
 		manip_cmd[i] = MOTOR_PWM_MANIP_LOW;
+	}
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
 	const int low = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
 
 	// High phase
-	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++)
+	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
 		manip_cmd[i] = MOTOR_PWM_MANIP_HIGH;
+	}
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
 	const int high = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
@@ -686,8 +697,9 @@ static int detect_rotor_position_as_step_index(void)
 	// With proper rounding
 	int num_samples_energize =
 		(_params.spinup_vipd_probe_duration + _params.adc_sampling_period / 2) / _params.adc_sampling_period;
-	if (num_samples_energize == 0)
+	if (num_samples_energize == 0) {
 		num_samples_energize = 1;
+	}
 
 	const int num_samples_sleep = num_samples_energize * 1;
 
@@ -713,8 +725,9 @@ static int detect_rotor_position_as_step_index(void)
 		motor_pwm_set_freewheeling();
 
 		// Position update
-		if (forward_current > reverse_current)
+		if (forward_current > reverse_current) {
 			position_code++;
+		}
 		position_code <<= 1;
 	}
 	chSysEnable();
@@ -744,8 +757,9 @@ static bool do_variable_inductance_spinup(void)
 		motor_pwm_set_step_from_isr(_state.comm_table + this_step, _state.pwm_val);
 		irq_primask_enable();
 
-		if (_state.current_comm_step == this_step)
+		if (_state.current_comm_step == this_step) {
 			continue;
+		}
 		_state.current_comm_step = this_step;
 
 		const uint64_t timestamp = motor_timer_hnsec();
@@ -782,11 +796,13 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 
 	motor_rtctl_stop();                    // Just in case
 
-	if (!_initialization_confirmed)
+	if (!_initialization_confirmed) {
 		return; // Go home you're drunk
+	}
 
-	if (spinup_duty_cycle <= 0 || normal_duty_cycle <= 0)
+	if (spinup_duty_cycle <= 0 || normal_duty_cycle <= 0) {
 		return;
+	}
 
 	/*
 	 * Initialize the structs
@@ -858,16 +874,18 @@ enum motor_rtctl_state motor_rtctl_get_state(void)
 {
 	volatile const unsigned flags = _state.flags;
 
-	if (flags & FLAG_ACTIVE)
+	if (flags & FLAG_ACTIVE) {
 		return (flags & FLAG_SPINUP) ? MOTOR_RTCTL_STATE_STARTING : MOTOR_RTCTL_STATE_RUNNING;
-	else
+	} else {
 		return MOTOR_RTCTL_STATE_IDLE;
+	}
 }
 
 void motor_rtctl_beep(int frequency, int duration_msec)
 {
-	if (_state.flags & FLAG_ACTIVE)
+	if (_state.flags & FLAG_ACTIVE) {
 		return;
+	}
 
 	irq_primask_disable();
 	motor_adc_disable_from_isr();
@@ -890,8 +908,9 @@ void motor_rtctl_beep(int frequency, int duration_msec)
 
 uint32_t motor_rtctl_get_comm_period_hnsec(void)
 {
-	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE)
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
 		return 0;
+	}
 
 	const uint32_t val = _state.comm_period;
 	return val;
@@ -927,10 +946,12 @@ void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_curren
 		curr = _state.input_current;
 	}
 
-	if (out_voltage)
+	if (out_voltage) {
 		*out_voltage = motor_adc_convert_input_voltage(volt);
-	if (out_current)
+	}
+	if (out_current) {
 		*out_current = motor_adc_convert_input_current(curr);
+	}
 }
 
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
@@ -986,8 +1007,9 @@ void motor_rtctl_print_debug_info(void)
 		lowsyslog("Motor ZC solution data\n");
 
 		lowsyslog("  zc samples   ");
-		for (int i = 0; i < _diag.zc_solution_num_samples; i++)
+		for (int i = 0; i < _diag.zc_solution_num_samples; i++) {
 			lowsyslog("%-5i ", diag_copy.zc_solution_samples[i]);
+		}
 		lowsyslog("\n");
 
 		lowsyslog("  zc fitted    ");
