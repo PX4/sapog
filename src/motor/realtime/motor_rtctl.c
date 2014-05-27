@@ -139,6 +139,7 @@ static struct control_state            /// Control state
 
 	unsigned immediate_zc_failures;
 	unsigned immediate_zc_detects;
+	unsigned immediate_desaturations;
 	unsigned zc_detects_during_spinup;
 
 	int zc_bemf_samples[MAX_BEMF_SAMPLES];
@@ -251,6 +252,10 @@ static void register_good_step(void)
 		}
 	}
 
+	if (_state.immediate_desaturations > 0) {
+		_state.immediate_desaturations--;
+	}
+
 	if (_state.flags & FLAG_SPINUP) {
 		_state.zc_detects_during_spinup++;
 
@@ -334,6 +339,10 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		engage_current_comm_step();
 		fake_missed_zc_detection(timestamp_hnsec);
 		_state.flags |= FLAG_SYNC_RECOVERY;
+		_state.immediate_desaturations++;
+		if (_state.immediate_desaturations >= _params.zc_failures_max) {
+			stop_now = true;
+		}
 		break;
 
 	case ZC_NOT_DETECTED:
