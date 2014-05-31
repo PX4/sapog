@@ -190,7 +190,7 @@ CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          300,   6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
-CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  90000)
+CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  20000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            2000,  100,   10000)
 CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       60,    10,    100)
 CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       800,   200,   2000)
@@ -744,6 +744,7 @@ static int detect_rotor_position_as_step_index(void)
 	return POSITION_CODE_TO_STEP_INDEX[position_code];
 }
 
+
 static bool do_variable_inductance_spinup(void)
 {
 	const uint64_t deadline = motor_timer_hnsec() + _params.spinup_timeout;
@@ -778,7 +779,8 @@ static bool do_variable_inductance_spinup(void)
 		if (_state.comm_period < _params.spinup_end_comm_period) {
 			good_steps++;
 			success = true;
-			if (good_steps > NUM_COMMUTATION_STEPS * 5) { // Just in case, do multiple commutations
+			const bool overspin = _state.comm_period < (_params.spinup_end_comm_period / 2);
+			if ((good_steps > NUM_COMMUTATION_STEPS * 5) || overspin) {
 				break;
 			}
 		} else {
@@ -846,6 +848,7 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 	 */
 	if (started) {
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
+		_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
 		_state.zc_detection_result = ZC_NOT_DETECTED;
 		_state.flags = FLAG_ACTIVE | FLAG_SPINUP | FLAG_SYNC_RECOVERY;
 		motor_pwm_set_freewheeling();
