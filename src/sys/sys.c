@@ -84,6 +84,13 @@ void system_halt_hook(void)
 		writepoll(dbg_panic_msg);
 	}
 	writepoll("\n");
+
+#if DEBUG_BUILD
+    if (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk)
+    {
+        __asm volatile ("bkpt #0\n"); // Break into the debugger
+    }
+#endif
 }
 
 __attribute__((weak))
