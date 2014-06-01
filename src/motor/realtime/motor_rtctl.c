@@ -53,6 +53,8 @@
  */
 #define MAX_BEMF_SAMPLES           8
 
+#define ABS_MIN_COMM_PERIOD_USEC   150
+
 /**
  * Computes the timing advance in comm_period units
  */
@@ -375,6 +377,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 static void handle_detected_zc(uint64_t zc_timestamp)
 {
+	assert(zc_timestamp > _state.prev_zc_timestamp);   // Sanity check
+	assert(zc_timestamp < _state.prev_zc_timestamp * 10);
+
 	if (zc_timestamp < _state.prev_zc_timestamp)
 		zc_timestamp = _state.prev_zc_timestamp;
 	uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
@@ -779,7 +784,7 @@ static bool do_variable_inductance_spinup(void)
 		if (_state.comm_period < _params.spinup_end_comm_period) {
 			good_steps++;
 			success = true;
-			const bool overspin = _state.comm_period < (_params.spinup_end_comm_period / 2);
+			const bool overspin = _state.comm_period < (_params.spinup_end_comm_period / 3);
 			if ((good_steps > NUM_COMMUTATION_STEPS * 5) || overspin) {
 				break;
 			}
@@ -799,32 +804,29 @@ static bool do_variable_inductance_spinup(void)
 
 static bool do_bemf_spinup(void)
 {
-	_state.prev_zc_timestamp = motor_timer_hnsec();
+	static const unsigned NUM_STEPS = 10;
+
+	_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
 
 	for (unsigned step_idx = 0; true; step_idx++) {
 		const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-		bool past_zc = false;
-		const uint64_t deadline = motor_timer_hnsec() + _state.comm_period * 2;
+		const uint64_t deadline = motor_timer_hnsec() + _state.comm_period / 2;
 
 		// Wait for the next zero crossing
-		while ((!past_zc) && (motor_timer_hnsec() <= deadline)) {
+		while (motor_timer_hnsec() <= deadline) {
 			const struct motor_adc_sample sample = motor_adc_get_last_sample();
 
 			_state.neutral_voltage =
 				(sample.phase_values[step->positive] + sample.phase_values[step->negative]) / 2;
 
 			const int bemf = sample.phase_values[step->floating] - _state.neutral_voltage;
-			past_zc = is_past_zc(bemf);
+			const bool valid = (motor_timer_hnsec() - _state.prev_zc_timestamp) > (_state.comm_period * 3 / 4);
+			if (is_past_zc(bemf) && valid) {
+				break;
+			}
 		}
 
 		const uint64_t zc_timestamp = motor_timer_hnsec();
-
-		// Check if we timed out
-		if (!past_zc) {
-			motor_pwm_set_freewheeling();
-			lowsyslog("Motor: BEMF spinup ZC timeout at step %i\n", step_idx);
-			return false;
-		}
 
 		// Update comm period
 		const uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
@@ -837,7 +839,7 @@ static bool do_bemf_spinup(void)
 		_state.comm_period = (_state.comm_period * 3 + new_comm_period + 2) / 4;
 
 		// Check the termination condition
-		if (step_idx >= 10) {
+		if (step_idx >= NUM_STEPS) {
 			break;
 		}
 
@@ -915,7 +917,7 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
 		_state.zc_detection_result = ZC_DETECTED;
 		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
-		motor_timer_set_relative(_state.comm_period / 2);
+		motor_timer_set_relative(_state.comm_period / 3);
 		lowsyslog("Motor: Spinup OK, comm period: %u usec\n",
 			(unsigned)(_state.comm_period / HNSEC_PER_USEC));
 	} else {
@@ -1033,8 +1035,8 @@ uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
 {
 	// Ensure some number of ADC samples per comm period
 	uint32_t retval = motor_adc_sampling_period_hnsec() * 5;
-	if (retval < 150 * HNSEC_PER_USEC) {
-		retval = 150 * HNSEC_PER_USEC;
+	if (retval < ABS_MIN_COMM_PERIOD_USEC * HNSEC_PER_USEC) {
+		retval = ABS_MIN_COMM_PERIOD_USEC * HNSEC_PER_USEC;
 	}
 	return retval;
 }
