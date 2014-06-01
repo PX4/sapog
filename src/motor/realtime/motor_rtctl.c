@@ -784,7 +784,7 @@ static bool do_variable_inductance_spinup(void)
 		if (_state.comm_period < _params.spinup_end_comm_period) {
 			good_steps++;
 			success = true;
-			const bool overspin = _state.comm_period < (_params.spinup_end_comm_period / 3);
+			const bool overspin = _state.comm_period < (_params.spinup_end_comm_period / 2);
 			if ((good_steps > NUM_COMMUTATION_STEPS * 5) || overspin) {
 				break;
 			}
@@ -897,15 +897,12 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 
 	motor_pwm_prepare_to_start();
 	bool started = do_variable_inductance_spinup();
+	const uint32_t vipd_end_comm_period = _state.comm_period;
 
 	/*
 	 * High speed spinup based on BEMF detection.
 	 */
 	if (started) {
-#if DEBUG_BUILD
-		lowsyslog("Motor: VIPD spinup OK, comm period: %u usec\n",
-			(unsigned)(_state.comm_period / HNSEC_PER_USEC));
-#endif
 		started = do_bemf_spinup();
 	}
 
@@ -918,7 +915,8 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 		_state.zc_detection_result = ZC_DETECTED;
 		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
 		motor_timer_set_relative(_state.comm_period / 3);
-		lowsyslog("Motor: Spinup OK, comm period: %u usec\n",
+		lowsyslog("Motor: Spinup OK, comm period: VIPD: %u usec, BEMF: %u usec\n",
+			(unsigned)(vipd_end_comm_period / HNSEC_PER_USEC),
 			(unsigned)(_state.comm_period / HNSEC_PER_USEC));
 	} else {
 		lowsyslog("Motor: Spinup failed\n");
