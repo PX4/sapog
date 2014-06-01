@@ -216,11 +216,13 @@ static void configure(void)
 	/*
 	 * Validation
 	 */
-	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec())
+	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec()) {
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
+	}
 
-	if (_params.spinup_end_comm_period > _params.comm_period_max)
+	if (_params.spinup_end_comm_period > _params.comm_period_max) {
 		_params.spinup_end_comm_period = _params.comm_period_max;
+	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
@@ -317,8 +319,9 @@ static void prepare_zc_detector_for_next_step(void)
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
 {
-	if (!(_state.flags & FLAG_ACTIVE))
+	if (!(_state.flags & FLAG_ACTIVE)) {
 		return;
+	}
 
 	motor_timer_set_relative(_state.comm_period);
 
@@ -349,10 +352,11 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	case ZC_NOT_DETECTED:
 	case ZC_FAILED:
-		if ((_state.flags & FLAG_SPINUP) && !(_state.flags & FLAG_SYNC_RECOVERY))
+		if ((_state.flags & FLAG_SPINUP) && !(_state.flags & FLAG_SYNC_RECOVERY)) {
 			engage_current_comm_step();
-		else
+		} else {
 			motor_pwm_set_freewheeling();
+		}
 		fake_missed_zc_detection(timestamp_hnsec);
 		register_bad_step(&stop_now);
 		_state.flags |= FLAG_SYNC_RECOVERY;
@@ -390,6 +394,14 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	}
 
 	if (_state.flags & FLAG_SYNC_RECOVERY) {
+		/*
+		 * TODO: Proper sync recovery:
+		 * - Disable PWM
+		 * - Forget current comm step number - we're out of sync, so the step number is likely to be wrong
+		 * - Infer the current rotor position from the BEMF signals
+		 * - Measure the comm period using two subsequent ZC events
+		 * - Resume PWM
+		 */
 		_state.comm_period = new_comm_period;
 		engage_current_comm_step();
 	} else {
