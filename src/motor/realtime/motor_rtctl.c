@@ -190,7 +190,7 @@ CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          300,   6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
-CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  10000, 8000,  20000)
+CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  12000, 8000,  20000)
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            2000,  100,   10000)
 CONFIG_PARAM_INT("motor_spinup_vipd_probe_usec",       60,    10,    100)
 CONFIG_PARAM_INT("motor_spinup_vipd_drive_usec",       800,   200,   2000)
@@ -789,15 +789,73 @@ static bool do_variable_inductance_spinup(void)
 		}
 	}
 
-	motor_pwm_set_freewheeling();
-
 	if (success) {
-		_state.current_comm_step = (_state.current_comm_step + 1) % NUM_COMMUTATION_STEPS;
 		if (_state.comm_period > _params.comm_period_max) {
 			_state.comm_period = _params.comm_period_max;
 		}
 	}
 	return success;
+}
+
+static bool do_bemf_spinup(void)
+{
+	_state.prev_zc_timestamp = motor_timer_hnsec();
+
+	for (unsigned step_idx = 0; true; step_idx++) {
+		const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
+		bool past_zc = false;
+		const uint64_t deadline = motor_timer_hnsec() + _state.comm_period * 2;
+
+		// Wait for the next zero crossing
+		while ((!past_zc) && (motor_timer_hnsec() <= deadline)) {
+			const struct motor_adc_sample sample = motor_adc_get_last_sample();
+
+			_state.neutral_voltage =
+				(sample.phase_values[step->positive] + sample.phase_values[step->negative]) / 2;
+
+			const int bemf = sample.phase_values[step->floating] - _state.neutral_voltage;
+			past_zc = is_past_zc(bemf);
+		}
+
+		const uint64_t zc_timestamp = motor_timer_hnsec();
+
+		// Check if we timed out
+		if (!past_zc) {
+			motor_pwm_set_freewheeling();
+			lowsyslog("Motor: BEMF spinup ZC timeout at step %i\n", step_idx);
+			return false;
+		}
+
+		// Update comm period
+		const uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
+		_state.prev_zc_timestamp = zc_timestamp;
+		if (new_comm_period > _params.comm_period_max) {
+			motor_pwm_set_freewheeling();
+			lowsyslog("Motor: BEMF spinup comm period error\n");
+			return false;
+		}
+		_state.comm_period = (_state.comm_period * 3 + new_comm_period + 2) / 4;
+
+		// Check the termination condition
+		if (step_idx >= 10) {
+			break;
+		}
+
+		// Next step
+		_state.current_comm_step++;
+		if (_state.current_comm_step >= NUM_COMMUTATION_STEPS) {
+			_state.current_comm_step = 0;
+		}
+
+		// Switch the comm step
+		motor_timer_hndelay(_state.comm_period / 2);
+		irq_primask_disable();
+		motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, _state.pwm_val);
+		irq_primask_enable();
+		motor_timer_hndelay(_params.comm_blank_hnsec);
+	}
+
+	return true;
 }
 
 void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
@@ -832,35 +890,40 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 
 	/*
 	 * Low speed spin-up based on variable inductance position detection.
-	 * Rotor is accelerated using VIPD, then freewheeling is activated. While the rotor freewheels,
-	 * BEMF controller has enough time to learn the timing and resume driving. Vital part for this
-	 * approach is to ensure that the rotor can freewheel for at least 100 ms during VIPD --> BEMF
-	 * transition.
 	 */
 	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 
 	motor_pwm_prepare_to_start();
-	const bool started = do_variable_inductance_spinup();
-	const uint32_t spinup_comm_period = _state.comm_period;
+	bool started = do_variable_inductance_spinup();
+
+	/*
+	 * High speed spinup based on BEMF detection.
+	 */
+	if (started) {
+#if DEBUG_BUILD
+		lowsyslog("Motor: VIPD spinup OK, comm period: %u usec\n",
+			(unsigned)(_state.comm_period / HNSEC_PER_USEC));
+#endif
+		started = do_bemf_spinup();
+	}
 
 	/*
 	 * Engage the normal mode if started
+	 * At this point, if the spinup was OK, we're sutiated RIGHT AFTER THE DETECTED ZERO CROSS, engaged.
 	 */
 	if (started) {
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
-		_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
-		_state.zc_detection_result = ZC_NOT_DETECTED;
-		_state.flags = FLAG_ACTIVE | FLAG_SPINUP | FLAG_SYNC_RECOVERY;
-		motor_pwm_set_freewheeling();
-		motor_timer_set_relative(0);
+		_state.zc_detection_result = ZC_DETECTED;
+		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
+		motor_timer_set_relative(_state.comm_period / 2);
+		lowsyslog("Motor: Spinup OK, comm period: %u usec\n",
+			(unsigned)(_state.comm_period / HNSEC_PER_USEC));
 	} else {
+		lowsyslog("Motor: Spinup failed\n");
 		motor_rtctl_stop();
 	}
 
 	chThdSetPriority(orig_priority);
-
-	lowsyslog("Motor: Initial spinup comm period: %u usec, %s\n",
-		(unsigned)(spinup_comm_period / HNSEC_PER_USEC), started ? "done" : "failed");
 }
 
 void motor_rtctl_stop(void)
