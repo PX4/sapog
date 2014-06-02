@@ -779,18 +779,16 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 	return _state.comm_period < _params.comm_period_max;
 }
 
-void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool reverse)
+void motor_rtctl_start(float duty_cycle, bool reverse)
 {
-	assert(spinup_duty_cycle >= 0);
-	assert(normal_duty_cycle >= 0);
-
 	motor_rtctl_stop();                    // Just in case
 
 	if (!_initialization_confirmed) {
 		return; // Go home you're drunk
 	}
 
-	if (spinup_duty_cycle <= 0 || normal_duty_cycle <= 0) {
+	if (duty_cycle <= 0) {
+		assert(0);
 		return;
 	}
 
@@ -804,7 +802,7 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
 
-	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(normal_duty_cycle);
+	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(duty_cycle);
 
 	init_adc_filters();
 
@@ -815,7 +813,7 @@ void motor_rtctl_start(float spinup_duty_cycle, float normal_duty_cycle, bool re
 
 	motor_pwm_prepare_to_start();
 
-	const bool started = do_bemf_spinup(spinup_duty_cycle);
+	const bool started = do_bemf_spinup(duty_cycle);
 
 	/*
 	 * Engage the normal mode if started

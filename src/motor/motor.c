@@ -81,8 +81,6 @@ static struct state
 
 static struct params
 {
-	float spinup_voltage;
-
 	float dc_min_voltage;
 	float dc_step_max;
 	float dc_slope;
@@ -102,9 +100,7 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("motor_spinup_voltage",         1.5,    0.5,     20.0)
-
-CONFIG_PARAM_FLOAT("motor_dc_min_voltage",         1.2,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("motor_dc_min_voltage",         1.1,    0.5,     10.0)
 CONFIG_PARAM_FLOAT("motor_dc_step_max",            0.1,    0.001,   0.5)
 CONFIG_PARAM_FLOAT("motor_dc_slope",               5.0,    0.1,     20.0)
 
@@ -122,8 +118,6 @@ CONFIG_PARAM_INT("motor_num_halts_to_latch",       7,      1,       100)
 
 static void configure(void)
 {
-	_params.spinup_voltage = config_get("motor_spinup_voltage"); // spinup/min voltages are unrelated
-
 	_params.dc_min_voltage = config_get("motor_dc_min_voltage");
 	_params.dc_step_max    = config_get("motor_dc_step_max");
 	_params.dc_slope       = config_get("motor_dc_slope");
@@ -208,7 +202,7 @@ static void update_control_non_running(void)
 		return;
 
 	// Start if necessary
-	const float spinup_dc = _params.spinup_voltage / _state.input_voltage;
+	const float spinup_dc = _params.dc_min_voltage / _state.input_voltage;
 
 	const bool need_start =
 		(_state.mode == MOTOR_CONTROL_MODE_OPENLOOP && (_state.dc_openloop_setpoint > 0)) ||
@@ -218,7 +212,7 @@ static void update_control_non_running(void)
 		const uint64_t timestamp = motor_rtctl_timestamp_hnsec();
 
 		_state.dc_actual = spinup_dc;
-		motor_rtctl_start(spinup_dc, spinup_dc, _params.reverse);
+		motor_rtctl_start(spinup_dc, _params.reverse);
 		_state.rtctl_state = motor_rtctl_get_state();
 
 		// This HACK prevents the setpoint TTL expiration in case of protracted startup
