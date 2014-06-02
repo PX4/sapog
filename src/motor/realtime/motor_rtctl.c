@@ -194,10 +194,10 @@ CONFIG_PARAM_INT("motor_zc_detects_to_start",          300,   6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   2000)
-CONFIG_PARAM_INT("motor_spinup_start_comm_period_usec",64000, 10000, 200000)
+CONFIG_PARAM_INT("motor_spinup_start_comm_period_usec",50000, 10000, 200000)
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  2000,  1000,  10000)
 CONFIG_PARAM_INT("motor_spinup_num_good_comms",        120,   6,     1000)
-CONFIG_PARAM_FLOAT("motor_spinup_duty_cycle_inc",      0.005, 0.001, 0.1)
+CONFIG_PARAM_FLOAT("motor_spinup_duty_cycle_inc",      0.01,  0.001, 0.1)
 
 
 static void configure(void)
@@ -696,27 +696,43 @@ static void init_adc_filters(void)
 	_state.input_current = smpl.input_current;
 }
 
-static uint64_t spinup_wait_zc(const uint64_t this_step_deadline)
+static int spinup_sample_bemf(void)
 {
-	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
+	static uint64_t prev_timestamp = 0;
 
-	while (motor_timer_hnsec() <= this_step_deadline) {
-		const struct motor_adc_sample sample = motor_adc_get_last_sample();
-
-		_state.neutral_voltage =
-			(sample.phase_values[0] + sample.phase_values[1] + sample.phase_values[2]) / 3;
-
-		const int bemf = sample.phase_values[step->floating] - _state.neutral_voltage;
-		if (is_past_zc(bemf)) {
-			return motor_timer_hnsec();
+	struct motor_adc_sample sample;
+	while (true) {
+		sample = motor_adc_get_last_sample();
+		if (sample.timestamp != prev_timestamp) {
+			prev_timestamp = sample.timestamp;
+			break;
 		}
 	}
 
-	return 0;
+	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
+	_state.neutral_voltage = (sample.phase_values[0] + sample.phase_values[1] + sample.phase_values[2]) / 3;
+	return sample.phase_values[step->floating] - _state.neutral_voltage;
+}
+
+static uint64_t spinup_wait_zc(const uint64_t step_deadline)
+{
+	uint64_t zc_timestamp = 0;
+
+	// TODO: Filter kickback current
+	while (motor_timer_hnsec() <= step_deadline) {
+		if (is_past_zc(spinup_sample_bemf())) {
+			zc_timestamp = motor_timer_hnsec();
+			break;
+		}
+	}
+
+	return zc_timestamp;
 }
 
 static bool do_bemf_spinup(const float max_duty_cycle)
 {
+	assert(chThdGetPriority() == HIGHPRIO);  // Mandatory
+
 	// Make sure we're not going to underflow during time calculations
 	while (motor_timer_hnsec() < _params.spinup_start_comm_period) {
 		;
@@ -738,8 +754,8 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 		motor_timer_hndelay(_params.comm_blank_hnsec);
 
 		// Wait for the next zero crossing
-		const uint64_t this_step_deadline = motor_timer_hnsec() + _state.comm_period;
-		const uint64_t zc_timestamp = spinup_wait_zc(this_step_deadline);
+		uint64_t step_deadline = motor_timer_hnsec() + _state.comm_period;
+		const uint64_t zc_timestamp = spinup_wait_zc(step_deadline);
 		num_good_comms = (zc_timestamp > 0) ? (num_good_comms + 1) : 0;
 
 		// Compute the next duty cycle
@@ -749,7 +765,6 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 		}
 		_state.pwm_val = motor_pwm_compute_pwm_val(dc);
 
-		// Only if ZC was detected successfully
 		if (zc_timestamp > 0) {
 			assert(zc_timestamp > _state.prev_zc_timestamp);
 
@@ -757,6 +772,7 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 			const uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
 			_state.prev_zc_timestamp = zc_timestamp;
 			_state.comm_period = (_state.comm_period + new_comm_period) / 2;
+			step_deadline = zc_timestamp + _state.comm_period / 2;
 
 			// Check the termination condition
 			const bool enough_good_comms = num_good_comms > _params.spinup_num_good_comms;
@@ -764,9 +780,14 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 			if (enough_good_comms || fast_enough) {
 				break;
 			}
+		} else {
+			// If ZC was not detected, we need to fake the previous ZC timestamp now
+			_state.prev_zc_timestamp = step_deadline - _state.comm_period / 2;
+		}
 
-			// Wait till the end of the current step
-			motor_timer_hndelay(_state.comm_period / 2);
+		// Wait till the end of the current step
+		while (motor_timer_hnsec() <= step_deadline) {
+			;
 		}
 
 		// Next step
