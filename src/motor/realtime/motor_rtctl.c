@@ -716,13 +716,28 @@ static int spinup_sample_bemf(void)
 
 static uint64_t spinup_wait_zc(const uint64_t step_deadline)
 {
+	const int min_samples_past_zc = (_state.comm_period / _params.adc_sampling_period) / 128 + 1;
+
+	int num_samples_past_zc = 0;
 	uint64_t zc_timestamp = 0;
 
-	// TODO: Filter kickback current
 	while (motor_timer_hnsec() <= step_deadline) {
-		if (is_past_zc(spinup_sample_bemf())) {
-			zc_timestamp = motor_timer_hnsec();
-			break;
+		const bool past_zc = is_past_zc(spinup_sample_bemf());
+
+		if (past_zc) {
+			if (zc_timestamp == 0) {
+				zc_timestamp = motor_timer_hnsec();
+			}
+
+			num_samples_past_zc++;
+			if (num_samples_past_zc >= min_samples_past_zc) {
+				break;
+			}
+		} else {
+			zc_timestamp = 0;
+			if (num_samples_past_zc > 0) {
+				num_samples_past_zc--;
+			}
 		}
 	}
 
@@ -751,10 +766,11 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 		irq_primask_disable();
 		motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, _state.pwm_val);
 		irq_primask_enable();
+
+		uint64_t step_deadline = motor_timer_hnsec() + _state.comm_period;
 		motor_timer_hndelay(_params.comm_blank_hnsec);
 
 		// Wait for the next zero crossing
-		uint64_t step_deadline = motor_timer_hnsec() + _state.comm_period;
 		const uint64_t zc_timestamp = spinup_wait_zc(step_deadline);
 		num_good_comms = (zc_timestamp > 0) ? (num_good_comms + 1) : 0;
 
