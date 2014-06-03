@@ -102,9 +102,20 @@ void led_init(void)
 	TIMX->CR1 |= TIM_CR1_CEN;
 }
 
+static float normalize_range(float x)
+{
+	if (x < 0.0F) { return 0.0F; }
+	if (x > 1.0F) { return 1.0F; }
+	return x;
+}
+
 void led_set_rgb(float red, float green, float blue)
 {
-	TIMX->CCR1 = red   * PWM_TOP;
-	TIMX->CCR2 = green * PWM_TOP;
-	TIMX->CCR3 = blue  * PWM_TOP;
+	const unsigned pwm_red   = normalize_range(red)   * PWM_TOP;
+	const unsigned pwm_green = normalize_range(green) * PWM_TOP;
+	const unsigned pwm_blue  = normalize_range(blue)  * PWM_TOP;
+
+	TIMX->CCR1 = pwm_red;
+	TIMX->CCR2 = pwm_green;
+	TIMX->CCR3 = pwm_blue;
 }
