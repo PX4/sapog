@@ -190,16 +190,15 @@ static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])
 	puts(res ? "Not connected" : "Connected");
 }
 
-static void cmd_sp(BaseSequentialStream *chp, int argc, char *argv[])
+static void cmd_dc(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	static const int TTL_MS = 30000;
 
 	if (argc == 0) {
 		motor_stop();
 		puts("Usage:\n"
-			"  sp <duty cycle or RPM>\n"
-			"  sp arm\n"
-			"Value with '.' is duty cycle, RPM otherwise");
+			"  dc <duty cycle>\n"
+			"  dc arm");
 		return;
 	}
 
@@ -216,15 +215,39 @@ static void cmd_sp(BaseSequentialStream *chp, int argc, char *argv[])
 	}
 
 	const float value = atoff(argv[0]);
-	const bool mode_rpm = strchr(argv[0], '.') == NULL;  // If the string contains a dot, it's duty cycle
+	lowsyslog("Duty cycle %f\n", value);
+	motor_set_duty_cycle(value, TTL_MS);
+}
 
-	if (mode_rpm) {
-		lowsyslog("RPM %u\n", (unsigned)value);
-		motor_set_rpm((unsigned)value, TTL_MS);
-	} else {
-		lowsyslog("DC %f\n", value);
-		motor_set_duty_cycle(value, TTL_MS);
+static void cmd_rpm(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	static const int TTL_MS = 30000;
+
+	if (argc == 0) {
+		motor_stop();
+		puts("Usage:\n"
+			"  rpm <duty cycle>\n"
+			"  rpm arm");
+		return;
 	}
+
+	// Safety check
+	static bool _armed = false;
+	if (!strcmp(argv[0], "arm")) {
+		_armed = true;
+		puts("OK");
+		return;
+	}
+	if (!_armed) {
+		puts("Error: Not armed");
+		return;
+	}
+
+	long value = (long)atoff(argv[0]);
+	value = (value < 0) ? 0 : value;
+	value = (value > 65535) ? 65535 : value;
+	lowsyslog("RPM %li\n", value);
+	motor_set_rpm((unsigned)value, TTL_MS);
 }
 
 static void cmd_md(BaseSequentialStream *chp, int argc, char *argv[])
@@ -270,7 +293,8 @@ static const ShellCommand _commands[] =
 	COMMAND(beep)
 	COMMAND(stat)
 	COMMAND(test)
-	COMMAND(sp)
+	COMMAND(dc)
+	COMMAND(rpm)
 	COMMAND(md)
 	COMMAND(m)
 	COMMAND(led)
