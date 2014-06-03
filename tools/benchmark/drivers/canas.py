@@ -64,7 +64,7 @@ if __name__ == '__main__':
         pass
     redund_chan = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     service_code = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-    cesc = CanAerospaceEsc('slcan0', redundancy_channel_id=redund_chan, service_code=service_code)
+    cesc = CanAerospaceEsc('can0', redundancy_channel_id=redund_chan, service_code=service_code)
     print 'Redundancy channel:', redund_chan, 'Service code:', service_code
     while 1:
         try:
