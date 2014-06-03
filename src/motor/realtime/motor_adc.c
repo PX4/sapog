@@ -232,7 +232,9 @@ struct motor_adc_sample motor_adc_get_last_sample(void)
 
 float motor_adc_convert_input_voltage(int raw)
 {
-	static const float SCALE = (10.0f + 1.5f) / 1.5f; // Rtop = 10K, Rbot = 1.5K
+	static const float RTOP = 10.0F;
+	static const float RBOT = 1.3F;
+	static const float SCALE = (RTOP + RBOT) / RBOT;
 	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
 	return unscaled * SCALE;
 }
