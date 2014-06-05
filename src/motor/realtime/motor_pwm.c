@@ -343,6 +343,12 @@ static inline void adjust_adc_sync_default(void)
 
 static inline void apply_phase_config(void)
 {
+	/*
+	 * TODO: Do not reset PWM timer at comm switch? Does this have any side effects?
+	 *       If the PWM timer is not reset, new polarity config will not be reloaded,
+	 *       so some work-around is needed. Also, beep function will need to
+	 *       manipulate FETs directly (not via the PWM controller).
+	 */
 	// This will reload the shadow PWM registers and restart both timers synchronously
 	TIM1->EGR = TIM_EGR_COMG | TIM_EGR_UG;
 }
