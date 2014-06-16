@@ -141,8 +141,6 @@ int main(void)
 
 	chThdSetPriority(LOWPRIO);
 
-	const int wdid = watchdog_create(500);
-
 #if !NDEBUG
 	// Debugging code, will be removed later
 	extern uint64_t motor_timer_hnsec(void);
@@ -157,7 +155,6 @@ int main(void)
 		prev_ts = ts;
 #endif
 
-		watchdog_reset(wdid);
 		chThdYield();
 	}
 
