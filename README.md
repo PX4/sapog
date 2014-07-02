@@ -13,7 +13,7 @@ Under construction.
 * TIM7 - General purpose timestamping
 
 ### Build instructions
-Compiler: GCC ARM 4.6+
+Compiler: GCC ARM 4.7+
 ```bash
 cd tools
 ./fetch_chibios.sh
