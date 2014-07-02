@@ -45,13 +45,10 @@
 #include <watchdog.h>
 #include <motor/motor.h>
 
-void application_halt_hook(void)
+namespace
 {
-	motor_emergency();
-	led_set_rgb(1, 0, 0);
-}
 
-static int init(void)
+int init()
 {
 	int res = 0;
 
@@ -95,7 +92,7 @@ static int init(void)
 }
 
 __attribute__((noreturn))
-static void die(int status)
+void die(int status)
 {
 	usleep(100000);
 	lowsyslog("Init failed (%i)\n", status);
@@ -107,14 +104,14 @@ static void die(int status)
 	}
 }
 
-static void do_startup_beep(void)
+void do_startup_beep()
 {
 	motor_beep(1000, 100);
 	usleep(100 * 1000);
 	motor_beep(1000, 100);
 }
 
-static void print_banner(void)
+void print_banner()
 {
 	lowsyslog("\n\n\n");
 	lowsyslog("\x1b\x5b\x48");      // Home sweet home
@@ -122,7 +119,18 @@ static void print_banner(void)
 	lowsyslog("PX4ESC\n");
 }
 
-int main(void)
+}
+
+void application_halt_hook(void)
+{
+	motor_emergency();
+	led_set_rgb(1, 0, 0);
+}
+
+// Debugging code, will be removed later
+extern "C" uint64_t motor_timer_hnsec();
+
+int main()
 {
 	halInit();
 	chSysInit();
@@ -147,7 +155,6 @@ int main(void)
 
 #if !NDEBUG
 	// Debugging code, will be removed later
-	extern uint64_t motor_timer_hnsec(void);
 	uint64_t prev_ts = motor_timer_hnsec();
 #endif
 

@@ -39,7 +39,7 @@
 #define CH_USE_HEAP                     FALSE
 #define CH_USE_DYNAMIC                  FALSE
 #define CH_USE_MAILBOXES                FALSE
-#define CH_USE_MESSAGES                 FALSE
+#define CH_USE_MESSAGES                 TRUE
 #define CH_USE_CONDVARS                 FALSE
 
 void system_halt_hook(void);

@@ -51,6 +51,8 @@
 #  define __END_DECLS
 #endif
 
+__BEGIN_DECLS
+
 /**
  * NuttX-like console print; should be used instead of printf()/chprintf()
  */
@@ -81,3 +83,5 @@ extern void application_halt_hook(void);
 
 __attribute__((noreturn))
 void sys_panic(const char* msg);
+
+__END_DECLS

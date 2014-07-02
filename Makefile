@@ -36,25 +36,12 @@ PROJECT = px4esc
 # Sources
 #
 
-MOTOR_CSRC = src/motor/realtime/motor_pwm.c        \
-             src/motor/realtime/motor_timer.c      \
-             src/motor/realtime/motor_adc.c        \
-             src/motor/realtime/motor_rtctl_test.c \
-             src/motor/realtime/motor_rtctl.c      \
-             src/motor/realtime/motor_debug_cli.c  \
-             src/motor/motor.c                     \
-             src/motor/rpmctl.c
+CSRC = $(wildcard src/*.c)     \
+       $(wildcard src/*/*.c)   \
+       $(wildcard src/*/*/*.c)
 
-CSRC = src/main.c                       \
-       src/sys/board.c                  \
-       src/sys/sys.c                    \
-       src/sys/traps.c                  \
-       src/led.c                        \
-       src/console.c                    \
-       src/watchdog.c                   \
-       src/config/config.c              \
-       src/config/flash_storage.c       \
-       $(MOTOR_CSRC)
+CPPSRC = $(wildcard src/*.cpp)   \
+         $(wildcard src/*/*.cpp)
 
 UINCDIR = src           \
           src/sys       \
@@ -76,6 +63,7 @@ include $(CHIBIOS)/os/hal/platforms/STM32F1xx/platform_f105_f107.mk
 include $(CHIBIOS)/os/hal/hal.mk
 include $(CHIBIOS)/os/ports/GCC/ARMCMx/STM32F1xx/port.mk
 include $(CHIBIOS)/os/kernel/kernel.mk
+include $(CHIBIOS)/os/various/cpp_wrappers/kernel.mk
 
 LDSCRIPT= $(PORTLD)/STM32F107xC.ld
 
@@ -83,17 +71,21 @@ VARIOUSSRC = $(CHIBIOS)/os/various/syscalls.c $(CHIBIOS)/os/various/chprintf.c $
 
 CSRC += $(PORTSRC) $(KERNSRC) $(HALSRC) $(PLATFORMSRC) $(VARIOUSSRC)
 
+CPPSRC += $(CHCPPSRC)
+
 ASMSRC = $(PORTASM)
 
-INCDIR = $(PORTINC) $(KERNINC) $(HALINC) $(PLATFORMINC) $(CHIBIOS)/os/various
+INCDIR = $(PORTINC) $(KERNINC) $(HALINC) $(PLATFORMINC) $(CHCPPINC) $(CHIBIOS)/os/various
 
 #
 # Build configuration
 #
 
-USE_OPT = -falign-functions=16 --std=c99 -U__STRICT_ANSI__
-USE_COPT =
-USE_CPPOPT = -fno-rtti
+USE_OPT = -falign-functions=16 -U__STRICT_ANSI__ -fno-exceptions -fno-unwind-tables -fno-stack-protector
+USE_OPT += -nodefaultlibs -lc -lgcc -lm
+
+USE_COPT = -std=c99
+USE_CPPOPT = -std=c++11 -fno-rtti -fno-threadsafe-statics
 
 RELEASE ?= 0
 ifneq ($(RELEASE),0)
@@ -113,8 +105,7 @@ MCU  = cortex-m3
 TRGT = arm-none-eabi-
 CC   = $(TRGT)gcc
 CPPC = $(TRGT)g++
-LD   = $(TRGT)gcc
-#LD   = $(TRGT)g++
+LD   = $(TRGT)g++
 CP   = $(TRGT)objcopy
 AS   = $(TRGT)gcc -x assembler-with-cpp
 OD   = $(TRGT)objdump
