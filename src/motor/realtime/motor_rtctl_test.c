@@ -74,6 +74,41 @@ static int compare_samples(const void* p1, const void* p2)
     return (*(const int*)p1 - *(const int*)p2);
 }
 
+static int test_sensors(void)
+{
+	static const int ADC_MAX = (1U << MOTOR_ADC_RESOLUTION) - 1;
+
+	/*
+	 * Enable the synchronous PWM on all phases, obtain a sample and disable PWM again
+	 */
+	const enum motor_pwm_phase_manip manip_cmd[MOTOR_NUM_PHASES] = {
+		MOTOR_PWM_MANIP_HALF,
+		MOTOR_PWM_MANIP_HALF,
+		MOTOR_PWM_MANIP_HALF
+	};
+	motor_pwm_manip(manip_cmd);
+	usleep(INITIAL_DELAY_MS * 1000);
+
+	const struct motor_adc_sample sample = motor_adc_get_last_sample();
+
+	motor_pwm_set_freewheeling();
+
+	/*
+	 * Validate the obtained sample
+	 */
+	const bool valid_voltage = (sample.input_voltage > 0) && (sample.input_voltage < ADC_MAX);
+	const bool valid_current = (sample.input_current > 0) && (sample.input_current < ADC_MAX);
+
+	if (!valid_voltage || !valid_current) {
+		lowsyslog("Motor: Invalid sensor readings: raw input voltage %i, raw input current %i\n",
+			sample.input_voltage, sample.input_current);
+		return 1;
+	}
+
+	lowsyslog("Motor: Raw input voltage %i, raw input current %i\n", sample.input_voltage, sample.input_current);
+	return 0;
+}
+
 /**
  * Sets high/low levels on the output FETs, reads ADC samples making sure that there are proper corellations.
  */
@@ -86,7 +121,6 @@ static int test_power_stage(void)
 	const int threshold = ((1 << MOTOR_ADC_RESOLUTION) * ANALOG_TOLERANCE_PERCENT) / 100;
 
 	motor_pwm_set_freewheeling();
-	usleep(INITIAL_DELAY_MS * 1000);
 
 	/*
 	 * Test phases at low level; collect high level readings
@@ -191,14 +225,34 @@ int motor_rtctl_test_hardware(void)
 		return -1;
 	}
 
+	motor_pwm_set_freewheeling();
+	usleep(INITIAL_DELAY_MS * 1000);
+
 	lowsyslog("Motor: Power stage test...\n");
-	int res = test_power_stage();
-	if (res != 0) {
-		return res;
+	{
+		int res = test_power_stage();
+		if (res != 0) {
+			return res;
+		}
 	}
 
 	lowsyslog("Motor: Cross phase test...\n");
-	return test_cross_phase_conductivity();
+	{
+		int res = test_cross_phase_conductivity();
+		if (res != 0) {
+			return res;
+		}
+	}
+
+	lowsyslog("Motor: Sensors test...\n");
+	{
+		int res = test_sensors();
+		if (res != 0) {
+			return res;
+		}
+	}
+
+	return 0;
 }
 
 int motor_rtctl_test_motor(void)
