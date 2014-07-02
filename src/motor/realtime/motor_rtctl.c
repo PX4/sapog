@@ -533,15 +533,21 @@ static uint64_t solve_zc_approximation(void)
 		_state.zc_bemf_samples_acquired * sizeof(_state.zc_bemf_samples[0]));
 #endif
 
+	const uint64_t zc_timestamp = _state.zc_bemf_timestamps[0] + x;
+
 	/*
 	 * Solution validation
 	 * Implement an outlier detector? Check the solution covariance?
 	 */
-	if (abs(x) > (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2)) {
+	const bool valid =
+		(abs(x) <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2)) &&
+		(zc_timestamp > _state.prev_zc_timestamp);
+
+	if (!valid) {
 		_diag.zc_solution_failures++;
 		return 0;
 	}
-	return _state.zc_bemf_timestamps[0] + x;
+	return zc_timestamp;
 }
 
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
