@@ -40,26 +40,16 @@
 #include <stdarg.h>
 #include <chprintf.h>
 
+__attribute__((weak))
+void *__dso_handle;
+
 #if !CH_DBG_ENABLED
 const char *dbg_panic_msg;
 #endif
 
-static uint64_t _timestamp_usec = 0;
-
 
 void system_tick_hook(void)
 {
-	const int period_usec = 1000000 / CH_FREQUENCY;
-
-	_timestamp_usec += period_usec;
-}
-
-uint64_t sys_timestamp_usec(void)
-{
-	chSysDisable();
-	const volatile uint64_t val = _timestamp_usec;
-	chSysEnable();
-	return val;
 }
 
 static void writepoll(const char* str)
