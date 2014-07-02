@@ -62,8 +62,9 @@ static int init(void)
 	 * Config
 	 */
 	res = config_init();
-	if (res)
+	if (res) {
 		return res;
+	}
 
 	/*
 	 * Safety
@@ -74,20 +75,22 @@ static int init(void)
 	 * Motor control
 	 */
 	res = motor_init();
-	if (res)
+	if (res) {
 		return res;
+	}
 
 	usleep(10000);
 	res = motor_test_hardware();
-	if (res)
+	if (res) {
 		return res;
+	}
 	lowsyslog("Power stage OK\n");
 
-	if (motor_test_motor())
+	if (motor_test_motor()) {
 		lowsyslog("Motor is not connected or damaged\n");
-	else
+	} else {
 		lowsyslog("Motor OK\n");
-
+	}
 	return 0;
 }
 
@@ -132,8 +135,9 @@ int main(void)
 
 	console_init();
 
-	if (init_status)
+	if (init_status) {
 		die(init_status);
+	}
 
 	do_startup_beep();
 
