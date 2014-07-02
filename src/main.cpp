@@ -44,6 +44,7 @@
 #include <console.h>
 #include <watchdog.h>
 #include <motor/motor.h>
+#include <uavcan_node/uavcan_node.hpp>
 
 namespace
 {
@@ -69,14 +70,23 @@ int init()
 	watchdog_init();
 
 	/*
+	 * UAVCAN node
+	 */
+	res = uavcan_node::init();
+	if (res) {
+		return res;
+	}
+
+	/*
 	 * Motor control
 	 */
+	::usleep(10000);
 	res = motor_init();
 	if (res) {
 		return res;
 	}
 
-	usleep(10000);
+	::usleep(10000);
 	res = motor_test_hardware();
 	if (res) {
 		return res;
@@ -94,7 +104,8 @@ int init()
 __attribute__((noreturn))
 void die(int status)
 {
-	usleep(100000);
+	uavcan_node::set_node_status_critical();
+	::usleep(100000);
 	lowsyslog("Init failed (%i)\n", status);
 	// Really there is nothing left to do; just sit there and beep sadly:
 	while (1) {
@@ -107,7 +118,7 @@ void die(int status)
 void do_startup_beep()
 {
 	motor_beep(1000, 100);
-	usleep(100 * 1000);
+	::usleep(100 * 1000);
 	motor_beep(1000, 100);
 }
 

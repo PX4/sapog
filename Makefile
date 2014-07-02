@@ -32,6 +32,8 @@
 
 PROJECT = px4esc
 
+UDEFS = -DFW_VERSION_MAJOR=0 -DFW_VERSION_MINOR=1
+
 #
 # Sources
 #
@@ -46,6 +48,26 @@ CPPSRC = $(wildcard src/*.cpp)   \
 UINCDIR = src           \
           src/sys       \
           spl/inc
+
+#
+# UAVCAN library
+#
+
+UDEFS += -DUAVCAN_STM32_TIMER_NUMBER=7    \
+         -DUAVCAN_STM32_NUM_IFACES=2      \
+         -DUAVCAN_MEM_POOL_BLOCK_SIZE=56  \
+         -DUAVCAN_STM32_CHIBIOS=1
+
+include uavcan/libuavcan/include.mk
+CPPSRC += $(LIBUAVCAN_SRC)
+UINCDIR += $(LIBUAVCAN_INC)
+
+include uavcan/libuavcan_drivers/stm32/driver/include.mk
+CPPSRC += $(LIBUAVCAN_STM32_SRC)
+UINCDIR += $(LIBUAVCAN_STM32_INC)
+
+$(info $(shell $(LIBUAVCAN_DSDLC) $(UAVCAN_DSDL_DIR)))
+UINCDIR += dsdlc_generated
 
 #
 # OS configuration
@@ -83,6 +105,7 @@ INCDIR = $(PORTINC) $(KERNINC) $(HALINC) $(PLATFORMINC) $(CHCPPINC) $(CHIBIOS)/o
 
 USE_OPT = -falign-functions=16 -U__STRICT_ANSI__ -fno-exceptions -fno-unwind-tables -fno-stack-protector
 USE_OPT += -nodefaultlibs -lc -lgcc -lm
+USE_OPT += -include src/global_header.h
 
 USE_COPT = -std=c99
 USE_CPPOPT = -std=c++11 -fno-rtti -fno-threadsafe-statics
