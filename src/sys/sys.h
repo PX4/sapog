@@ -52,12 +52,10 @@
 #endif
 
 /**
- * NuttX-like low-level logging
+ * NuttX-like console print; should be used instead of printf()/chprintf()
  */
-#ifndef STDOUT_SD
-#  error "STDOUT_SD must be defined"
-#endif
-#define lowsyslog(...)     chprintf((BaseSequentialStream*)&(STDOUT_SD), __VA_ARGS__)
+__attribute__ ((format (printf, 1, 2)))
+void lowsyslog(const char* format, ...);
 
 /**
  * Unconditional assert
@@ -81,4 +79,5 @@ extern const char *dbg_panic_msg;
  */
 extern void application_halt_hook(void);
 
-uint64_t sys_timestamp_usec(void);
+__attribute__((noreturn))
+void sys_panic(const char* msg);

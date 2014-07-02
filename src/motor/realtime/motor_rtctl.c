@@ -236,7 +236,7 @@ static void configure(void)
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
 	lowsyslog("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i\n",
-		_params.comm_period_max / HNSEC_PER_USEC,
+		(unsigned)(_params.comm_period_max / HNSEC_PER_USEC),
 		_params.motor_bemf_window_len_denom);
 }
 
@@ -1007,7 +1007,7 @@ void motor_rtctl_print_debug_info(void)
 {
 	static const int ALIGNMENT = 25;
 
-#define PRINT_INT(name, value) lowsyslog("  %-*s %D\n", ALIGNMENT, (name), (long)(value))
+#define PRINT_INT(name, value) lowsyslog("  %-*s %li\n", ALIGNMENT, (name), (long)(value))
 #define PRINT_FLT(name, value) lowsyslog("  %-*s %f\n", ALIGNMENT, (name), (float)(value))
 
 	/*

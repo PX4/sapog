@@ -173,7 +173,7 @@ static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[])
 	lowsyslog("Power V/A     %-9f %f\n", voltage, current);
 	lowsyslog("RPM/DC        %-9u %f\n", motor_get_rpm(), motor_get_duty_cycle());
 	lowsyslog("Active limits %i\n", motor_get_limit_mask());
-	lowsyslog("ZC failures   %U\n", (unsigned long)motor_get_zc_failures_since_start());
+	lowsyslog("ZC failures   %lu\n", (unsigned long)motor_get_zc_failures_since_start());
 }
 
 static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])

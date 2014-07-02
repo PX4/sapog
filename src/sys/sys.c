@@ -37,6 +37,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <assert.h>
+#include <stdarg.h>
+#include <chprintf.h>
 
 #if !CH_DBG_ENABLED
 const char *dbg_panic_msg;
@@ -93,9 +95,24 @@ void system_halt_hook(void)
 #endif
 }
 
+void lowsyslog(const char* format, ...)
+{
+	va_list vl;
+	va_start(vl, format);
+	chvprintf((BaseSequentialStream*)&(STDOUT_SD), format, vl);
+	va_end(vl);
+}
+
 __attribute__((weak))
 void application_halt_hook(void)
 {
+}
+
+void sys_panic(const char* msg)
+{
+	dbg_panic_msg = msg;
+	chSysHalt();
+	while (1) { }
 }
 
 void __assert_func(const char* file, int line, const char* func, const char* expr)

@@ -84,7 +84,7 @@ void watchdog_init(void)
 	if (RCC->CSR & RCC_CSR_IWDGRSTF) {
 		lowsyslog("Watchdog: RESET WAS CAUSED BY WATCHDOG TIMEOUT\n");
 		lowsyslog("Watchdog: RCC_CSR=0x%08x\n", (unsigned)RCC->CSR);
-		lowsyslog("Watchdog: LAST STATE: mask=0x%08x, num=%d\n", _mask, _num_watchdogs);
+		lowsyslog("Watchdog: LAST STATE: mask=0x%08x, num=%d\n", (unsigned)_mask, _num_watchdogs);
 		chSysSuspend();
 		RCC->CSR |= RCC_CSR_RMVF;
 		chSysEnable();

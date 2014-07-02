@@ -404,7 +404,7 @@ static msg_t control_thread(void* arg)
 
 		if (desired_thread_priority != chThdGetPriority()) {
 			const tprio_t old = chThdSetPriority(desired_thread_priority);
-			lowsyslog("Motor: Priority changed: %i --> %i\n", old, desired_thread_priority);
+			lowsyslog("Motor: Priority changed: %i --> %i\n", (int)old, (int)desired_thread_priority);
 		}
 
 		/*
