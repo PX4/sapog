@@ -70,7 +70,7 @@ void cb_10Hz(const uavcan::TimerEvent& event)
 	msg.rpm = motor_get_rpm();
 	motor_get_input_voltage_current(&msg.voltage, &msg.current);
 	msg.temperature = std::numeric_limits<float>::quiet_NaN();
-	msg.power_rate_pct = static_cast<unsigned>(motor_get_duty_cycle() * 100 + 0.5F);
+	msg.power_rating_pct = static_cast<unsigned>(motor_get_duty_cycle() * 100 + 0.5F);
 	msg.error_count = motor_get_zc_failures_since_start();
 
 	if (motor_is_idle()) {
