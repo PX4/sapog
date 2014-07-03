@@ -70,7 +70,7 @@ void configure_node()
     node.setSoftwareVersion(swver);
 
     uavcan::protocol::HardwareVersion hwver;
-    hwver.major = 0;                          // TODO: read the hardware version
+    hwver.major = board_get_hardware_revision();
     node.setHardwareVersion(hwver);
 }
 

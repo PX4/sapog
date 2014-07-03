@@ -108,7 +108,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void boardInit(void);
+
+/// Called from ChibiOS init
+void boardInit(void);
+
+uint8_t board_get_hardware_revision(void);
+
 #ifdef __cplusplus
 }
 #endif

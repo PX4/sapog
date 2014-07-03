@@ -81,3 +81,8 @@ void boardInit(void)
 
 	AFIO->MAPR = mapr;
 }
+
+uint8_t board_get_hardware_revision(void)
+{
+	return (uint8_t)(GPIOC->IDR & 0x0F);
+}
