@@ -164,6 +164,8 @@ int main()
 
 	chThdSetPriority(LOWPRIO);
 
+	uavcan_node::set_node_status_ok();
+
 #if !NDEBUG
 	// Debugging code, will be removed later
 	uint64_t prev_ts = motor_timer_hnsec();

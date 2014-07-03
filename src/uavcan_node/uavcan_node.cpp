@@ -47,7 +47,7 @@ namespace
 
 uavcan_stm32::CanInitHelper<> can;
 
-bool started = false;
+auto node_status_code = uavcan::protocol::NodeStatus::STATUS_INITIALIZING;
 
 CONFIG_PARAM_INT("can_bitrate",    1000000, 20000, 1000000)
 CONFIG_PARAM_INT("uavcan_node_id", 1,       1,     125)
@@ -196,7 +196,6 @@ class : public chibios_rt::BaseStaticThread<3000>
 			; // That's impossible to fail
 		}
 
-		started = true;
 		lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
 	}
 
@@ -205,11 +204,10 @@ public:
 	{
 		init();
 
-		auto& node = get_node();
-		node.setStatusOk();
-
 		while (true) {
-			const int spin_res = node.spin(uavcan::MonotonicDuration::getInfinite());
+			get_node().getNodeStatusProvider().setStatusCode(node_status_code);
+
+			const int spin_res = get_node().spin(uavcan::MonotonicDuration::fromMSec(100));
 			if (spin_res < 0) {
 				lowsyslog("UAVCAN: Spin failure: %i\n", spin_res);
 			}
@@ -220,9 +218,19 @@ public:
 
 }
 
+void set_node_status_ok()
+{
+	node_status_code = uavcan::protocol::NodeStatus::STATUS_OK;
+}
+
+void set_node_status_warning()
+{
+	node_status_code = uavcan::protocol::NodeStatus::STATUS_WARNING;
+}
+
 void set_node_status_critical()
 {
-	// TODO: implement
+	node_status_code = uavcan::protocol::NodeStatus::STATUS_CRITICAL;
 }
 
 int init()
