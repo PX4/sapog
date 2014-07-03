@@ -92,6 +92,12 @@ enum motor_control_mode motor_get_control_mode(void);
 bool motor_is_running(void);
 
 /**
+ * Returns the motor state.
+ * @return True if the motor is idle; false if starting or running.
+ */
+bool motor_is_idle(void);
+
+/**
  * Returns the bitmask of currently active limits.
  */
 int motor_get_limit_mask(void);

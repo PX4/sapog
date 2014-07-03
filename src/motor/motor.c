@@ -549,6 +549,14 @@ bool motor_is_running(void)
 	return ret;
 }
 
+bool motor_is_idle(void)
+{
+	chMtxLock(&_mutex);
+	bool ret = motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE;
+	chMtxUnlock();
+	return ret;
+}
+
 int motor_get_limit_mask(void)
 {
 	chMtxLock(&_mutex);

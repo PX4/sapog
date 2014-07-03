@@ -38,6 +38,7 @@
 #include <config/config.h>
 #include <uavcan/protocol/param_server.hpp>
 #include <unistd.h>
+#include <motor/motor.h>
 
 namespace uavcan_node
 {
@@ -137,14 +138,22 @@ class ParamManager: public uavcan::IParamManager
 
 	int saveAllParams() override
 	{
-		// TODO: make sure the motor is not running!
-		return config_save();
+		// We can't perform flash IO when the motor controller is active
+		if (motor_is_idle()) {
+			return config_save();
+		} else {
+			return -1;
+		}
 	}
 
 	int eraseAllParams() override
 	{
-		// TODO: make sure the motor is not running!
-		return config_erase();
+		// We can't perform flash IO when the motor controller is active
+		if (motor_is_idle()) {
+			return config_erase();
+		} else {
+			return -1;
+		}
 	}
 } param_manager;
 
