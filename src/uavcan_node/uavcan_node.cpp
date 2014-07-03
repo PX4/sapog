@@ -45,6 +45,8 @@ namespace uavcan_node
 namespace
 {
 
+typedef uavcan::Node<UAVCAN_MEM_POOL_BLOCK_SIZE * 128> Node;
+
 uavcan_stm32::CanInitHelper<> can;
 
 auto node_status_code = uavcan::protocol::NodeStatus::STATUS_INITIALIZING;

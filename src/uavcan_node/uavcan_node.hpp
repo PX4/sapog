@@ -39,8 +39,6 @@
 namespace uavcan_node
 {
 
-typedef uavcan::Node<UAVCAN_MEM_POOL_BLOCK_SIZE * 128> Node;
-
 void set_node_status_ok();
 void set_node_status_warning();
 void set_node_status_critical();
