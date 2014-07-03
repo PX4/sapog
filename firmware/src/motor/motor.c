@@ -613,6 +613,7 @@ int motor_test_motor(void)
 
 void motor_beep(int frequency, int duration_msec)
 {
+	// TODO: Make it non-blocking!
 	static const int MAX_DURATION = WATCHDOG_TIMEOUT_MSEC * 3 / 4;
 
 	chMtxLock(&_mutex);

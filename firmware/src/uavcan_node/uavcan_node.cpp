@@ -34,6 +34,7 @@
 
 #include "uavcan_node.hpp"
 #include "esc_controller.hpp"
+#include "indication_controller.hpp"
 #include <ch.hpp>
 #include <sys/sys.h>
 #include <config/config.h>
@@ -201,6 +202,11 @@ class : public chibios_rt::BaseStaticThread<3000>
 
 		while (init_esc_controller(get_node()) < 0) {
 			lowsyslog("UAVCAN: ESC controller init failed\n");
+			::sleep(1);
+		}
+
+		while (init_indication_controller(get_node()) < 0) {
+			lowsyslog("UAVCAN: Indication controller init failed\n");
 			::sleep(1);
 		}
 
