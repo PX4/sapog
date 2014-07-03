@@ -33,6 +33,11 @@
  ****************************************************************************/
 
 #include <iostream>
+#include <iomanip>
+#include <thread>
+#include <mutex>
+#include <algorithm>
+#include <iterator>
 #include <cassert>
 #include <stdexcept>
 #include <uavcan_linux/uavcan_linux.hpp>
@@ -42,9 +47,60 @@
 #include <uavcan/equipment/indication/LightsCommand.hpp>
 #include <uavcan/equipment/indication/BeepCommand.hpp>
 
+namespace
+{
 
-static uavcan_linux::NodePtr initNode(const std::vector<std::string>& ifaces, uavcan::NodeID nid,
-                                      const std::string& name)
+class StdinLineReader
+{
+    mutable std::mutex mutex_;
+    std::thread thread_;
+    std::queue<std::string> queue_;
+
+    void worker()
+    {
+        while (true)
+        {
+            std::string input;
+            std::getline(std::cin, input);
+            std::lock_guard<std::mutex> lock(mutex_);
+            queue_.push(input);
+        }
+    }
+
+public:
+    StdinLineReader()
+        : thread_(&StdinLineReader::worker, this)
+    { }
+
+    bool hasPendingInput() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return !queue_.empty();
+    }
+
+    std::string getLine()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (queue_.empty())
+        {
+            throw std::runtime_error("Input queue is empty");
+        }
+        auto ret = queue_.front();
+        queue_.pop();
+        return ret;
+    }
+
+    std::vector<std::string> getSplitLine()
+    {
+        std::istringstream iss(getLine());
+        std::vector<std::string> out;
+        std::copy(std::istream_iterator<std::string>(iss), std::istream_iterator<std::string>(),
+                  std::back_inserter(out));
+        return out;
+    }
+};
+
+uavcan_linux::NodePtr initNode(const std::vector<std::string>& ifaces, uavcan::NodeID nid, const std::string& name)
 {
     auto node = uavcan_linux::makeNode(ifaces);
     node->setNodeID(nid);
@@ -70,27 +126,153 @@ static uavcan_linux::NodePtr initNode(const std::vector<std::string>& ifaces, ua
 }
 
 template <typename DataType>
-static std::shared_ptr<uavcan::Subscriber<DataType>>
-makePrintingSubscriber(const uavcan_linux::NodePtr& node)
+std::shared_ptr<uavcan::Subscriber<DataType>> makePrintingSubscriber(const uavcan_linux::NodePtr& node)
 {
     return node->makeSubscriber<DataType>([](const uavcan::ReceivedDataStructure<DataType>& msg) {
         std::cout << "[" << DataType::getDataTypeFullName() << "]\n" << msg << "\n---" << std::endl;
     });
 }
 
-static void runForever(const uavcan_linux::NodePtr& node)
+std::vector<std::string> waitForInput(const uavcan_linux::NodePtr& node, StdinLineReader& stdin_reader)
 {
-    auto sub_log        = makePrintingSubscriber<uavcan::protocol::debug::LogMessage>(node);
-    auto sub_esc_status = makePrintingSubscriber<uavcan::equipment::esc::Status>(node);
-
-    while (true)
+    while (!stdin_reader.hasPendingInput())
     {
-        const int res = node->spin(uavcan::MonotonicDuration::getInfinite());
+        const int res = node->spin(uavcan::MonotonicDuration::fromMSec(50));
         if (res < 0)
         {
             node->logError("spin", "Error %*", res);
         }
     }
+    return stdin_reader.getSplitLine();
+}
+
+void printCommandReference()
+{
+    std::cout
+        << "Command reference:\n"
+        << "    listen                              Print interesting messages to stdout\n"
+        << "    dc <index> <duty cycle>             Set duty cycle for ESC with the specified index\n"
+        << "    rpm <index> <RPM>                   Set RPM setpoint for ESC with the specified index\n"
+        << "    led <index> <red> <green> <blue>    Set RGB LED value\n"
+        << "    beep <frequency Hz> <duration ms>   Make noise\n";
+}
+
+void executeCommand(const uavcan_linux::NodePtr& node, StdinLineReader& stdin_reader, const std::string& command,
+                    const std::vector<std::string>& args)
+{
+    const auto PeriodicJobPeriod = uavcan::MonotonicDuration::fromMSec(100);
+
+    if (command == "listen")
+    {
+        std::cout << "\nPRESS ENTER TO STOP" << std::endl;
+        auto sub_log        = makePrintingSubscriber<uavcan::protocol::debug::LogMessage>(node);
+        auto sub_esc_status = makePrintingSubscriber<uavcan::equipment::esc::Status>(node);
+
+        (void)waitForInput(node, stdin_reader);
+    }
+    else if (command == "dc")
+    {
+        static uavcan::equipment::esc::RawCommand msg;
+        if (args.size() < 2)
+        {
+            msg = uavcan::equipment::esc::RawCommand();
+        }
+        else
+        {
+            const int index = std::max(std::min(std::stoi(args.at(0)), 14), 0);
+            if (msg.cmd.size() <= index)
+            {
+                msg.cmd.resize(index + 1);
+            }
+            std::cout << args.at(1) << " " << std::stof(args.at(1)) << std::endl;
+            msg.cmd[index] = std::stof(args.at(1)) * uavcan::equipment::esc::RawCommand::CMD_MAX;
+        }
+        std::cout << msg << std::endl;
+
+        static auto pub = node->makePublisher<uavcan::equipment::esc::RawCommand>();
+        static auto pub_timer = node->makeTimer(PeriodicJobPeriod, [](const uavcan::TimerEvent&) {
+            if (!msg.cmd.empty()) { (void)pub->broadcast(msg); }
+        });
+    }
+    else if (command == "rpm")
+    {
+        static uavcan::equipment::esc::RPMCommand msg;
+        if (args.size() < 2)
+        {
+            msg = uavcan::equipment::esc::RPMCommand();
+        }
+        else
+        {
+            const int index = std::max(std::min(std::stoi(args.at(0)), 14), 0);
+            if (msg.rpm.size() <= index)
+            {
+                msg.rpm.resize(index + 1);
+            }
+            msg.rpm[index] = std::max(std::min(std::stoi(args.at(1)), 0xFFFF), 0);
+        }
+        std::cout << msg << std::endl;
+
+        static auto pub = node->makePublisher<uavcan::equipment::esc::RPMCommand>();
+        static auto pub_timer = node->makeTimer(PeriodicJobPeriod, [](const uavcan::TimerEvent&) {
+            if (!msg.rpm.empty()) { (void)pub->broadcast(msg); }
+        });
+    }
+    else if (command == "led")
+    {
+        static auto pub = node->makePublisher<uavcan::equipment::indication::LightsCommand>();
+        uavcan::equipment::indication::LightsCommand msg;
+        msg.commands.resize(1);
+        msg.commands[0].light_id = std::max(std::min(std::stoi(args.at(0)), 31), 0);
+        msg.commands[0].color.red   = std::stof(args.at(1)) * 31;
+        msg.commands[0].color.green = std::stof(args.at(2)) * 63;
+        msg.commands[0].color.blue  = std::stof(args.at(3)) * 31;
+        std::cout << msg << std::endl;
+        (void)pub->broadcast(msg);
+    }
+    else if (command == "beep")
+    {
+        static auto pub = node->makePublisher<uavcan::equipment::indication::BeepCommand>();
+        uavcan::equipment::indication::BeepCommand msg;
+        msg.frequency = std::stof(args.at(0));
+        msg.duration  = std::stof(args.at(1)) / 1000.0F;
+        std::cout << msg << std::endl;
+        (void)pub->broadcast(msg);
+    }
+    else
+    {
+        std::cout << "Unknown command" << std::endl;
+        printCommandReference();
+    }
+}
+
+void runForever(const uavcan_linux::NodePtr& node)
+{
+    printCommandReference();
+
+    StdinLineReader stdin_reader;
+
+    while (true)
+    {
+        try
+        {
+            std::cout << "> " << std::flush;
+
+            const auto input = waitForInput(node, stdin_reader);
+            if (input.empty())
+            {
+                continue;
+            }
+            const auto command = input.at(0);
+
+            executeCommand(node, stdin_reader, command, std::vector<std::string>(input.begin() + 1, input.end()));
+        }
+        catch (std::exception& ex)
+        {
+            std::cout << "FAILURE\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 }
 
 int main(int argc, const char** argv)
