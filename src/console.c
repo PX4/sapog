@@ -226,7 +226,7 @@ static void cmd_rpm(BaseSequentialStream *chp, int argc, char *argv[])
 	if (argc == 0) {
 		motor_stop();
 		puts("Usage:\n"
-			"  rpm <duty cycle>\n"
+			"  rpm <RPM>\n"
 			"  rpm arm");
 		return;
 	}
