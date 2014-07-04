@@ -278,7 +278,7 @@ int init()
 		::usleep(100000);
 	}
 
-	(void)node_thread.start(LOWPRIO);
+	(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
 
 	return 0;
 }
