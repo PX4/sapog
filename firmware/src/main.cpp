@@ -118,7 +118,7 @@ void die(int status)
 void do_startup_beep()
 {
 	motor_beep(1000, 100);
-	::usleep(100 * 1000);
+	::usleep(200 * 1000);
 	motor_beep(1000, 100);
 }
 
