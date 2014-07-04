@@ -53,6 +53,9 @@ int init()
 {
 	int res = 0;
 
+	/*
+	 * Indication
+	 */
 	led_init();
 	led_set_rgb(0.05, 0.05, 0.05);
 
@@ -104,12 +107,12 @@ int init()
 __attribute__((noreturn))
 void die(int status)
 {
-	uavcan_node::set_node_status_critical();
 	::usleep(100000);
 	lowsyslog("Init failed (%i)\n", status);
 	// Really there is nothing left to do; just sit there and beep sadly:
 	while (1) {
 		motor_beep(100, 400);
+		uavcan_node::set_node_status_critical();
 		led_set_rgb(1, 0, 0);
 		sleep(3);
 	}
