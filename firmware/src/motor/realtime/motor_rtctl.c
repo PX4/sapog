@@ -192,7 +192,7 @@ CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
 CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     3,     8)
 CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
 CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
-CONFIG_PARAM_INT("motor_zc_detects_to_start",          20,    6,     1000)
+CONFIG_PARAM_INT("motor_zc_detects_to_start",          40,    6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   2000)
