@@ -47,19 +47,46 @@ namespace
 
 uavcan::Publisher<uavcan::equipment::esc::Status>* pub_status;
 
-unsigned self_index = 0;
+unsigned self_index;
+unsigned command_ttl_ms;
+float max_dc_to_start;
 
-CONFIG_PARAM_INT("uavcan_esc_index", 0,   0,  15)
+CONFIG_PARAM_INT("uavcan_esc_index",             0,    0,    15)
+CONFIG_PARAM_INT("uavcan_esc_command_ttl_ms",    200,  100,  5000)
+CONFIG_PARAM_FLOAT("uavcan_esc_max_dc_to_start", 0.1,  0.01, 1.0)
 
 
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
 {
-	(void)msg;
+	if (msg.cmd.size() <= self_index) {
+		return;      // This command is not for us
+	}
+
+	const float scaled_dc = msg.cmd[self_index] / float(uavcan::equipment::esc::RawCommand::CMD_MAX);
+
+	const bool idle = motor_is_idle();
+	const bool accept = (!idle) || (idle && (scaled_dc <= max_dc_to_start));
+
+	if (accept && (scaled_dc > 0)) {
+		motor_set_duty_cycle(scaled_dc, command_ttl_ms);
+	} else {
+		motor_stop();
+	}
 }
 
 void cb_rpm_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RPMCommand>& msg)
 {
-	(void)msg;
+	if (msg.rpm.size() <= self_index) {
+		return;      // This command is not for us
+	}
+
+	const unsigned rpm = msg.rpm[self_index];
+
+	if (rpm > 0) {
+		motor_set_rpm(rpm, command_ttl_ms);
+	} else {
+		motor_stop();
+	}
 }
 
 void cb_10Hz(const uavcan::TimerEvent& event)
@@ -94,6 +121,8 @@ int init_esc_controller(uavcan::INode& node)
 	static uavcan::Timer timer_10hz(node);
 
 	self_index = config_get("uavcan_esc_index");
+	command_ttl_ms = config_get("uavcan_esc_command_ttl_ms");
+	max_dc_to_start = config_get("uavcan_esc_max_dc_to_start");
 
 	int res = 0;
 

@@ -472,7 +472,11 @@ int motor_init(void)
 void motor_stop(void)
 {
 	chMtxLock(&_mutex);
-	stop(true);
+
+	if (motor_rtctl_get_state() != MOTOR_RTCTL_STATE_IDLE) {
+		stop(true);
+	}
+
 	chMtxUnlock();
 }
 
