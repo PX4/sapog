@@ -512,11 +512,7 @@ int motor_init(void)
 void motor_stop(void)
 {
 	chMtxLock(&_mutex);
-
-	if (motor_rtctl_get_state() != MOTOR_RTCTL_STATE_IDLE) {
-		stop(true);
-	}
-
+	stop(true);
 	chMtxUnlock();
 }
 
@@ -600,6 +596,14 @@ bool motor_is_idle(void)
 {
 	chMtxLock(&_mutex);
 	bool ret = motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE;
+	chMtxUnlock();
+	return ret;
+}
+
+bool motor_is_blocked(void)
+{
+	chMtxLock(&_mutex);
+	bool ret = _state.num_unexpected_stops >= _params.num_unexpected_stops_to_latch;
 	chMtxUnlock();
 	return ret;
 }

@@ -163,8 +163,16 @@ int main()
 
 	uavcan_node::set_node_status_ok();
 
+	/*
+	 * Here we run some high-level self diagnostics
+	 */
 	while (1) {
-		::sleep(1);
+		if (motor_is_blocked()) {
+			uavcan_node::set_node_status_critical();
+		} else {
+			uavcan_node::set_node_status_ok();
+		}
+		::usleep(100 * 1000);
 	}
 
 	return 0;

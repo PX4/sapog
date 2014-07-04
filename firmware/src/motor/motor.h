@@ -98,6 +98,12 @@ bool motor_is_running(void);
 bool motor_is_idle(void);
 
 /**
+ * Returns true if the motor controller has given up trying to start.
+ * @return True if the motor controller is locked.
+ */
+bool motor_is_blocked(void);
+
+/**
  * Returns the bitmask of currently active limits.
  */
 int motor_get_limit_mask(void);
