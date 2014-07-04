@@ -43,6 +43,7 @@
 #include <led.h>
 #include <console.h>
 #include <watchdog.h>
+#include <pwm_input.h>
 #include <motor/motor.h>
 #include <uavcan_node/uavcan_node.hpp>
 
@@ -73,15 +74,7 @@ int init()
 	watchdog_init();
 
 	/*
-	 * UAVCAN node
-	 */
-	res = uavcan_node::init();
-	if (res) {
-		return res;
-	}
-
-	/*
-	 * Motor control
+	 * Motor control (must be initialized earlier than communicaton interfaces)
 	 */
 	::usleep(10000);
 	res = motor_init();
@@ -89,6 +82,23 @@ int init()
 		return res;
 	}
 
+	/*
+	 * PWM input
+	 */
+	pwm_input_init();
+
+	/*
+	 * UAVCAN node
+	 */
+	::usleep(10000);
+	res = uavcan_node::init();
+	if (res) {
+		return res;
+	}
+
+	/*
+	 * Self test
+	 */
 	::usleep(10000);
 	res = motor_test_hardware();
 	if (res) {
