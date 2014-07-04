@@ -43,7 +43,7 @@
 #include "config.h"
 
 #ifndef CONFIG_PARAMS_MAX
-#  define CONFIG_PARAMS_MAX     40
+#  define CONFIG_PARAMS_MAX     50
 #endif
 
 
