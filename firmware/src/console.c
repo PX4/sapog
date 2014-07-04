@@ -98,11 +98,13 @@ static void cmd_cfg(BaseSequentialStream *chp, int argc, char *argv[])
 			}
 		}
 	}
-	else if (!strcmp(command, "save")) {
-		print_status(config_save());
-	}
-	else if (!strcmp(command, "erase")) {
-		print_status(config_erase());
+	else if (!strcmp(command, "save") || !strcmp(command, "erase")) {
+		if (motor_is_idle()) {
+			const bool save = !strcmp(command, "save");
+			print_status((save ? config_save : config_erase)());
+		} else {
+			puts("I'm sorry Dave, I'm afraid I can't do that");
+		}
 	}
 	else if (!strcmp(command, "get")) {
 		if (argc < 2) {
