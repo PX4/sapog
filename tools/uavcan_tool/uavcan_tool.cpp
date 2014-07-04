@@ -160,7 +160,7 @@ void printCommandReference()
 void executeCommand(const uavcan_linux::NodePtr& node, StdinLineReader& stdin_reader, const std::string& command,
                     const std::vector<std::string>& args)
 {
-    const auto PeriodicJobPeriod = uavcan::MonotonicDuration::fromMSec(100);
+    const auto PeriodicJobPeriod = uavcan::MonotonicDuration::fromMSec(5);
 
     if (command == "listen")
     {
