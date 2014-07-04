@@ -138,9 +138,6 @@ void application_halt_hook(void)
 	led_set_rgb(1, 0, 0);
 }
 
-// Debugging code, will be removed later
-extern "C" uint64_t motor_timer_hnsec();
-
 int main()
 {
 	halInit();
@@ -166,20 +163,8 @@ int main()
 
 	uavcan_node::set_node_status_ok();
 
-#if !NDEBUG
-	// Debugging code, will be removed later
-	uint64_t prev_ts = motor_timer_hnsec();
-#endif
-
 	while (1) {
-#if !NDEBUG
-		// Timer debugging
-		const uint64_t ts = motor_timer_hnsec();
-		assert(ts > prev_ts);
-		prev_ts = ts;
-#endif
-
-		chThdYield();
+		::sleep(1);
 	}
 
 	return 0;
