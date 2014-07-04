@@ -77,6 +77,9 @@ static struct state
 	float input_curent_offset;
 
 	enum motor_rtctl_state rtctl_state;
+
+	int beep_frequency;
+	int beep_duration_msec;
 } _state;
 
 static struct params
@@ -136,6 +139,26 @@ static void configure(void)
 	_params.num_unexpected_stops_to_latch = config_get("motor_num_halts_to_latch");
 
 	lowsyslog("Motor: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
+}
+
+static void poll_beep(void)
+{
+	static const int MAX_DURATION = WATCHDOG_TIMEOUT_MSEC * 3 / 4;
+
+	const bool do_beep =
+		(_state.beep_frequency > 0) &&
+		(_state.beep_duration_msec > 0) &&
+		(motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE);
+
+	if (do_beep) {
+		if (_state.beep_duration_msec > MAX_DURATION) {
+			_state.beep_duration_msec = MAX_DURATION;
+		}
+		motor_rtctl_beep(_state.beep_frequency, _state.beep_duration_msec);
+	}
+
+	_state.beep_frequency = 0;
+	_state.beep_duration_msec = 0;
 }
 
 static float lowpass(float xold, float xnew, float tau, float dt)
@@ -427,6 +450,8 @@ static msg_t control_thread(void* arg)
 		update_setpoint_ttl(dt_hnsec / HNSEC_PER_MSEC);
 		update_control(comm_period, dt);
 
+		poll_beep();
+
 		chMtxUnlock();
 
 		//watchdog_reset(_watchdog_id);
@@ -617,17 +642,16 @@ int motor_test_motor(void)
 
 void motor_beep(int frequency, int duration_msec)
 {
-	// TODO: Make it non-blocking!
-	static const int MAX_DURATION = WATCHDOG_TIMEOUT_MSEC * 3 / 4;
-
 	chMtxLock(&_mutex);
 
-	if (duration_msec > MAX_DURATION)
-		duration_msec = MAX_DURATION;
-
-	motor_rtctl_beep(frequency, duration_msec);
-
-	chMtxUnlock();
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
+		_state.beep_frequency = frequency;
+		_state.beep_duration_msec = duration_msec;
+		chMtxUnlock();
+		chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS); // Wake the control thread
+	} else {
+		chMtxUnlock();
+	}
 }
 
 void motor_print_debug_info(void)
