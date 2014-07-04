@@ -56,8 +56,6 @@
 #define TIMER_NUMBER   3
 
 #define TIMX            GLUE2(TIM, TIMER_NUMBER)
-#define TIMX_IRQn       GLUE3(TIM, TIMER_NUMBER, _IRQn)
-#define TIMX_IRQHandler GLUE3(TIM, TIMER_NUMBER, _IRQHandler)
 
 #if TIMER_NUMBER < 2 || TIMER_NUMBER > 7
 #  error "Invalid timer number"
