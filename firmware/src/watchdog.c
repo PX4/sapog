@@ -88,9 +88,8 @@ void watchdog_init(void)
 		chSysSuspend();
 		RCC->CSR |= RCC_CSR_RMVF;
 		chSysEnable();
-	} else {
-		lowsyslog("Watchdog: Reset was not caused by watchdog, it's OK\n");
 	}
+
 	_mask = 0;
 	_num_watchdogs = 0;
 

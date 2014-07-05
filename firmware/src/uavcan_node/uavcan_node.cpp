@@ -41,6 +41,7 @@
 #include <uavcan/protocol/param_server.hpp>
 #include <unistd.h>
 #include <motor/motor.h>
+#include <watchdog.h>
 
 namespace uavcan_node
 {
@@ -179,8 +180,12 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
  */
 class : public chibios_rt::BaseStaticThread<3000>
 {
-	void init() const
+	int watchdog_id_ = -1;
+
+	void init()
 	{
+		watchdog_id_ = watchdog_create(10000);
+
 		configure_node();
 
 		get_node().setRestartRequestHandler(&restart_request_handler);
@@ -225,6 +230,8 @@ public:
 			if (spin_res < 0) {
 				lowsyslog("UAVCAN: Spin failure: %i\n", spin_res);
 			}
+
+			watchdog_reset(watchdog_id_);
 		}
 		return msg_t();
 	}

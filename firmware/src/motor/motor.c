@@ -35,13 +35,16 @@
 #include <math.h>
 #include <ch.h>
 #include <watchdog.h>
+#include <unistd.h>
 #include <config/config.h>
 #include "motor.h"
 #include "rpmctl.h"
 #include "realtime/api.h"
 
 #define IDLE_CONTROL_PERIOD_MSEC  10
-#define WATCHDOG_TIMEOUT_MSEC     1000
+#define WATCHDOG_TIMEOUT_MSEC     10000
+
+#define MAX_BEEP_DURATION_MSEC    1000
 
 #define MIN_VALID_INPUT_VOLTAGE 4.0
 #define MAX_VALID_INPUT_VOLTAGE 40.0
@@ -50,7 +53,7 @@
 static unsigned comm_period_to_rpm(uint32_t comm_period);
 
 
-//static int _watchdog_id;
+static int _watchdog_id;
 static Mutex _mutex;
 static EVENTSOURCE_DECL(_setpoint_update_event);
 static WORKING_AREA(_wa_control_thread, 1024);
@@ -143,16 +146,14 @@ static void configure(void)
 
 static void poll_beep(void)
 {
-	static const int MAX_DURATION = WATCHDOG_TIMEOUT_MSEC * 3 / 4;
-
 	const bool do_beep =
 		(_state.beep_frequency > 0) &&
 		(_state.beep_duration_msec > 0) &&
 		(motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE);
 
 	if (do_beep) {
-		if (_state.beep_duration_msec > MAX_DURATION) {
-			_state.beep_duration_msec = MAX_DURATION;
+		if (_state.beep_duration_msec > MAX_BEEP_DURATION_MSEC) {
+			_state.beep_duration_msec = MAX_BEEP_DURATION_MSEC;
 		}
 		motor_rtctl_beep(_state.beep_frequency, _state.beep_duration_msec);
 	}
@@ -216,6 +217,9 @@ static void handle_unexpected_stop(void)
 	lowsyslog("Motor: Unexpected stop [%i of %i], below is some debug info\n",
 		_state.num_unexpected_stops, _params.num_unexpected_stops_to_latch);
 	motor_rtctl_print_debug_info();
+
+	// Wait some more before the possibly immediately following restart to serve other threads
+	usleep(10000);
 }
 
 static void update_control_non_running(void)
@@ -466,7 +470,7 @@ static msg_t control_thread(void* arg)
 
 		chMtxUnlock();
 
-		//watchdog_reset(_watchdog_id);
+		watchdog_reset(_watchdog_id);
 	}
 
 	assert_always(0);
@@ -475,11 +479,10 @@ static msg_t control_thread(void* arg)
 
 int motor_init(void)
 {
-	// TODO: Watchdog reset logic must be fixed - currently it may timeout while starting the motor
-//	_watchdog_id = watchdog_create(WATCHDOG_TIMEOUT_MSEC);
-//	if (_watchdog_id < 0) {
-//		return _watchdog_id;
-//	}
+	_watchdog_id = watchdog_create(WATCHDOG_TIMEOUT_MSEC);
+	if (_watchdog_id < 0) {
+		return _watchdog_id;
+	}
 
 	int ret = motor_rtctl_init();
 	if (ret) {

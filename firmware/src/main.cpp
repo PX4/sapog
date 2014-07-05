@@ -162,6 +162,8 @@ int main()
 
 	const int init_status = init();
 
+	const int watchdog_id = watchdog_create(10000);
+
 	console_init();
 
 	if (init_status) {
@@ -180,6 +182,8 @@ int main()
 	 * Here we run some high-level self diagnostics
 	 */
 	while (1) {
+		watchdog_reset(watchdog_id);
+
 		if (motor_is_blocked()) {
 			uavcan_node::set_node_status_critical();
 		} else {
