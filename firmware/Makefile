@@ -141,8 +141,9 @@ AOPT =
 # THUMB-specific options here
 TOPT = -mthumb -DTHUMB
 
-CWARN = -Wall -Wextra -Werror -Wstrict-prototypes
-CPPWARN = -Wall -Wextra -Werror
+WARN = -Wall -Wextra -Werror -Wshadow -Wpointer-arith -Wpacked
+CWARN = $(WARN) -Wstrict-prototypes
+CPPWARN = $(WARN)
 
 # asm statement fix
 DDEFS += -Dasm=__asm
