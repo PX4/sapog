@@ -1,7 +1,7 @@
 PX4ESC firmware
 ===============
 
-Under construction.
+Please refer to the documentation page at <http://pixhawk.org/modules/px4esc>.
 
 ### Hardware timer usage
 * TIM1 - 3-phase FET bridge PWM
