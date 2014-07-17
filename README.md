@@ -31,7 +31,7 @@ make RELEASE=1 # RELEASE is optional; omit to build the debug version
 
 Execute `./blackmagic_flash.sh [portname]` from the `tools` directory to flash the firmware with a Black Magic Debug Probe.
 
-#### UAVCAN testing tool
+#### [UAVCAN](http://uavcan.org/) testing tool
 
 This step is optional. Works only for Linux.
 
