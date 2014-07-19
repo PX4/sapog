@@ -65,25 +65,25 @@ Node& get_node()
 
 void configure_node()
 {
-    Node& node = get_node();
+	Node& node = get_node();
 
-    node.setNodeID(config_get("uavcan_node_id"));
-    node.setName("org.pixhawk.px4esc");
+	node.setNodeID(config_get("uavcan_node_id"));
+	node.setName("org.pixhawk.px4esc");
 
-    uavcan::protocol::SoftwareVersion swver;
-    swver.major = FW_VERSION_MAJOR;
-    swver.minor = FW_VERSION_MINOR;
-    node.setSoftwareVersion(swver);
+	uavcan::protocol::SoftwareVersion swver;
+	swver.major = FW_VERSION_MAJOR;
+	swver.minor = FW_VERSION_MINOR;
+	node.setSoftwareVersion(swver);
 
-    uavcan::protocol::HardwareVersion hwver;
-    hwver.major = board_get_hardware_revision();
-    node.setHardwareVersion(hwver);
+	uavcan::protocol::HardwareVersion hwver;
+	hwver.major = board_get_hardware_revision();
+	node.setHardwareVersion(hwver);
 }
 
 uavcan::ParamServer& get_param_server()
 {
-    static uavcan::ParamServer server(get_node());
-    return server;
+	static uavcan::ParamServer server(get_node());
+	return server;
 }
 
 /*
