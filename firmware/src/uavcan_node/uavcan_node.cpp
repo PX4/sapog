@@ -55,7 +55,7 @@ uavcan_stm32::CanInitHelper<> can;
 auto node_status_code = uavcan::protocol::NodeStatus::STATUS_INITIALIZING;
 
 CONFIG_PARAM_INT("can_bitrate",    1000000, 20000, 1000000)
-CONFIG_PARAM_INT("uavcan_node_id", 1,       1,     125)
+CONFIG_PARAM_INT("uavcan_node_id", 0,       0,     125)      ///< 0 for Passive Mode (default)
 
 Node& get_node()
 {
@@ -201,21 +201,27 @@ class : public chibios_rt::BaseStaticThread<3000>
 		}
 		assert(get_node().isStarted());
 
-		while (get_param_server().start(&param_manager) < 0) {
-			; // That's impossible to fail
-		}
+		const bool passive_mode = get_node().isPassiveMode();
 
-		while (init_esc_controller(get_node()) < 0) {
-			lowsyslog("UAVCAN: ESC controller init failed\n");
-			::sleep(1);
-		}
+		if (!passive_mode) {
+			while (get_param_server().start(&param_manager) < 0) {
+				; // That's impossible to fail
+			}
 
-		while (init_indication_controller(get_node()) < 0) {
-			lowsyslog("UAVCAN: Indication controller init failed\n");
-			::sleep(1);
-		}
+			while (init_esc_controller(get_node()) < 0) {
+				lowsyslog("UAVCAN: ESC controller init failed\n");
+				::sleep(1);
+			}
 
-		lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
+			while (init_indication_controller(get_node()) < 0) {
+				lowsyslog("UAVCAN: Indication controller init failed\n");
+				::sleep(1);
+			}
+
+			lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
+		} else {
+			lowsyslog("UAVCAN: PASSIVE MODE\n");
+		}
 	}
 
 public:
