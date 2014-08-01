@@ -310,11 +310,9 @@ static const ShellCommand _commands[] =
 
 int puts(const char* str)
 {
-	const int len = strlen(str);
-	if (len)
-		sdWrite(&STDOUT_SD, (uint8_t*)str, len); // this fires an assert() if len = 0, haha!
-	sdWrite(&STDOUT_SD, (uint8_t*)"\n", 1);
-	return len + 1;
+	lowsyslog(str);
+	lowsyslog("\n");
+	return strlen(str) + 2;
 }
 
 static char* getline(const char* prompt)
