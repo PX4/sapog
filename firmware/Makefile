@@ -89,7 +89,10 @@ include $(CHIBIOS)/os/various/cpp_wrappers/kernel.mk
 
 LDSCRIPT= $(PORTLD)/STM32F107xC.ld
 
-VARIOUSSRC = $(CHIBIOS)/os/various/syscalls.c $(CHIBIOS)/os/various/chprintf.c $(CHIBIOS)/os/various/shell.c
+VARIOUSSRC = $(CHIBIOS)/os/various/syscalls.c    \
+             $(CHIBIOS)/os/various/chprintf.c    \
+             $(CHIBIOS)/os/various/shell.c       \
+             $(CHIBIOS)/os/various/memstreams.c
 
 CSRC += $(PORTSRC) $(KERNSRC) $(HALSRC) $(PLATFORMSRC) $(VARIOUSSRC)
 

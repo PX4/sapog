@@ -39,6 +39,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <chprintf.h>
+#include <memstreams.h>
 
 __attribute__((weak))
 void *__dso_handle;
@@ -87,10 +88,34 @@ void system_halt_hook(void)
 
 void lowsyslog(const char* format, ...)
 {
-	va_list vl;
-	va_start(vl, format);
-	chvprintf((BaseSequentialStream*)&(STDOUT_SD), format, vl);
-	va_end(vl);
+	static MUTEX_DECL(_mutex);  // Doesn't require initialization
+	static char _buffer[256];
+
+	/*
+	 * Printing the string into the buffer using chvprintf()
+	 */
+	MemoryStream ms;
+	msObjectInit(&ms, (uint8_t*)_buffer, sizeof(_buffer), 0);
+	BaseSequentialStream* chp = (BaseSequentialStream*)&ms;
+	{
+		va_list vl;
+		va_start(vl, format);
+		chvprintf(chp, format, vl);
+		va_end(vl);
+	}
+	chSequentialStreamPut(chp, 0);
+
+	/*
+	 * Writing the buffer replacing "\n" --> "\r\n"
+	 */
+	chMtxLock(&_mutex);
+	for (const char* pc = _buffer; *pc != '\0'; pc++) {
+		if (*pc == '\n') {
+			sdPut(&STDOUT_SD, '\r');
+		}
+		sdPut(&STDOUT_SD, *pc);
+	}
+	chMtxUnlock();
 }
 
 __attribute__((weak))
