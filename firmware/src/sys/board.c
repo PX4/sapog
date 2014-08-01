@@ -34,6 +34,7 @@
 
 #include <ch.h>
 #include <hal.h>
+#include <string.h>
 
 // Clock config validation
 #if STM32_PREDIV1_VALUE != 2
@@ -85,4 +86,9 @@ void boardInit(void)
 uint8_t board_get_hardware_revision(void)
 {
 	return (uint8_t)(GPIOC->IDR & 0x0F);
+}
+
+void board_read_unique_id(uint8_t out_uid[BOARD_UNIQUE_ID_SIZE])
+{
+	memcpy(out_uid, (const void*)0x1FFFF7E8, BOARD_UNIQUE_ID_SIZE);
 }

@@ -70,13 +70,27 @@ void configure_node()
 	node.setNodeID(config_get("uavcan_node_id"));
 	node.setName("org.pixhawk.px4esc");
 
+	/*
+	 * Software version
+	 */
 	uavcan::protocol::SoftwareVersion swver;
+
 	swver.major = FW_VERSION_MAJOR;
 	swver.minor = FW_VERSION_MINOR;
+
 	node.setSoftwareVersion(swver);
 
+	/*
+	 * Hardware version
+	 */
 	uavcan::protocol::HardwareVersion hwver;
+
 	hwver.major = board_get_hardware_revision();
+
+	std::uint8_t uid[BOARD_UNIQUE_ID_SIZE] = {};
+	board_read_unique_id(uid);
+	std::copy(std::begin(uid), std::end(uid), std::begin(hwver.unique_id));
+
 	node.setHardwareVersion(hwver);
 }
 
