@@ -103,6 +103,16 @@ ASMSRC = $(PORTASM)
 INCDIR = $(PORTINC) $(KERNINC) $(HALINC) $(PLATFORMINC) $(CHCPPINC) $(CHIBIOS)/os/various
 
 #
+# Git commit hash
+#
+
+GIT_HASH := $(shell git rev-parse --short HEAD)
+ifneq ($(words $(GIT_HASH)),1)
+    GIT_HASH := "?"
+endif
+UDEFS += -DGIT_HASH=0x$(GIT_HASH)
+
+#
 # Build configuration
 #
 

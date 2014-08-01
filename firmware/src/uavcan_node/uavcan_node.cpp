@@ -78,6 +78,9 @@ void configure_node()
 	swver.major = FW_VERSION_MAJOR;
 	swver.minor = FW_VERSION_MINOR;
 
+	swver.vcs_commit = GIT_HASH;
+	swver.optional_field_mask |= swver.OPTIONAL_FIELD_MASK_VCS_COMMIT;
+
 	node.setSoftwareVersion(swver);
 
 	/*
