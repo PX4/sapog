@@ -76,7 +76,6 @@ int init()
 	/*
 	 * Motor control (must be initialized earlier than communicaton interfaces)
 	 */
-	::usleep(10000);
 	res = motor_init();
 	if (res) {
 		return res;
@@ -90,7 +89,6 @@ int init()
 	/*
 	 * UAVCAN node
 	 */
-	::usleep(10000);
 	res = uavcan_node::init();
 	if (res) {
 		return res;
@@ -99,7 +97,6 @@ int init()
 	/*
 	 * Self test
 	 */
-	::usleep(10000);
 	res = motor_test_hardware();
 	if (res) {
 		return res;
