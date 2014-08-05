@@ -71,12 +71,14 @@ static int print_param(const char* name, bool verbose)
 
 	if (par.type == CONFIG_TYPE_FLOAT) {
 		lowsyslog("%-*s = %-12f", _max_name_len, name, config_get(name));
-		if (verbose)
-			lowsyslog("[%f; %f] (%f)", par.min, par.max, par.default_);
+		if (verbose) {
+			lowsyslog("[%f, %f] (%f)", par.min, par.max, par.default_);
+		}
 	} else {
 		lowsyslog("%-*s = %-12i", _max_name_len, name, (int)config_get(name));
-		if (verbose)
-			lowsyslog("[%i; %i] (%i)", (int)par.min, (int)par.max, (int)par.default_);
+		if (verbose) {
+			lowsyslog("[%i, %i] (%i)", (int)par.min, (int)par.max, (int)par.default_);
+		}
 	}
 	puts("");
 	return 0;
@@ -274,14 +276,14 @@ static void cmd_led(BaseSequentialStream *chp, int argc, char *argv[])
 static void cmd_wdt(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	if (argc == 0) {
-		motor_stop();
-		puts("Simulates a watchdog failure after X ms. Usage:\n  wdt <X>");
+		puts("Makes a watchdog timeout after X ms. Usage:\n  wdt <X>");
 		return;
 	}
 
 	int timeout_ms = atoi(argv[0]);
-	if (timeout_ms < 1)
+	if (timeout_ms < 1) {
 		timeout_ms = 1;
+	}
 	const int wdid = watchdog_create(timeout_ms);
 	lowsyslog("WDID: %i\n", wdid);
 }
