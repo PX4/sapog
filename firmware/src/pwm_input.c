@@ -71,6 +71,16 @@ static void icu_pulse_width_callback(ICUDriver* icup)
 	}
 }
 
+static void icu_period_callback(ICUDriver* icup)
+{
+	(void)icup;
+	/*
+	 * Nothing to do here.
+	 * This handler is required by the ICU driver, see the link:
+	 * http://forum.chibios.org/phpbb/viewtopic.php?f=3&t=2078
+	 */
+}
+
 static msg_t thread(void* arg)
 {
 	(void)arg;
@@ -150,7 +160,7 @@ void pwm_input_init(void)
 		ICU_INPUT_ACTIVE_HIGH,
 		1000000,
 		icu_pulse_width_callback,
-		NULL,
+		icu_period_callback,       // Required even if not used
 		NULL,
 		ICU_CHANNEL_1,
 		0
