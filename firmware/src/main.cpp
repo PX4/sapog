@@ -101,7 +101,7 @@ int init()
 	if (res) {
 		return res;
 	}
-	lowsyslog("Power stage OK\n");
+	lowsyslog("Hardware OK\n");
 
 	if (motor_test_motor()) {
 		lowsyslog("Motor is not connected or damaged\n");
