@@ -18,7 +18,6 @@ Prerequisites:
 
 * GCC ARM 4.7+
 * Python 2.7 or Python 3.2+
-* Python Mako library (installation: `pip install mako`)
 
 #### Firmware
 
