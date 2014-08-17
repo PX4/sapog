@@ -59,7 +59,8 @@ CONFIG_PARAM_FLOAT("uavcan_esc_max_dc_to_start", 0.1,  0.01, 1.0)
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
 {
 	if (msg.cmd.size() <= self_index) {
-		return;      // This command is not for us
+		motor_stop();
+		return;
 	}
 
 	const float scaled_dc = msg.cmd[self_index] / float(uavcan::equipment::esc::RawCommand::CMD_MAX);
@@ -77,7 +78,8 @@ void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::
 void cb_rpm_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RPMCommand>& msg)
 {
 	if (msg.rpm.size() <= self_index) {
-		return;      // This command is not for us
+		motor_stop();
+		return;
 	}
 
 	const unsigned rpm = msg.rpm[self_index];
