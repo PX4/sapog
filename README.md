@@ -22,7 +22,7 @@ Prerequisites:
 #### Firmware
 
 ```bash
-./tools/fetch_chibios.sh
+git submodule update --init --recursive
 ./tools/fetch_uavcan.sh   # Or make a symlink instead
 cd firmware
 make RELEASE=1 # RELEASE is optional; omit to build the debug version

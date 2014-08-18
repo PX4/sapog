@@ -1,0 +1,3 @@
+[submodule "firmware/chibios"]
+	path = firmware/chibios
+	url = https://github.com/ChibiOS/ChibiOS-RT

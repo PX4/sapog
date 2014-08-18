@@ -20,5 +20,4 @@ build
 .cproject
 
 # 3rdparty
-chibios
 uavcan
