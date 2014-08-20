@@ -56,18 +56,21 @@ static int print_param(const char* name, bool verbose)
 	if (_max_name_len == 0) {
 		for (int i = 0;; i++) {
 			const char* nm = config_name_by_index(i);
-			if (!nm)
+			if (!nm) {
 				break;
+			}
 			int len = strlen(nm);
-			if (len > _max_name_len)
+			if (len > _max_name_len) {
 				_max_name_len = len;
+			}
 		}
 	}
 
 	struct config_param par;
 	const int res = config_get_descr(name, &par);
-	if (res)
+	if (res) {
 		return res;
+	}
 
 	if (par.type == CONFIG_TYPE_FLOAT) {
 		lowsyslog("%-*s = %-12f", _max_name_len, name, config_get(name));
@@ -91,8 +94,9 @@ static void cmd_cfg(BaseSequentialStream *chp, int argc, char *argv[])
 	if (!strcmp(command, "list")) {
 		for (int i = 0;; i++) {
 			const char* name = config_name_by_index(i);
-			if (!name)
+			if (!name) {
 				break;
+			}
 			const int res = print_param(name, true);
 			if (res) {
 				lowsyslog("Internal error %i\n", res);
@@ -114,8 +118,9 @@ static void cmd_cfg(BaseSequentialStream *chp, int argc, char *argv[])
 			return;
 		}
 		const int ret = print_param(argv[1], false);
-		if (ret)
+		if (ret) {
 			print_status(ret);
+		}
 	}
 	else if (!strcmp(command, "set")) {
 		if (argc < 3) {
@@ -125,8 +130,9 @@ static void cmd_cfg(BaseSequentialStream *chp, int argc, char *argv[])
 		const char* const name = argv[1];
 		const float value = atoff(argv[2]);
 		const int res = config_set(name, value);
-		if (res == 0)
+		if (res == 0) {
 			print_param(name, false);
+		}
 		print_status(res);
 	}
 	else {
@@ -159,12 +165,14 @@ static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])
 	}
 
 	int freq = 500;
-	if (argc > 0)
+	if (argc > 0) {
 		freq = atoi(argv[0]);
+	}
 
 	int duration = 300;
-	if (argc > 1)
+	if (argc > 1) {
 		duration = atoi(argv[1]);
+	}
 
 	motor_beep(freq, duration);
 }
@@ -184,10 +192,11 @@ static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	puts("Hardware test...");
 	int res = motor_test_hardware();
-	if (res)
+	if (res) {
 		lowsyslog("FAILED %i\n", res);
-	else
+	} else {
 		puts("OK");
+	}
 
 	puts("Motor test...");
 	res = motor_test_motor();
@@ -321,19 +330,22 @@ static char* getline(const char* prompt)
 {
 	static char _linebuf[32];
 	memset(_linebuf, 0, sizeof(_linebuf));
-	if (prompt)
+	if (prompt) {
 		lowsyslog(prompt);
-	if (!shellGetLine((BaseSequentialStream*) &STDIN_SD, _linebuf, sizeof(_linebuf)))
+	}
+	if (!shellGetLine((BaseSequentialStream*) &STDIN_SD, _linebuf, sizeof(_linebuf))) {
 		return _linebuf;
+	}
 	return NULL;
 }
 
 static void print_status(int err)
 {
-	if (err == 0)
+	if (err == 0) {
 		puts("OK");
-	else
+	} else {
 		lowsyslog("ERROR %d %s\n", err, strerror(abs(err)));
+	}
 }
 
 static const ShellConfig _config = {(BaseSequentialStream*)&STDOUT_SD, _commands};

@@ -343,13 +343,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	bool stop_now = false;
 
 	switch (_state.zc_detection_result) {
-	case ZC_DETECTED:
+	case ZC_DETECTED: {
 		engage_current_comm_step();
 		register_good_step();
 		_state.flags &= ~FLAG_SYNC_RECOVERY;
 		break;
-
-	case ZC_DESATURATION:
+	}
+	case ZC_DESATURATION: {
 		engage_current_comm_step();
 		fake_missed_zc_detection(timestamp_hnsec);
 		_state.flags |= FLAG_SYNC_RECOVERY;
@@ -358,9 +358,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			stop_now = true;
 		}
 		break;
-
+	}
 	case ZC_NOT_DETECTED:
-	case ZC_FAILED:
+	case ZC_FAILED: {
 		if ((_state.flags & FLAG_SPINUP) && !(_state.flags & FLAG_SYNC_RECOVERY)) {
 			engage_current_comm_step();
 		} else {
@@ -370,10 +370,11 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		register_bad_step(&stop_now);
 		_state.flags |= FLAG_SYNC_RECOVERY;
 		break;
-
-	default:
+	}
+	default: {
 		assert(0);
 		stop_now = true;
+	}
 	}
 
 	if (stop_now) {
