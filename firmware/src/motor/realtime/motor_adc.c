@@ -77,7 +77,7 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 	_sample.timestamp = motor_timer_hnsec() -
 		((SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / 2) / NSEC_PER_HNSEC;
 
-#define SMPLADC1(num)     (_adc1_2_dma_buffer[num] & 0xFFFF)
+#define SMPLADC1(num)     (_adc1_2_dma_buffer[num] & 0xFFFFU)
 #define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
 	/*
 	 * ADC channel sampling:
