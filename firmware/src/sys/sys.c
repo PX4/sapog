@@ -66,7 +66,7 @@ void system_halt_hook(void)
 	application_halt_hook();
 
 	port_disable();
-	writepoll("\nPANIC [");
+	writepoll("\r\nPANIC [");
 	const Thread *pthread = chThdSelf();
 	if (pthread && pthread->p_name) {
 		writepoll(pthread->p_name);
@@ -76,7 +76,7 @@ void system_halt_hook(void)
 	if (dbg_panic_msg != NULL) {
 		writepoll(dbg_panic_msg);
 	}
-	writepoll("\n");
+	writepoll("\r\n");
 
 #if DEBUG_BUILD
     if (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk)
