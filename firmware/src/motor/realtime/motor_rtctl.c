@@ -43,6 +43,7 @@
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"
+#include "forced_rotation_detection.h"
 
 
 #define STEP_SWITCHING_DELAY_HNSEC (1 * HNSEC_PER_USEC)
@@ -74,8 +75,7 @@
  * Commutation tables
  * Phase order: Positive, Negative, Floating
  */
-#define NUM_COMMUTATION_STEPS      6
-static const struct motor_pwm_commutation_step COMMUTATION_TABLE_FORWARD[NUM_COMMUTATION_STEPS] = {
+static const struct motor_pwm_commutation_step COMMUTATION_TABLE_FORWARD[MOTOR_NUM_COMMUTATION_STEPS] = {
 	{1, 0, 2},
 	{1, 2, 0},
 	{0, 2, 1},
@@ -83,7 +83,7 @@ static const struct motor_pwm_commutation_step COMMUTATION_TABLE_FORWARD[NUM_COM
 	{2, 1, 0},
 	{2, 0, 1}
 };
-static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[NUM_COMMUTATION_STEPS] = {
+static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[MOTOR_NUM_COMMUTATION_STEPS] = {
 	{2, 0, 1},
 	{2, 1, 0},
 	{0, 1, 2},
@@ -260,7 +260,7 @@ static void register_good_step(void)
 {
 	if (_state.immediate_zc_failures > 0) {
 		_state.immediate_zc_detects++;
-		if (_state.immediate_zc_detects > NUM_COMMUTATION_STEPS) {
+		if (_state.immediate_zc_detects > MOTOR_NUM_COMMUTATION_STEPS) {
 			_state.immediate_zc_failures = 0;
 		}
 	}
@@ -336,7 +336,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	// Next comm step
 	_state.current_comm_step++;
-	if (_state.current_comm_step >= NUM_COMMUTATION_STEPS) {
+	if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
 		_state.current_comm_step = 0;
 	}
 
@@ -554,11 +554,14 @@ static uint64_t solve_zc_approximation(void)
 void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 {
 	const bool proceed =
-		(_state.flags & FLAG_ACTIVE) &&
+		((_state.flags & FLAG_ACTIVE) != 0) &&
 		(_state.zc_detection_result == ZC_NOT_DETECTED) &&
 		(sample->timestamp >= _state.blank_time_deadline);
 
 	if (!proceed) {
+		if ((_state.flags & FLAG_ACTIVE) == 0) {
+			motor_forced_rotation_detector_update_from_adc_callback(COMMUTATION_TABLE_FORWARD, sample);
+		}
 		return;
 	}
 	assert(_state.comm_table);
@@ -667,6 +670,8 @@ int motor_rtctl_init(void)
 	if (ret) {
 		return ret;
 	}
+
+	motor_forced_rotation_detector_init();
 
 	configure();
 	motor_rtctl_stop();
@@ -821,7 +826,7 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 
 		// Next step
 		_state.current_comm_step++;
-		if (_state.current_comm_step >= NUM_COMMUTATION_STEPS) {
+		if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
 			_state.current_comm_step = 0;
 		}
 	}
@@ -847,6 +852,8 @@ void motor_rtctl_start(float duty_cycle, bool reverse)
 	 */
 	memset(&_diag, 0, sizeof(_diag));
 	memset(&_state, 0, sizeof(_state));    // Mighty reset
+
+	motor_forced_rotation_detector_reset();
 
 	_diag.started_at = motor_timer_hnsec();
 
@@ -1002,6 +1009,15 @@ uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
 		retval = ABS_MIN_COMM_PERIOD_USEC * HNSEC_PER_USEC;
 	}
 	return retval;
+}
+
+enum motor_rtctl_forced_rotation motor_rtctl_get_forced_rotation_state(void)
+{
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
+		return motor_forced_rotation_detector_get_state();
+	} else {
+		return MOTOR_RTCTL_FORCED_ROT_NONE;
+	}
 }
 
 void motor_rtctl_print_debug_info(void)

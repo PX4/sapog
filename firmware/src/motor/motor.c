@@ -645,6 +645,31 @@ uint64_t motor_get_zc_failures_since_start(void)
 	return motor_rtctl_get_zc_failures_since_start();
 }
 
+enum motor_forced_rotation_direction motor_get_forced_rotation_direction(void)
+{
+	chMtxLock(&_mutex);
+
+	enum motor_forced_rotation_direction ret = MOTOR_FORCED_ROTATION_NONE;
+
+	switch (motor_rtctl_get_forced_rotation_state())
+	{
+	case MOTOR_RTCTL_FORCED_ROT_FORWARD: {
+		ret = MOTOR_FORCED_ROTATION_FORWARD;
+		break;
+	}
+	case MOTOR_RTCTL_FORCED_ROT_REVERSE: {
+		ret = MOTOR_FORCED_ROTATION_REVERSE;
+		break;
+	}
+	default: {
+		break;
+	}
+	}
+
+	chMtxUnlock();
+	return ret;
+}
+
 int motor_test_hardware(void)
 {
 	chMtxLock(&_mutex);

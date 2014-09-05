@@ -53,6 +53,13 @@ enum motor_limit_mask
 	MOTOR_LIMIT_ACCEL = 4
 };
 
+enum motor_forced_rotation_direction
+{
+	MOTOR_FORCED_ROTATION_NONE,
+	MOTOR_FORCED_ROTATION_FORWARD,
+	MOTOR_FORCED_ROTATION_REVERSE,
+};
+
 int motor_init(void);
 
 /**
@@ -121,6 +128,7 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current);
  */
 void motor_confirm_initialization(void);
 uint64_t motor_get_zc_failures_since_start(void);
+enum motor_forced_rotation_direction motor_get_forced_rotation_direction(void);
 int motor_test_hardware(void);
 int motor_test_motor(void);
 void motor_beep(int frequency, int duration_msec);

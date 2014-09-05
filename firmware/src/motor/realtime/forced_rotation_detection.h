@@ -1,7 +1,7 @@
 /****************************************************************************
  *
- *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
- *   Author: Pavel Kirienko (pavel.kirienko@gmail.com)
+ *   Copyright (C) 2014 PX4 Development Team. All rights reserved.
+ *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,30 +34,20 @@
 
 #pragma once
 
-#include <ch.h>
-#include <hal.h>
 #include <sys.h>
+#include "api.h"
+#include "pwm.h"
+#include "adc.h"
 
 __BEGIN_DECLS
 
-#define MOTOR_NUM_PHASES        3
+void motor_forced_rotation_detector_init(void);
 
-#define MOTOR_NUM_COMMUTATION_STEPS      6
+void motor_forced_rotation_detector_reset(void);
 
-/**
- * Faster alternatives for GPIO API that can be used from IRQ handlers.
- */
-#if DEBUG_BUILD
-#  define TESTPAD_SET(port, pin)        (port)->BSRR = 1 << (pin)
-#  define TESTPAD_CLEAR(port, pin)      (port)->BRR = 1 << (pin)
-#else
-#  define TESTPAD_SET(port, pin)
-#  define TESTPAD_CLEAR(port, pin)
-#endif
+void motor_forced_rotation_detector_update_from_adc_callback(const struct motor_pwm_commutation_step* comm_table,
+                                                             const struct motor_adc_sample* adc_sample);
 
-/**
- * Common priority for all hard real time IRQs.
- */
-#define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(CORTEX_MAXIMUM_PRIORITY)
+enum motor_rtctl_forced_rotation motor_forced_rotation_detector_get_state(void);
 
 __END_DECLS

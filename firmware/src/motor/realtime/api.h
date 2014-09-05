@@ -41,11 +41,39 @@
 
 __BEGIN_DECLS
 
+/**
+ * High-level motor control state.
+ */
 enum motor_rtctl_state
 {
+	/**
+	 * Unpowered.
+	 * The motor can be rotated by an external force.
+	 * Next state: starting.
+	 */
 	MOTOR_RTCTL_STATE_IDLE,
+
+	/**
+	 * Motor is attempting to start.
+	 * Next state: running on success, idle on failure.
+	 */
 	MOTOR_RTCTL_STATE_STARTING,
+
+	/**
+	 * Motor is running in normal mode.
+	 * Next state: idle.
+	 */
 	MOTOR_RTCTL_STATE_RUNNING
+};
+
+/**
+ * Forced rotation detection.
+ */
+enum motor_rtctl_forced_rotation
+{
+	MOTOR_RTCTL_FORCED_ROT_NONE,
+	MOTOR_RTCTL_FORCED_ROT_FORWARD,
+	MOTOR_RTCTL_FORCED_ROT_REVERSE,
 };
 
 /**
@@ -120,6 +148,13 @@ void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_curren
  * Minimum safe comm period. Depends on PWM frequency.
  */
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void);
+
+/**
+ * When the motor is not running, the control logic continuously monitors the BEMF
+ * response in order to detect if the motor is being rotated by an external force.
+ * This function allows to check if a forced rotation was detected.
+ */
+enum motor_rtctl_forced_rotation motor_rtctl_get_forced_rotation_state(void);
 
 /**
  * Prints some debug info.
