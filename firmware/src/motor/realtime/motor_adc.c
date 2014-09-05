@@ -41,6 +41,7 @@
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"
+#include <config/config.h>
 
 
 #define ADC_REF_VOLTAGE          3.3f
@@ -61,6 +62,9 @@
 const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = 0;
 
 const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
+
+
+CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         5.0,   0.1,   100.0)
 
 
 static float _shunt_resistance = 0;
@@ -188,9 +192,9 @@ static void enable(void)
 	chSysEnable();
 }
 
-int motor_adc_init(float shunt_resistance)
+int motor_adc_init(void)
 {
-	_shunt_resistance = shunt_resistance;
+	_shunt_resistance = config_get("motor_current_shunt_mohm") / 1000.0f;
 
 	chSysDisable();
 

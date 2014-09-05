@@ -75,7 +75,7 @@ enum motor_pwm_phase_manip
  * @param [in] prevent_full_duty_cycle_bump - Limit the duty cycle range so that there will be no jump near 100%
  * @return 0 on success, anything else if the requested frequency is invalid
  */
-int motor_pwm_init(unsigned frequency);
+int motor_pwm_init(void);
 
 /**
  * Prepares the power stage harware to start the motor

@@ -184,8 +184,6 @@ static struct precomputed_params       /// Parameters are read only
 static bool _initialization_confirmed = false;
 
 
-CONFIG_PARAM_INT("motor_pwm_frequency",                30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
-CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         5.0,   0.1,   100.0)
 // Most important parameters
 CONFIG_PARAM_INT("motor_timing_advance_deg",           15,    0,     15)
 CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
@@ -659,14 +657,14 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 int motor_rtctl_init(void)
 {
-	int ret = motor_pwm_init(config_get("motor_pwm_frequency"));
+	int ret = motor_pwm_init();
 	if (ret) {
 		return ret;
 	}
 
 	motor_timer_init();
 
-	ret = motor_adc_init(config_get("motor_current_shunt_mohm") / 1000.0f);
+	ret = motor_adc_init();
 	if (ret) {
 		return ret;
 	}

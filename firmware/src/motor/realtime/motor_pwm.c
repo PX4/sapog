@@ -38,6 +38,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stm32f10x.h>
+#include <config/config.h>
 #include "pwm.h"
 #include "adc.h"
 #include "timer.h"
@@ -48,6 +49,9 @@
 #endif
 
 #define PWM_DEAD_TIME_NANOSEC   750
+
+
+CONFIG_PARAM_INT("motor_pwm_frequency",    30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 
 /**
  * Local constants, initialized once
@@ -222,9 +226,9 @@ static void start_timers(void)
 	irq_primask_restore(irqstate);
 }
 
-int motor_pwm_init(unsigned frequency)
+int motor_pwm_init(void)
 {
-	const int ret = init_constants(frequency);
+	const int ret = init_constants(config_get("motor_pwm_frequency"));
 	if (ret) {
 		return ret;
 	}
