@@ -32,15 +32,15 @@
  *
  ****************************************************************************/
 
+#include "adc.h"
+#include "internal.h"
+#include "pwm.h"
+#include "timer.h"
 #include <ch.h>
 #include <hal.h>
 #include <assert.h>
 #include <unistd.h>
 #include <stm32f10x.h>
-#include "internal.h"
-#include "adc.h"
-#include "pwm.h"
-#include "timer.h"
 #include <config/config.h>
 
 

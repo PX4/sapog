@@ -32,18 +32,18 @@
  *
  ****************************************************************************/
 
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <limits.h>
-#include <config/config.h>
 #include "api.h"
 #include "internal.h"
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"
 #include "forced_rotation_detection.h"
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+#include <limits.h>
+#include <config/config.h>
 
 
 #define STEP_SWITCHING_DELAY_HNSEC (1 * HNSEC_PER_USEC)

@@ -32,15 +32,15 @@
  *
  ****************************************************************************/
 
+#include "api.h"
+#include "internal.h"
+#include "pwm.h"
+#include "adc.h"
 #include <assert.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "api.h"
-#include "internal.h"
-#include "pwm.h"
-#include "adc.h"
 
 
 static const int INITIAL_DELAY_MS = 300;

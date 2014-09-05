@@ -32,14 +32,14 @@
  *
  ****************************************************************************/
 
+#include "motor.h"
+#include "rpmctl.h"
+#include "realtime/api.h"
 #include <math.h>
 #include <ch.h>
 #include <watchdog.h>
 #include <unistd.h>
 #include <config/config.h>
-#include "motor.h"
-#include "rpmctl.h"
-#include "realtime/api.h"
 
 #define IDLE_CONTROL_PERIOD_MSEC  10
 #define WATCHDOG_TIMEOUT_MSEC     10000
