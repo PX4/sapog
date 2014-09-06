@@ -133,7 +133,6 @@ void motor_forced_rotation_detector_update_from_adc_callback(const struct motor_
 	const bool timed_out = (adc_sample->timestamp - _state.last_step_ts) > _params.max_step_period;
 	if (timed_out) {
 		_state.direction_votes = 0;
-		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 	}
 
 	const int current_step_index = find_matching_step_index(comm_table, adc_sample);
@@ -153,13 +152,11 @@ void motor_forced_rotation_detector_update_from_adc_callback(const struct motor_
 	_state.last_step_ts = adc_sample->timestamp;
 
 	if (new_assumption == MOTOR_RTCTL_FORCED_ROT_FORWARD) {
-		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		_state.direction_votes++;
 		if (_state.direction_votes > _params.voting_threshold) {
 			_state.direction_votes = _params.voting_threshold;
 		}
 	} else {
-		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		_state.direction_votes--;
 		if (_state.direction_votes < -_params.voting_threshold) {
 			_state.direction_votes = -_params.voting_threshold;
