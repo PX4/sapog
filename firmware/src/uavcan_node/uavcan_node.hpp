@@ -43,6 +43,8 @@ void set_node_status_ok();
 void set_node_status_warning();
 void set_node_status_critical();
 
+bool is_passive_mode();
+
 int init();
 
 }

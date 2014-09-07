@@ -188,7 +188,11 @@ int main()
 			led_ctl.set(led::Color::YELLOW);
 			uavcan_node::set_node_status_critical();
 		} else {
-			led_ctl.set(led::Color::DARK_GREEN);
+			if (uavcan_node::is_passive_mode()) {
+				led_ctl.blink(led::Color::DARK_GREEN);
+			} else {
+				led_ctl.set(led::Color::DARK_GREEN);
+			}
 			uavcan_node::set_node_status_ok();
 		}
 		::usleep(100 * 1000);

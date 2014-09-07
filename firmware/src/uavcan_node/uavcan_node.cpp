@@ -56,6 +56,7 @@ typedef uavcan::Node<UAVCAN_MEM_POOL_BLOCK_SIZE * 128> Node;
 uavcan_stm32::CanInitHelper<> can;
 
 auto node_status_code = uavcan::protocol::NodeStatus::STATUS_INITIALIZING;
+bool passive_mode = true;
 
 CONFIG_PARAM_INT("can_bitrate",    1000000, 20000, 1000000)
 CONFIG_PARAM_INT("uavcan_node_id", 0,       0,     125)      ///< 0 for Passive Mode (default)
@@ -312,7 +313,7 @@ class : public chibios_rt::BaseStaticThread<3000>
 		}
 		assert(get_node().isStarted());
 
-		const bool passive_mode = get_node().isPassiveMode();
+		passive_mode = get_node().isPassiveMode();
 
 		if (!passive_mode) {
 			while (get_param_server().start(&param_manager) < 0) {
@@ -376,6 +377,11 @@ void set_node_status_warning()
 void set_node_status_critical()
 {
 	node_status_code = uavcan::protocol::NodeStatus::STATUS_CRITICAL;
+}
+
+bool is_passive_mode()
+{
+	return passive_mode;
 }
 
 int init()
