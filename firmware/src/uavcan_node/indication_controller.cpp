@@ -37,7 +37,7 @@
 #include <uavcan/equipment/indication/BeepCommand.hpp>
 #include <config/config.h>
 #include <motor/motor.h>
-#include <led.h>
+#include <led.hpp>
 
 namespace uavcan_node
 {
@@ -51,11 +51,13 @@ CONFIG_PARAM_INT("uavcan_light_index", 0,   0,  255)
 
 void cb_light_command(const uavcan::ReceivedDataStructure<uavcan::equipment::indication::LightsCommand>& msg)
 {
+	static led::Overlay led_ctl;
+
 	for (auto& cmd : msg.commands)
 	{
 		if (cmd.light_id == self_light_index)
 		{
-			led_set_rgb(cmd.color.red / 31.F, cmd.color.green / 63.F, cmd.color.blue / 31.F);
+			led_ctl.set_rgb(cmd.color.red / 31.F, cmd.color.green / 63.F, cmd.color.blue / 31.F);
 			break;
 		}
 	}

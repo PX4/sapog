@@ -34,20 +34,64 @@
 
 #pragma once
 
+#include <ch.hpp>
 #include <sys.h>
 #include <stdint.h>
 
-__BEGIN_DECLS
-
+namespace led
+{
 /**
  * Must be called once before LED can be used.
  */
-void led_init(void);
+void init(void);
 
 /**
- * Colors are in the range [0, 1].
- * This function is IRQ-safe and thread-safe.
+ * This function can be called from any context.
+ * It sets LED to a specified state overriding all existing layers.
  */
-void led_set_rgb(float red, float green, float blue);
+void emergency_override_rgb(float red, float green, float blue);
 
-__END_DECLS
+/**
+ * This class allows to control the same LED from many sources in a stacked manner.
+ * The instance of this class initialized last would be able to control the LED state, while
+ * other instances (initialized earlier) would be shadowed until the top one is removed.
+ */
+class Overlay
+{
+	static constexpr int MAX_LAYERS = 4;
+
+	static Overlay* layers[MAX_LAYERS];
+	static chibios_rt::Mutex mutex;
+
+	float rgb[3] = {};
+
+	static Overlay*& locateLayer(const Overlay* ovr);
+
+	Overlay& operator=(const Overlay&) = delete;
+	Overlay(const Overlay&) = delete;
+
+public:
+	Overlay() { }
+	~Overlay() { unset(); }
+
+	/**
+	 * Colors are in the range [0, 1].
+	 * This function is thread-safe.
+	 */
+	void set_rgb(float red, float green, float blue);
+
+	/**
+	 * Turns the LED off.
+	 * This method has the same effect as setting RGB to zeroes.
+	 */
+	void set_off() { set_rgb(0.0F, 0.0F, 0.0F); }
+
+	/**
+	 * Makes the layer inactive.
+	 * Next lower-priority layer will become active instead.
+	 * This function is thread-safe.
+	 */
+	void unset();
+};
+
+}

@@ -40,7 +40,7 @@
 #include <unistd.h>
 #include <config/config.h>
 #include <sys.h>
-#include <led.h>
+#include <led.hpp>
 #include <console.h>
 #include <watchdog.h>
 #include <pwm_input.h>
@@ -50,6 +50,8 @@
 namespace
 {
 
+led::Overlay led_ctl;
+
 int init()
 {
 	int res = 0;
@@ -57,8 +59,8 @@ int init()
 	/*
 	 * Indication
 	 */
-	led_init();
-	led_set_rgb(0.05, 0.05, 0.05);
+	led::init();
+	led_ctl.set_rgb(0.05, 0.05, 0.05);
 
 	/*
 	 * Config
@@ -120,7 +122,7 @@ void die(int status)
 	while (1) {
 		motor_beep(100, 400);
 		uavcan_node::set_node_status_critical();
-		led_set_rgb(1, 0, 0);
+		led::emergency_override_rgb(1, 0, 0);
 		sleep(3);
 	}
 }
@@ -146,7 +148,7 @@ void print_banner()
 void application_halt_hook(void)
 {
 	motor_emergency();
-	led_set_rgb(1, 0, 0);
+	led::emergency_override_rgb(1, 0, 0);
 }
 
 int main()
@@ -177,14 +179,16 @@ int main()
 	uavcan_node::set_node_status_ok();
 
 	/*
-	 * Here we run some high-level self diagnostics
+	 * Here we run some high-level self diagnostics, indicating the system health via UAVCAN and LED.
 	 */
 	while (1) {
 		watchdog_reset(watchdog_id);
 
 		if (motor_is_blocked()) {
+			led_ctl.set_rgb(1.0F, 1.0F, 0.0F);
 			uavcan_node::set_node_status_critical();
 		} else {
+			led_ctl.set_rgb(0.0F, 0.05F, 0.0F);
 			uavcan_node::set_node_status_ok();
 		}
 		::usleep(100 * 1000);
