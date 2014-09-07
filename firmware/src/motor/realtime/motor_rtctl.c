@@ -198,7 +198,7 @@ CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   2000)
 CONFIG_PARAM_INT("motor_spinup_start_comm_period_usec",50000, 10000, 200000)
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  2000,  1000,  10000)
 CONFIG_PARAM_INT("motor_spinup_num_good_comms",        60,    6,     1000)
-CONFIG_PARAM_FLOAT("motor_spinup_duty_cycle_inc",      0.02,  0.001, 0.1)
+CONFIG_PARAM_FLOAT("motor_spinup_duty_cycle_inc",      0.025, 0.001, 0.1)
 // Debug
 CONFIG_PARAM_FLOAT("motor_dc_testpad_threshold",       0.3,   0.0,   1.0)
 
