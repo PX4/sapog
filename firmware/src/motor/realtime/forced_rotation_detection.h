@@ -47,8 +47,9 @@ void motor_forced_rotation_detector_init(void);
 
 void motor_forced_rotation_detector_reset(void);
 
-void motor_forced_rotation_detector_update_from_adc_callback(const struct motor_pwm_commutation_step* comm_table,
-                                                             const struct motor_adc_sample* adc_sample);
+void motor_forced_rotation_detector_update_from_adc_callback(
+	const struct motor_pwm_commutation_step comm_table[MOTOR_NUM_COMMUTATION_STEPS],
+        const struct motor_adc_sample* adc_sample);
 
 enum motor_rtctl_forced_rotation motor_forced_rotation_detector_get_state(void);
 

@@ -125,8 +125,9 @@ static enum motor_rtctl_forced_rotation detect_rotation_direction_from_current_s
 	}
 }
 
-void motor_forced_rotation_detector_update_from_adc_callback(const struct motor_pwm_commutation_step* comm_table,
-                                                             const struct motor_adc_sample* adc_sample)
+void motor_forced_rotation_detector_update_from_adc_callback(
+	const struct motor_pwm_commutation_step comm_table[MOTOR_NUM_COMMUTATION_STEPS],
+        const struct motor_adc_sample* adc_sample)
 {
 	assert(comm_table != NULL && adc_sample != NULL);
 
