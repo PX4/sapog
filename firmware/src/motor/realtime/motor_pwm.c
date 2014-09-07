@@ -37,9 +37,11 @@
 #include "timer.h"
 #include <ch.h>
 #include <hal.h>
+#include <sys.h>
 #include <unistd.h>
 #include <assert.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stm32f10x.h>
 #include <config/config.h>
 

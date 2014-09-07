@@ -36,7 +36,6 @@
 
 #include <ch.h>
 #include <hal.h>
-#include <sys.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -37,6 +37,7 @@
 #include <string.h>
 #include <ch.h>
 #include <hal.h>
+#include <sys.h>
 #include <shell.h>
 #include <watchdog.h>
 #include <config/config.h>

@@ -34,9 +34,8 @@
 
 #pragma once
 
-#include <stdbool.h>
 #include <stdint.h>
-#include <sys.h>
+#include <stdbool.h>
 #include "timer.h"
 
 #ifdef __cplusplus

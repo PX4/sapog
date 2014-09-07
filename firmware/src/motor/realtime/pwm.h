@@ -35,9 +35,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <hal.h>
-#include <sys.h>
 #include "internal.h"
 
 #ifdef __cplusplus

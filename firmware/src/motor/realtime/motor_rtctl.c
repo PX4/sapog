@@ -38,6 +38,7 @@
 #include "pwm.h"
 #include "timer.h"
 #include "forced_rotation_detection.h"
+#include <sys.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>

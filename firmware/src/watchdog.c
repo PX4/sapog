@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <hal.h>
+#include <sys.h>
 #include <watchdog.h>
 
 #define KR_KEY_ACCESS   0x5555

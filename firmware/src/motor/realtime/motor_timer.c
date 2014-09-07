@@ -38,6 +38,7 @@
 #include "internal.h"
 #include <ch.h>
 #include <hal.h>
+#include <sys.h>
 #include <assert.h>
 #include <stm32f10x.h>
 

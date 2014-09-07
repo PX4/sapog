@@ -37,6 +37,7 @@
 #include "realtime/api.h"
 #include <math.h>
 #include <ch.h>
+#include <sys.h>
 #include <watchdog.h>
 #include <unistd.h>
 #include <config/config.h>
