@@ -39,7 +39,9 @@
 #include "pwm.h"
 #include "adc.h"
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void motor_forced_rotation_detector_init(void);
 
@@ -50,4 +52,6 @@ void motor_forced_rotation_detector_update_from_adc_callback(const struct motor_
 
 enum motor_rtctl_forced_rotation motor_forced_rotation_detector_get_state(void);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

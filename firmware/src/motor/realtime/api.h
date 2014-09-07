@@ -39,7 +39,9 @@
 #include <sys.h>
 #include "timer.h"
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * High-level motor control state.
@@ -188,4 +190,6 @@ int motor_rtctl_test_motor(void);
  */
 void motor_rtctl_execute_cli_command(int argc, const char* argv[]);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

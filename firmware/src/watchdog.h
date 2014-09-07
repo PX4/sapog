@@ -36,7 +36,9 @@
 
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void watchdog_init(void);
 
@@ -44,4 +46,6 @@ int watchdog_create(int timeout_ms);
 
 void watchdog_reset(int id);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

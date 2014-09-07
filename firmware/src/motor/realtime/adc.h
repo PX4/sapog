@@ -37,7 +37,9 @@
 #include <stdint.h>
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define MOTOR_ADC_RESOLUTION  12
 
@@ -69,4 +71,6 @@ float motor_adc_convert_input_current(int raw);
  */
 extern void motor_adc_sample_callback(const struct motor_adc_sample* sample);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

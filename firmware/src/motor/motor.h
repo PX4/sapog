@@ -38,7 +38,9 @@
 #include <stdint.h>
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum motor_control_mode
 {
@@ -139,4 +141,6 @@ void motor_execute_cli_command(int argc, const char* argv[]);
  * @}
  */
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

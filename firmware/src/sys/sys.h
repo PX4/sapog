@@ -40,18 +40,9 @@
 #include <chprintf.h>
 #include "irq.h"
 
-/**
- * C++ wrappers
- */
 #ifdef __cplusplus
-#  define __BEGIN_DECLS		extern "C" {
-#  define __END_DECLS		}
-#else
-#  define __BEGIN_DECLS
-#  define __END_DECLS
+extern "C" {
 #endif
-
-__BEGIN_DECLS
 
 /**
  * NuttX-like console print; should be used instead of printf()/chprintf()
@@ -84,4 +75,6 @@ extern void application_halt_hook(void);
 __attribute__((noreturn))
 void sys_panic(const char* msg);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

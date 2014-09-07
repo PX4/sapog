@@ -38,7 +38,9 @@
 #include <hal.h>
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define MOTOR_NUM_PHASES        3
 
@@ -60,4 +62,6 @@ __BEGIN_DECLS
  */
 #define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(CORTEX_MAXIMUM_PRIORITY)
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

@@ -36,7 +36,9 @@
 
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum config_data_type
 {
@@ -126,4 +128,6 @@ int config_get_descr(const char* name, struct config_param* out);
  */
 float config_get(const char* name);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

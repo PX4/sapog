@@ -36,8 +36,12 @@
 
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void console_init(void);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

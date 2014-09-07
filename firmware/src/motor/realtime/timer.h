@@ -37,7 +37,9 @@
 #include <stdint.h>
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define HNSEC_PER_USEC      10
 #define HNSEC_PER_MSEC      10000
@@ -72,4 +74,6 @@ extern void motor_timer_callback(uint64_t timestamp_hnsec);
  */
 void motor_timer_hndelay(int hnsecs);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

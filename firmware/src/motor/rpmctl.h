@@ -36,7 +36,9 @@
 
 #include <sys.h>
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct rpmctl_input
 {
@@ -52,4 +54,6 @@ void rpmctl_reset(void);
 
 float rpmctl_update(const struct rpmctl_input* input);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif

@@ -40,7 +40,9 @@
 #include <sys.h>
 #include "internal.h"
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define MOTOR_ADC1_2_TRIGGER    (ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_0)
 
@@ -117,4 +119,6 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
  */
 void motor_pwm_beep(int frequency, int duration_msec);
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif
