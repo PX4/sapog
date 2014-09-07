@@ -234,11 +234,7 @@ class EnumerationHandler : public uavcan::TimerBase
 
 	void handleTimerEvent(const uavcan::TimerEvent& event) override
 	{
-		if (led_ctl.is_on()) {
-			led_ctl.set_off();
-		} else {
-			led_ctl.set_rgb(0.0F, 1.0F, 1.0F);
-		}
+		led_ctl.blink(led::Color::CYAN);
 
 		if ((event.real_time >= confirmation_deadline_) || !received_node_id_.isUnicast()) {
 			::lowsyslog("UAVCAN: Enumeration request expired\n");
@@ -249,6 +245,7 @@ class EnumerationHandler : public uavcan::TimerBase
 			if (rotation != MOTOR_FORCED_ROTATION_NONE) {
 				const bool reverse = rotation != MOTOR_FORCED_ROTATION_FORWARD;
 				finish(reverse);
+				led_ctl.unset();
 			}
 		}
 	}

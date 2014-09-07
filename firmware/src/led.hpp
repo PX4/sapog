@@ -36,10 +36,33 @@
 
 #include <ch.hpp>
 #include <sys.h>
-#include <stdint.h>
+#include <cstdint>
 
 namespace led
 {
+/**
+ * Basic color codes
+ */
+enum class Color : unsigned
+{
+	OFF    = 0x000000,
+	WHITE  = 0xFFFFFF,
+
+	// Basic colors
+	RED    = 0xFF0000,
+	YELLOW = 0xFFFF00,
+	GREEN  = 0x00FF00,
+	CYAN   = 0x00FFFF,
+	BLUE   = 0x0000FF,
+	PURPLE = 0xFF00FF,
+
+	// Shades
+	PALE_WHITE  = 0x0F0F0F,
+	DARK_RED    = 0x0F0000,
+	DARK_GREEN  = 0x000F00,
+	DARK_BLUE   = 0x00000F
+};
+
 /**
  * Must be called once before LED can be used.
  */
@@ -48,8 +71,9 @@ void init(void);
 /**
  * This function can be called from any context.
  * It sets LED to a specified state overriding all existing layers.
+ * Accepts @ref Color.
  */
-void emergency_override_rgb(float red, float green, float blue);
+void emergency_override(Color color);
 
 /**
  * This class allows to control the same LED from many sources in a stacked manner.
@@ -63,9 +87,7 @@ class Overlay
 	static Overlay* layers[MAX_LAYERS];
 	static chibios_rt::Mutex mutex;
 
-	float rgb[3] = {};
-
-	static Overlay*& locateLayer(const Overlay* ovr);
+	std::uint32_t color = 0;
 
 	Overlay& operator=(const Overlay&) = delete;
 	Overlay(const Overlay&) = delete;
@@ -75,21 +97,27 @@ public:
 	~Overlay() { unset(); }
 
 	/**
-	 * Colors are in the range [0, 1].
+	 * Accepts standard RGB hex, e.g. 0xFFFFFF for white.
 	 * This function is thread-safe.
 	 */
-	void set_rgb(float red, float green, float blue);
+	void set_hex_rgb(std::uint32_t hex_rgb);
 
 	/**
-	 * Turns the LED off.
-	 * This method has the same effect as setting RGB to zeroes.
+	 * Accepts @ref Color.
+	 * This function is thread-safe.
 	 */
-	void set_off() { set_rgb(0.0F, 0.0F, 0.0F); }
+	void set(Color new_color) { set_hex_rgb(unsigned(new_color)); }
 
 	/**
-	 * Checks whether the current state is not off.
+	 * Accepts @ref Color.
+	 * Blinks the specified color.
 	 */
-	bool is_on() const { return (rgb[0] > 1e-6F) || (rgb[1] > 1e-6F) || (rgb[2] > 1e-6F); }
+	void blink(Color new_color) { set_hex_rgb((color > 0) ? 0 : unsigned(new_color)); }
+
+	/**
+	 * Returns the current color code.
+	 */
+	std::uint32_t get_hex_rgb() const { return color; }
 
 	/**
 	 * Makes the layer inactive.

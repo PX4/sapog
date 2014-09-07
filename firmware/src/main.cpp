@@ -60,7 +60,7 @@ int init()
 	 * Indication
 	 */
 	led::init();
-	led_ctl.set_rgb(0.05, 0.05, 0.05);
+	led_ctl.set(led::Color::PALE_WHITE);
 
 	/*
 	 * Config
@@ -122,7 +122,7 @@ void die(int status)
 	while (1) {
 		motor_beep(100, 400);
 		uavcan_node::set_node_status_critical();
-		led::emergency_override_rgb(1, 0, 0);
+		led::emergency_override(led::Color::RED);
 		sleep(3);
 	}
 }
@@ -148,7 +148,7 @@ void print_banner()
 void application_halt_hook(void)
 {
 	motor_emergency();
-	led::emergency_override_rgb(1, 0, 0);
+	led::emergency_override(led::Color::RED);
 }
 
 int main()
@@ -185,10 +185,10 @@ int main()
 		watchdog_reset(watchdog_id);
 
 		if (motor_is_blocked()) {
-			led_ctl.set_rgb(1.0F, 1.0F, 0.0F);
+			led_ctl.set(led::Color::YELLOW);
 			uavcan_node::set_node_status_critical();
 		} else {
-			led_ctl.set_rgb(0.0F, 0.05F, 0.0F);
+			led_ctl.set(led::Color::DARK_GREEN);
 			uavcan_node::set_node_status_ok();
 		}
 		::usleep(100 * 1000);

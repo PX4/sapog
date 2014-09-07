@@ -70,8 +70,6 @@
 namespace led
 {
 
-static constexpr unsigned PWM_TOP = 0xFFFF;
-
 /*
  * Static functions
  */
@@ -86,7 +84,7 @@ void init(void)
 
 	chSysEnable();
 
-	TIMX->ARR = PWM_TOP;
+	TIMX->ARR = 0xFFFF;
 	TIMX->CR1 = 0;
 	TIMX->CR2 = 0;
 
@@ -106,27 +104,21 @@ void init(void)
 	TIMX->CR1 |= TIM_CR1_CEN;
 }
 
-static float normalize_range(float x)
+static void set_hex_impl(std::uint32_t hex_rgb)
 {
-	if (x < 0.0F) { return 0.0F; }
-	if (x > 1.0F) { return 1.0F; }
-	return x;
-}
-
-static void set(float red, float green, float blue)
-{
-	const unsigned pwm_red   = normalize_range(red)   * PWM_TOP;
-	const unsigned pwm_green = normalize_range(green) * PWM_TOP;
-	const unsigned pwm_blue  = normalize_range(blue)  * PWM_TOP;
+	hex_rgb &= 0xFFFFFFU;
+	const unsigned pwm_red   = ((hex_rgb & 0xFF0000U) >> 16) * 257U;
+	const unsigned pwm_green = ((hex_rgb & 0x00FF00U) >> 8)  * 257U;
+	const unsigned pwm_blue  = ((hex_rgb & 0x0000FFU) >> 0)  * 257U;
 
 	TIMX->CCR1 = pwm_red;
 	TIMX->CCR2 = pwm_green;
 	TIMX->CCR3 = pwm_blue;
 }
 
-void emergency_override_rgb(float red, float green, float blue)
+void emergency_override(Color color)
 {
-	set(red, green, blue);
+	set_hex_impl(unsigned(color));
 }
 
 /*
@@ -135,13 +127,11 @@ void emergency_override_rgb(float red, float green, float blue)
 Overlay* Overlay::layers[MAX_LAYERS] = {};
 chibios_rt::Mutex Overlay::mutex;
 
-void Overlay::set_rgb(float red, float green, float blue)
+void Overlay::set_hex_rgb(std::uint32_t hex_rgb)
 {
 	mutex.lock();
 
-	rgb[0] = red;
-	rgb[1] = green;
-	rgb[2] = blue;
+	color = hex_rgb;
 
 	// Checking if this layer is registered
 	int position = -1;
@@ -173,7 +163,7 @@ void Overlay::set_rgb(float red, float green, float blue)
 
 	// Checking if we're at the top
 	if ((position >= (MAX_LAYERS - 1)) || (layers[position + 1] == nullptr)) {
-		set(red, green, blue);
+		set_hex_impl(color);
 	}
 
 leave:
@@ -206,7 +196,7 @@ void Overlay::unset()
 	for (int i = (MAX_LAYERS - 1); i >= 0; i--) {
 		if (layers[i] != nullptr) {
 			::lowsyslog("LED: 0x%08x reactivated at pos %d\n", reinterpret_cast<unsigned>(layers[i]), i);
-			set(layers[i]->rgb[0], layers[i]->rgb[1], layers[i]->rgb[2]);
+			set_hex_impl(layers[i]->color);
 			break;
 		}
 	}
