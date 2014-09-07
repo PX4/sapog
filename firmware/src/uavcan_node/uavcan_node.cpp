@@ -37,6 +37,7 @@
 #include "indication_controller.hpp"
 #include <algorithm>
 #include <ch.hpp>
+#include <led.hpp>
 #include <sys/sys.h>
 #include <config/config.h>
 #include <uavcan/protocol/param_server.hpp>
@@ -200,7 +201,7 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
  */
 class EnumerationHandler : public uavcan::TimerBase
 {
-	static constexpr int CONFIRMATION_CHECK_INTERVAL_MSEC = 20;
+	static constexpr int CONFIRMATION_CHECK_INTERVAL_MSEC = 50;
 
 	typedef uavcan::MethodBinder<EnumerationHandler*,
 	                             void (EnumerationHandler::*)
@@ -210,6 +211,7 @@ class EnumerationHandler : public uavcan::TimerBase
 	uavcan::Subscriber<uavcan::protocol::EnumerationRequest, CallbackBinder> sub_;
 	uavcan::MonotonicTime confirmation_deadline_;
 	uavcan::NodeID received_node_id_;
+	mutable led::Overlay led_ctl;
 
 	void finish(bool reverse) const
 	{
@@ -232,9 +234,16 @@ class EnumerationHandler : public uavcan::TimerBase
 
 	void handleTimerEvent(const uavcan::TimerEvent& event) override
 	{
+		if (led_ctl.is_on()) {
+			led_ctl.set_off();
+		} else {
+			led_ctl.set_rgb(0.0F, 1.0F, 1.0F);
+		}
+
 		if ((event.real_time >= confirmation_deadline_) || !received_node_id_.isUnicast()) {
 			::lowsyslog("UAVCAN: Enumeration request expired\n");
 			this->stop();
+			led_ctl.unset();
 		} else {
 			const auto rotation = motor_get_forced_rotation_direction();
 			if (rotation != MOTOR_FORCED_ROTATION_NONE) {

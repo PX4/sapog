@@ -87,6 +87,11 @@ public:
 	void set_off() { set_rgb(0.0F, 0.0F, 0.0F); }
 
 	/**
+	 * Checks whether the current state is not off.
+	 */
+	bool is_on() const { return (rgb[0] > 1e-6F) || (rgb[1] > 1e-6F) || (rgb[2] > 1e-6F); }
+
+	/**
 	 * Makes the layer inactive.
 	 * Next lower-priority layer will become active instead.
 	 * This function is thread-safe.
