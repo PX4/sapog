@@ -1,3 +1,6 @@
 [submodule "firmware/chibios"]
 	path = firmware/chibios
 	url = https://github.com/ChibiOS/ChibiOS-RT
+[submodule "firmware/uavcan"]
+	path = firmware/uavcan
+	url = https://github.com/pavel-kirienko/uavcan
