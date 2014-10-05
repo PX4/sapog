@@ -18,6 +18,3 @@ build
 .settings/*
 .project
 .cproject
-
-# 3rdparty
-uavcan
