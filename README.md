@@ -23,7 +23,6 @@ Prerequisites:
 
 ```bash
 git submodule update --init --recursive
-./tools/fetch_uavcan.sh   # Or make a symlink instead
 cd firmware
 make RELEASE=1 # RELEASE is optional; omit to build the debug version
 ```
