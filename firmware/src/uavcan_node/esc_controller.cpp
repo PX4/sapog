@@ -38,7 +38,6 @@
 #include <uavcan/equipment/esc/Status.hpp>
 #include <config/config.h>
 #include <motor/motor.h>
-#include <limits>
 
 namespace uavcan_node
 {
@@ -63,7 +62,7 @@ void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::
 		return;
 	}
 
-	const float scaled_dc = msg.cmd[self_index] / float(uavcan::equipment::esc::RawCommand::CMD_MAX);
+	const float scaled_dc = msg.cmd[self_index] / float(uavcan::equipment::esc::RawCommand::FieldTypes::cmd::RawValueType::max());
 
 	const bool idle = motor_is_idle();
 	const bool accept = (!idle) || (idle && (scaled_dc <= max_dc_to_start));
@@ -82,7 +81,7 @@ void cb_rpm_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::
 		return;
 	}
 
-	const unsigned rpm = msg.rpm[self_index];
+	const int rpm = msg.rpm[self_index];
 
 	if (rpm > 0) {
 		motor_set_rpm(rpm, command_ttl_ms);
@@ -95,7 +94,7 @@ void cb_10Hz(const uavcan::TimerEvent& event)
 {
 	uavcan::equipment::esc::Status msg;
 
-	msg.index = self_index;
+	msg.esc_index = self_index;
 	msg.rpm = motor_get_rpm();
 	motor_get_input_voltage_current(&msg.voltage, &msg.current);
 	msg.temperature = std::numeric_limits<float>::quiet_NaN();
