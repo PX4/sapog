@@ -13,11 +13,12 @@ build
 *~
 *.pyc
 
-# Eclipse
+# IDE
 .metadata/*
 .settings/*
 .project
 .cproject
+.idea
 
 # Generated
 dsdlc_generated
