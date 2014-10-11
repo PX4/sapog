@@ -185,7 +185,8 @@ void executeCommand(const uavcan_linux::NodePtr& node, StdinLineReader& stdin_re
                 msg.cmd.resize(index + 1);
             }
             std::cout << args.at(1) << " " << std::stof(args.at(1)) << std::endl;
-            msg.cmd[index] = std::stof(args.at(1)) * uavcan::equipment::esc::RawCommand::CMD_MAX;
+            msg.cmd[index] =
+                std::stof(args.at(1)) * uavcan::equipment::esc::RawCommand::FieldTypes::cmd::RawValueType::max();
         }
         std::cout << msg << std::endl;
 
