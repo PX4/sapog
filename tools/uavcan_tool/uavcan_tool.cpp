@@ -184,9 +184,12 @@ void executeCommand(const uavcan_linux::NodePtr& node, StdinLineReader& stdin_re
             {
                 msg.cmd.resize(index + 1);
             }
-            std::cout << args.at(1) << " " << std::stof(args.at(1)) << std::endl;
-            msg.cmd[index] =
-                std::stof(args.at(1)) * uavcan::equipment::esc::RawCommand::FieldTypes::cmd::RawValueType::max();
+            float val = std::stof(args.at(1));
+            if ((val > 1.0F) || (val < -1.0F))
+            {
+                val = 0.0F;
+            }
+            msg.cmd[index] = val * uavcan::equipment::esc::RawCommand::FieldTypes::cmd::RawValueType::max();
         }
         std::cout << msg << std::endl;
 
@@ -209,7 +212,12 @@ void executeCommand(const uavcan_linux::NodePtr& node, StdinLineReader& stdin_re
             {
                 msg.rpm.resize(index + 1);
             }
-            msg.rpm[index] = std::max(std::min(std::stoi(args.at(1)), 0xFFFF), 0);
+            int val = std::stoi(args.at(1));
+            if ((val > 100000) || (val < -100000))
+            {
+                val = 0;
+            }
+            msg.rpm[index] = val;
         }
         std::cout << msg << std::endl;
 
