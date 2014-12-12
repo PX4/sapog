@@ -34,8 +34,8 @@ PROJECT = px4esc
 
 UDEFS = -DFW_VERSION_MAJOR=0 -DFW_VERSION_MINOR=1
 
-export PX4ESC_BASE		 := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
-export PX4ESC_SRC_DIR	 = $(abspath $(PX4ESC_BASE)/src)
+export PX4ESC_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
+export PX4ESC_SRC_DIR = $(abspath $(PX4ESC_BASE)/src)
 
 #
 # Sources
