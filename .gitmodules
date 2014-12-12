@@ -3,4 +3,4 @@
 	url = https://github.com/Zubax/ChibiOS
 [submodule "firmware/uavcan"]
 	path = firmware/uavcan
-	url = https://github.com/pavel-kirienko/uavcan
+	url = https://github.com/UAVCAN/uavcan
