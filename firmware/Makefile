@@ -34,16 +34,19 @@ PROJECT = px4esc
 
 UDEFS = -DFW_VERSION_MAJOR=0 -DFW_VERSION_MINOR=1
 
+export PX4ESC_BASE		 := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
+export PX4ESC_SRC_DIR	 = $(abspath $(PX4ESC_BASE)/src)
+
 #
 # Sources
 #
 
-CSRC = $(wildcard src/*.c)     \
-       $(wildcard src/*/*.c)   \
-       $(wildcard src/*/*/*.c)
+CSRC = $(wildcard $(PX4ESC_SRC_DIR)/*.c)     \
+       $(wildcard $(PX4ESC_SRC_DIR)/*/*.c)   \
+       $(wildcard $(PX4ESC_SRC_DIR)/*/*/*.c)
 
-CPPSRC = $(wildcard src/*.cpp)   \
-         $(wildcard src/*/*.cpp)
+CPPSRC = $(wildcard $(PX4ESC_SRC_DIR)/*.cpp)   \
+         $(wildcard $(PX4ESC_SRC_DIR)/*/*.cpp)
 
 UINCDIR = src           \
           src/sys       \
