@@ -77,9 +77,6 @@ void boardInit(void)
 	// TIM3 - RGB LED PWM
 	mapr |= AFIO_MAPR_TIM3_REMAP_FULLREMAP;
 
-	// On-board I2C (not used)
-	mapr |= AFIO_MAPR_I2C1_REMAP;
-
 	AFIO->MAPR = mapr;
 }
 
