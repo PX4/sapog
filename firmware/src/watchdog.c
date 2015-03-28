@@ -46,6 +46,11 @@
 
 #define MAX_NUM_WATCHDOGS 31
 
+#if defined(RCC_CSR_WDGRSTF) && !\
+    defined(RCC_CSR_IWDGRSTF)
+# define RCC_CSR_IWDGRSTF \
+         RCC_CSR_WDGRSTF
+#endif
 
 static int _wdg_timeout_ms = 0;
 
@@ -95,7 +100,7 @@ void watchdog_init(void)
 	_num_watchdogs = 0;
 
 	chSysSuspend();
-	DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
+	DBGMCU->APB1FZ |= DBGMCU_APB1_FZ_DBG_IWDEG_STOP;
 	chSysEnable();
 }
 
