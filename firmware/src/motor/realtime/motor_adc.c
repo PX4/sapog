@@ -219,7 +219,7 @@ float motor_adc_convert_input_voltage(int raw)
 {
 	static const float RTOP = 10.0F;
 	static const float RBOT = 1.3F;
-	static const float SCALE = (RTOP + RBOT) / RBOT;
+	const float SCALE = (RTOP + RBOT) / RBOT;
 	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
 	return unscaled * SCALE;
 }

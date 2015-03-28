@@ -42,7 +42,7 @@ int flash_storage_read(unsigned offset, void* data, unsigned len)
 	(void)offset;
 	(void)data;
 	(void)len;
-	return -ENOSYS;
+	return 0; // Pretend to read some garbage
 }
 
 int flash_storage_write(unsigned offset, const void* data, unsigned len)

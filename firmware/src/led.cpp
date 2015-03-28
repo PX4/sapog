@@ -88,14 +88,14 @@ void init(void)
 	TIMX->CR1 = 0;
 	TIMX->CR2 = 0;
 
-	// CC2, CC3, CC4 are R, G, B. Inverted mode.
+	// CC2, CC3, CC4 are R, G, B
 	TIMX->CCMR1 =
-		TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
-		TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
+		TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0 |
+		TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
 
 	TIMX->CCMR2 =
-		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
-		TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1;
+		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0 |
+		TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_0;
 
 	// No inversion, all enabled
 	TIMX->CCER = TIM_CCER_CC4E | TIM_CCER_CC3E | TIM_CCER_CC2E;
@@ -113,8 +113,8 @@ static void set_hex_impl(std::uint32_t hex_rgb)
 	const unsigned pwm_blue  = ((hex_rgb & 0x0000FFU) >> 0)  * 257U;
 
 	TIMX->CCR2 = pwm_red;
-	TIMX->CCR3 = pwm_blue;
-	TIMX->CCR4 = pwm_green;
+	TIMX->CCR3 = pwm_green;
+	TIMX->CCR4 = pwm_blue;
 }
 
 void emergency_override(Color color)

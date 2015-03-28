@@ -498,7 +498,7 @@ int motor_init(void)
 	init_filters();
 	if (_state.input_voltage < MIN_VALID_INPUT_VOLTAGE || _state.input_voltage > MAX_VALID_INPUT_VOLTAGE) {
 		lowsyslog("Motor: Invalid input voltage: %f\n", _state.input_voltage);
-		return -1;
+		//return -1; // FIXME
 	}
 
 	ret = rpmctl_init();

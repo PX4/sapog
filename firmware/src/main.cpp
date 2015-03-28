@@ -57,6 +57,11 @@ int init()
 	int res = 0;
 
 	/*
+	 * Safety
+	 */
+	watchdog_init();
+
+	/*
 	 * Indication
 	 */
 	led::init();
@@ -69,11 +74,8 @@ int init()
 	if (res) {
 		return res;
 	}
-
-	/*
-	 * Safety
-	 */
-	watchdog_init();
+	// TODO HACK FIXME - we don't have a configuration storage yet, so it's a workaround
+	(void)config_set("uavcan_node_id", 42);
 
 	/*
 	 * Motor control (must be initialized earlier than communicaton interfaces)
@@ -91,6 +93,7 @@ int init()
 	/*
 	 * UAVCAN node
 	 */
+	::usleep(100000);
 	res = uavcan_node::init();
 	if (res) {
 		return res;
@@ -99,17 +102,17 @@ int init()
 	/*
 	 * Self test
 	 */
-	res = motor_test_hardware();
-	if (res) {
-		return res;
-	}
-	lowsyslog("Hardware OK\n");
+//	res = motor_test_hardware();
+//	if (res) {
+//		return res;
+//	}
+//	lowsyslog("Hardware OK\n");
 
-	if (motor_test_motor()) {
-		lowsyslog("Motor is not connected or damaged\n");
-	} else {
-		lowsyslog("Motor OK\n");
-	}
+//	if (motor_test_motor()) {
+//		lowsyslog("Motor is not connected or damaged\n");
+//	} else {
+//		lowsyslog("Motor OK\n");
+//	}
 	return 0;
 }
 
@@ -157,13 +160,14 @@ int main()
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
-	usleep(300000);
+	::usleep(300000);
 	print_banner();
 
 	const int init_status = init();
 
 	const int watchdog_id = watchdog_create(10000);
 
+	::usleep(100000);
 	console_init();
 
 	if (init_status) {

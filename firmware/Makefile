@@ -129,7 +129,7 @@ USE_CPPOPT = -std=c++11 -fno-rtti -fno-threadsafe-statics
 RELEASE ?= 0
 ifneq ($(RELEASE),0)
     DDEFS += -DRELEASE_BUILD -DNDEBUG
-    USE_OPT += -O2 -fomit-frame-pointer
+    USE_OPT += -O2 -g3 -fomit-frame-pointer
 else
     DDEFS += -DDEBUG_BUILD
     USE_OPT += -O1 -g3
