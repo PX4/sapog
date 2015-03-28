@@ -88,7 +88,7 @@ void init(void)
 	TIMX->CR1 = 0;
 	TIMX->CR2 = 0;
 
-	// CC1, CC2, CC3 are R, G, B. Inverted mode.
+	// CC2, CC3, CC4 are R, G, B. Inverted mode.
 	TIMX->CCMR1 =
 		TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
 		TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
