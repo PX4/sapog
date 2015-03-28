@@ -94,10 +94,11 @@ void init(void)
 		TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
 
 	TIMX->CCMR2 =
-		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
+		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 |
+		TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1;
 
 	// No inversion, all enabled
-	TIMX->CCER = TIM_CCER_CC3E | TIM_CCER_CC2E | TIM_CCER_CC1E;
+	TIMX->CCER = TIM_CCER_CC4E | TIM_CCER_CC3E | TIM_CCER_CC2E;
 
 	// Start
 	TIMX->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -111,9 +112,9 @@ static void set_hex_impl(std::uint32_t hex_rgb)
 	const unsigned pwm_green = ((hex_rgb & 0x00FF00U) >> 8)  * 257U;
 	const unsigned pwm_blue  = ((hex_rgb & 0x0000FFU) >> 0)  * 257U;
 
-	TIMX->CCR1 = pwm_red;
-	TIMX->CCR2 = pwm_blue;
-	TIMX->CCR3 = pwm_green;
+	TIMX->CCR2 = pwm_red;
+	TIMX->CCR3 = pwm_blue;
+	TIMX->CCR4 = pwm_green;
 }
 
 void emergency_override(Color color)

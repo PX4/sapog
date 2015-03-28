@@ -188,7 +188,7 @@
                             PIN_AFIO_AF(0, 0)  |\
                             PIN_AFIO_AF(1, 0)  |\
                             PIN_AFIO_AF(2, 0)  |\
- /* RC PWM */               PIN_AFIO_AF(3, 2)  |\
+ /* RC PWM */               PIN_AFIO_AF(3, 3)  |\
                             PIN_AFIO_AF(4, 0)  |\
                             PIN_AFIO_AF(5, 0)  |\
                             PIN_AFIO_AF(6, 0)  |\

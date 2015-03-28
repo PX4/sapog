@@ -166,6 +166,6 @@ void pwm_input_init(void)
 		0
 	};
 
-	icuStart(&ICUD5, &icucfg);
-	icuEnable(&ICUD5);
+	icuStart(&ICUD9, &icucfg);
+	icuEnable(&ICUD9);
 }

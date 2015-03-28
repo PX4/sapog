@@ -107,21 +107,9 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 	TESTPAD_CLEAR(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 }
 
-static void adc_calibrate(ADC_TypeDef* const adc)
-{
-	// RSTCAL
-	assert_always(!(adc->CR2 & ADC_CR2_RSTCAL));
-	adc->CR2 |= ADC_CR2_RSTCAL;
-	while (adc->CR2 & ADC_CR2_RSTCAL) { }
-
-	// CAL
-	assert_always(!(adc->CR2 & ADC_CR2_CAL));
-	adc->CR2 |= ADC_CR2_CAL;
-	while (adc->CR2 & ADC_CR2_CAL) { }
-}
-
 static void enable(void)
 {
+#if 0
 	// DMA
 	DMA1_Channel1->CCR = 0;  // Deinitialize
 	DMA1_Channel1->CMAR = (uint32_t)_adc1_2_dma_buffer;
@@ -134,24 +122,20 @@ static void enable(void)
 		DMA_CCR1_MINC |
 		DMA_CCR1_CIRC |
 		DMA_CCR1_EN;
+#endif
 
 	// ADC enable, reset
-	const uint32_t enr_mask = RCC_APB2ENR_ADC1EN | RCC_APB2ENR_ADC2EN;
-	const uint32_t rst_mask = RCC_APB2RSTR_ADC1RST | RCC_APB2RSTR_ADC2RST;
 	chSysDisable();
-	RCC->APB2ENR |= enr_mask;
-	RCC->APB2RSTR |= rst_mask;
-	RCC->APB2RSTR &= ~rst_mask;
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_ADC2EN;
+	RCC->APB2RSTR |= RCC_APB2RSTR_ADCRST;
+	RCC->APB2RSTR &= ~RCC_APB2RSTR_ADCRST;
 	chSysEnable();
 
-	usleep(5);  // Sequence: enable ADC, wait 2+ cycles, poweron, calibrate?
+	usleep(5);
 
-	// ADC calibration
+	// ADC on
 	ADC1->CR2 = ADC_CR2_ADON;
-	adc_calibrate(ADC1);
-
 	ADC2->CR2 = ADC_CR2_ADON;
-	adc_calibrate(ADC2);
 
 	/*
 	 * ADC channel sampling:
@@ -180,6 +164,7 @@ static void enable(void)
 
 	// SMPR registers are not configured because they have right values by default
 
+#if 0
 	// ADC initialization
 	ADC1->CR1 = ADC_CR1_DUALMOD_1 | ADC_CR1_DUALMOD_2 | ADC_CR1_SCAN | ADC_CR1_EOCIE;
 	ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | MOTOR_ADC1_2_TRIGGER | ADC_CR2_DMA;
@@ -191,6 +176,7 @@ static void enable(void)
 	chSysDisable();
 	nvicEnableVector(ADC1_2_IRQn, MOTOR_IRQ_PRIORITY_MASK);
 	chSysEnable();
+#endif
 }
 
 int motor_adc_init(void)
@@ -199,15 +185,9 @@ int motor_adc_init(void)
 
 	chSysDisable();
 
-	RCC->AHBENR |= RCC_AHBENR_DMA1EN;  // Never disabled
+	// TODO: configure DMA
+	// TODO: configure ADC prescaler
 
-	RCC->CFGR &= ~RCC_CFGR_ADCPRE;
-#if STM32_PCLK2 == 72000000
-	// ADC clock 72 / 6 = 12 MHz
-	RCC->CFGR |= RCC_CFGR_ADCPRE_DIV6;
-#else
-#  error "What's wrong with PCLK2?"
-#endif
 	chSysEnable();
 
 	enable();
