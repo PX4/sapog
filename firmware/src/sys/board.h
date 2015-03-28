@@ -129,7 +129,7 @@
 /* SENS A */                PIN_MODE_ANALOG(0)  |\
 /* SENS B */                PIN_MODE_ANALOG(1)  |\
 /* SENS C */                PIN_MODE_ANALOG(2)  |\
-/* RC PWM */                PIN_MODE_INPUT(3)  |\
+/* RC PWM */                PIN_MODE_ALTERNATE(3)  |\
 /* DRV OC ADJ */            PIN_MODE_OUTPUT(4)  |\
 /* DRV EN GATE */           PIN_MODE_OUTPUT(5)  |\
 /* DRV DC CAL */            PIN_MODE_OUTPUT(6)  |\
@@ -185,7 +185,7 @@
                             PIN_AFIO_AF(0, 0)  |\
                             PIN_AFIO_AF(1, 0)  |\
                             PIN_AFIO_AF(2, 0)  |\
-                            PIN_AFIO_AF(3, 0)  |\
+ /* RC PWM */               PIN_AFIO_AF(3, 2)  |\
                             PIN_AFIO_AF(4, 0)  |\
                             PIN_AFIO_AF(5, 0)  |\
                             PIN_AFIO_AF(6, 0)  |\
