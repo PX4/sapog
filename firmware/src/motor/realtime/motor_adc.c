@@ -41,7 +41,7 @@
 #include <sys.h>
 #include <assert.h>
 #include <unistd.h>
-#include <stm32f10x.h>
+#include <stm32.h>
 #include <config/config.h>
 
 

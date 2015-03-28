@@ -33,7 +33,7 @@
  ****************************************************************************/
 
 #include "sys.h"
-#include <stm32f10x.h>
+#include <stm32.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <assert.h>

@@ -35,7 +35,7 @@
 #include "led.hpp"
 #include <hal.h>
 #include <assert.h>
-#include <stm32f10x.h>
+#include <stm32.h>
 #include <algorithm>
 
 #undef TIM1

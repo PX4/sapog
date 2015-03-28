@@ -40,7 +40,7 @@
 #include <hal.h>
 #include <sys.h>
 #include <assert.h>
-#include <stm32f10x.h>
+#include <stm32.h>
 
 // To prevent occasional use of a wrong timer
 #undef TIM1

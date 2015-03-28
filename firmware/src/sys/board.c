@@ -46,9 +46,6 @@
 #if STM32_PCLK2 != 60000000
 # error STM32_PCLK2
 #endif
-#if STM32_ADCCLK != 30000000
-# error STM32_ADCCLK
-#endif
 
 #define GPIO_DEFAULT_CONFIG     {   \
     VAL_GPIO_DEFAULT_MODER,         \

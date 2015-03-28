@@ -42,7 +42,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
-#include <stm32f10x.h>
+#include <stm32.h>
 #include <config/config.h>
 
 #define PWM_TIMER_FREQUENCY     STM32_TIMCLK2
