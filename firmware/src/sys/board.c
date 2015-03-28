@@ -37,14 +37,17 @@
 #include <string.h>
 
 // Clock config validation
-#if STM32_PREDIV1_VALUE != 2
-# error STM32_PREDIV1_VALUE
-#endif
-#if STM32_SYSCLK != 72000000
+#if STM32_SYSCLK != 120000000
 # error STM32_SYSCLK
 #endif
-#if STM32_PCLK2 != 72000000
+#if STM32_PCLK1 != 30000000
+# error STM32_PCLK1
+#endif
+#if STM32_PCLK2 != 60000000
 # error STM32_PCLK2
+#endif
+#if STM32_ADCCLK != 30000000
+# error STM32_ADCCLK
 #endif
 
 const PALConfig pal_default_config =
