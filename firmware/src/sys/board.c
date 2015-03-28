@@ -50,6 +50,16 @@
 # error STM32_ADCCLK
 #endif
 
+#define GPIO_DEFAULT_CONFIG     {   \
+    VAL_GPIO_DEFAULT_MODER,         \
+    VAL_GPIO_DEFAULT_OTYPER,        \
+    VAL_GPIO_DEFAULT_OSPEEDR,       \
+    VAL_GPIO_DEFAULT_PUPDR,         \
+    VAL_GPIO_DEFAULT_ODR,           \
+    VAL_GPIO_DEFAULT_AFRL,          \
+    VAL_GPIO_DEFAULT_AFRH           \
+}
+
 const PALConfig pal_default_config =
 {
     {
@@ -78,7 +88,13 @@ const PALConfig pal_default_config =
         VAL_GPIOC_ODR,
         VAL_GPIOC_AFRL,
         VAL_GPIOC_AFRH
-    }
+    },
+    GPIO_DEFAULT_CONFIG, // D
+    GPIO_DEFAULT_CONFIG, // E
+    GPIO_DEFAULT_CONFIG, // F
+    GPIO_DEFAULT_CONFIG, // G
+    GPIO_DEFAULT_CONFIG, // H
+    GPIO_DEFAULT_CONFIG  // I
 };
 
 void __early_init(void)

@@ -66,12 +66,6 @@
 #define GPIO_PIN_DRV_GAIN       2
 
 /*
- * Non-volatile memory pins
- */
-#define GPIO_PORT_NVMEM_CS      GPIOB
-#define GPIO_PIN_NVMEM_CS       12
-
-/*
  * Testpoints
  */
 // General testpoint
@@ -101,6 +95,15 @@
 
 #define GPIO_PORT_HW_ID_3       GPIOA
 #define GPIO_PIN_HW_ID_3        15
+
+/*
+ * Misc
+ */
+#define GPIO_PORT_NVMEM_CS      GPIOB
+#define GPIO_PIN_NVMEM_CS       12
+
+#define GPIO_PORT_SERIAL_RX     GPIOB
+#define GPIO_PIN_SERIAL_RX      11
 
 /*
  * I/O ports initial setup, this configuration is established soon after reset
@@ -409,6 +412,17 @@
                             (0 << 13) |\
                             (0 << 14) |\
                             (0 << 15)
+
+/******************************************************************************
+ * Nonexistent ports - default configuration
+ */
+#define VAL_GPIO_DEFAULT_MODER          0x00000000  // Input
+#define VAL_GPIO_DEFAULT_OTYPER         0x00000000  // Push-pull
+#define VAL_GPIO_DEFAULT_OSPEEDR        0x00000000  // Lowest speed
+#define VAL_GPIO_DEFAULT_PUPDR          0xAAAAAAAA  // Pull-down
+#define VAL_GPIO_DEFAULT_ODR            0x00000000  // Output low
+#define VAL_GPIO_DEFAULT_AFRL           0x00000000  // AF0
+#define VAL_GPIO_DEFAULT_AFRH           0x00000000
 
 
 #if !defined(_FROM_ASM_)

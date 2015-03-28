@@ -1,5 +1,5 @@
 /*
- * STM32F107 drivers configuration.
+ * STM32F2xx drivers configuration.
  * The following settings override the default settings present in
  * the various device driver implementation headers.
  * Note that the settings for each driver only have effect if the whole
