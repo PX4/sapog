@@ -47,45 +47,59 @@
 # error STM32_PCLK2
 #endif
 
-const PALConfig pal_default_config = {
-	{ VAL_GPIOAODR, VAL_GPIOACRL, VAL_GPIOACRH },
-	{ VAL_GPIOBODR, VAL_GPIOBCRL, VAL_GPIOBCRH },
-	{ VAL_GPIOCODR, VAL_GPIOCCRL, VAL_GPIOCCRH },
-	{ VAL_GPIODODR, VAL_GPIODCRL, VAL_GPIODCRH },
-	{ VAL_GPIOEODR, VAL_GPIOECRL, VAL_GPIOECRH }
+const PALConfig pal_default_config =
+{
+    {
+        VAL_GPIOA_MODER,
+        VAL_GPIOA_OTYPER,
+        VAL_GPIOA_OSPEEDR,
+        VAL_GPIOA_PUPDR,
+        VAL_GPIOA_ODR,
+        VAL_GPIOA_AFRL,
+        VAL_GPIOA_AFRH
+    },
+    {
+        VAL_GPIOB_MODER,
+        VAL_GPIOB_OTYPER,
+        VAL_GPIOB_OSPEEDR,
+        VAL_GPIOB_PUPDR,
+        VAL_GPIOB_ODR,
+        VAL_GPIOB_AFRL,
+        VAL_GPIOB_AFRH
+    },
+    {
+        VAL_GPIOC_MODER,
+        VAL_GPIOC_OTYPER,
+        VAL_GPIOC_OSPEEDR,
+        VAL_GPIOC_PUPDR,
+        VAL_GPIOC_ODR,
+        VAL_GPIOC_AFRL,
+        VAL_GPIOC_AFRH
+    }
 };
 
 void __early_init(void)
 {
-	stm32_clock_init();
+    stm32_clock_init();
 }
 
 void boardInit(void)
 {
-	uint32_t mapr = AFIO->MAPR;
-	mapr &= ~AFIO_MAPR_SWJ_CFG; // these bits are write-only
-
-	// Enable SWJ only, JTAG is not needed at all:
-	mapr |= AFIO_MAPR_SWJ_CFG_JTAGDISABLE;
-
-	// TIM1 - motor control
-	mapr |= AFIO_MAPR_TIM1_REMAP_0;
-
-	// Serial CLI
-	mapr |= AFIO_MAPR_USART1_REMAP;
-
-	// TIM3 - RGB LED PWM
-	mapr |= AFIO_MAPR_TIM3_REMAP_FULLREMAP;
-
-	AFIO->MAPR = mapr;
 }
 
 uint8_t board_get_hardware_revision(void)
 {
-	return (uint8_t)(GPIOC->IDR & 0x0F);
+    uint8_t id = 0;
+
+    id |= palReadPad(GPIO_PORT_HW_ID_0, GPIO_PIN_HW_ID_0) << 0;
+    id |= palReadPad(GPIO_PORT_HW_ID_1, GPIO_PIN_HW_ID_1) << 1;
+    id |= palReadPad(GPIO_PORT_HW_ID_2, GPIO_PIN_HW_ID_2) << 2;
+    id |= palReadPad(GPIO_PORT_HW_ID_3, GPIO_PIN_HW_ID_3) << 3;
+
+    return id;
 }
 
 void board_read_unique_id(uint8_t out_uid[BOARD_UNIQUE_ID_SIZE])
 {
-	memcpy(out_uid, (const void*)0x1FFFF7E8, BOARD_UNIQUE_ID_SIZE);
+    memcpy(out_uid, (const void*)0x1FFF7A10, BOARD_UNIQUE_ID_SIZE);
 }
