@@ -58,6 +58,7 @@ extern "C" {
 
 /**
  * Common priority for all hard real time IRQs.
+ * Note that motor control always uses the highest DMA priority.
  */
 #define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(CORTEX_MAXIMUM_PRIORITY)
 

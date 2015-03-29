@@ -48,18 +48,18 @@
 #define ADC_REF_VOLTAGE          3.3f
 #define ADC_RESOLUTION           12
 
-#define NUM_SAMPLES_PER_ADC      7
+#define NUM_SAMPLES_PER_ADC      6
 
 /**
- * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
- *    (1 / 12M) * 14 = 1.17 usec
+ * One ADC sample takes 15 cycles; max ADC clock is 30 MHz, so one ADC sample is:
+ *    (1 / 30M) * 15 = 500 nsec
  */
-#define SAMPLE_DURATION_NANOSEC  1170
+#define SAMPLE_DURATION_NANOSEC  500
 
 /**
  * ADC will be triggered at this time before the PWM mid cycle.
  */
-//const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1)) / 2;
+//const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1)) / 2; // TODO enable
 const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = 0;
 
 const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
@@ -70,127 +70,153 @@ CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         5.0,   0.1,   100.0)
 
 static float _shunt_resistance = 0;
 
-static uint32_t _adc1_2_dma_buffer[NUM_SAMPLES_PER_ADC];
+static uint16_t _adc_dma_buffer[NUM_SAMPLES_PER_ADC * 3];
 static struct motor_adc_sample _sample;
 
 
 __attribute__((optimize(3)))
-CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
+CH_FAST_IRQ_HANDLER(ADC_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 
 	_sample.timestamp = motor_timer_hnsec() -
 		((SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / 2) / NSEC_PER_HNSEC;
 
-#define SMPLADC1(num)     (_adc1_2_dma_buffer[num] & 0xFFFFU)
-#define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
-	/*
-	 * ADC channel sampling:
-	 *   A B C A B C VOLT
-	 *   C A B C A B CURR
-	 */
-	_sample.phase_values[0] = (SMPLADC1(0) + SMPLADC2(1) + SMPLADC1(3) + SMPLADC2(4)) / 4;
-	_sample.phase_values[1] = (SMPLADC1(1) + SMPLADC2(2) + SMPLADC1(4) + SMPLADC2(5)) / 4;
-	_sample.phase_values[2] = (SMPLADC2(0) + SMPLADC1(2) + SMPLADC2(3) + SMPLADC1(5)) / 4;
+#define SAMPLE(adc_num, sample_index)     (_adc_dma_buffer[3 * sample_index + (adc_num - 1)])
 
-	_sample.input_voltage = SMPLADC1(6);
-	_sample.input_current = SMPLADC2(6);
+	// Phase voltages, unsigned
+	_sample.phase_values[0] = (SAMPLE(1, 0) + SAMPLE(1, 2) + SAMPLE(1, 3) + SAMPLE(1, 5)) / 4;
+	_sample.phase_values[1] = (SAMPLE(2, 0) + SAMPLE(2, 2) + SAMPLE(2, 3) + SAMPLE(2, 5)) / 4;
+	_sample.phase_values[2] = (SAMPLE(3, 0) + SAMPLE(3, 2) + SAMPLE(3, 3) + SAMPLE(3, 5)) / 4;
 
-#undef SMPLADC1
-#undef SMPLADC2
+	// Phase currents, signed
+	_sample.phase_current_raw[0] = ((int)(SAMPLE(1, 1) + SAMPLE(1, 4)) / 2) - MOTOR_ADC_SAMPLE_HALF;
+	_sample.phase_current_raw[1] = ((int)(SAMPLE(2, 1) + SAMPLE(2, 4)) / 2) - MOTOR_ADC_SAMPLE_HALF;
+
+	// Voltage and temperature, unsigned
+	_sample.input_voltage   = SAMPLE(3, 1);
+	_sample.temperature_raw = SAMPLE(3, 4);
+
+#undef SAMPLE
 
 	motor_adc_sample_callback(&_sample);
 
-	// TODO: check if the current/voltage/temperature channels need to be sampled
-
 	ADC1->SR = 0;         // Reset the IRQ flags
 	TESTPAD_CLEAR(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
-}
-
-static void enable(void)
-{
-#if 0
-	// DMA
-	DMA1_Channel1->CCR = 0;  // Deinitialize
-	DMA1_Channel1->CMAR = (uint32_t)_adc1_2_dma_buffer;
-	DMA1_Channel1->CNDTR = sizeof(_adc1_2_dma_buffer) / 4;
-	DMA1_Channel1->CPAR = (uint32_t)&ADC1->DR;
-	DMA1_Channel1->CCR =
-		DMA_CCR1_PL_0 | DMA_CCR1_PL_1 |  // Max priority
-		DMA_CCR1_MSIZE_1 |               // 32 bit
-		DMA_CCR1_PSIZE_1 |               // 32 bit
-		DMA_CCR1_MINC |
-		DMA_CCR1_CIRC |
-		DMA_CCR1_EN;
-#endif
-
-	// ADC enable, reset
-	chSysDisable();
-	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_ADC2EN;
-	RCC->APB2RSTR |= RCC_APB2RSTR_ADCRST;
-	RCC->APB2RSTR &= ~RCC_APB2RSTR_ADCRST;
-	chSysEnable();
-
-	usleep(5);
-
-	// ADC on
-	ADC1->CR2 = ADC_CR2_ADON;
-	ADC2->CR2 = ADC_CR2_ADON;
-
-	/*
-	 * ADC channel sampling:
-	 *   A B C A B C VOLT
-	 *   C A B C A B CURR
-	 */
-	ADC1->SQR1 = ADC_SQR1_L_1 | ADC_SQR1_L_2;
-	ADC1->SQR3 =
-		ADC_SQR3_SQ1_0 |
-		ADC_SQR3_SQ2_1 |
-		ADC_SQR3_SQ3_0 | ADC_SQR3_SQ3_1 |
-		ADC_SQR3_SQ4_0 |
-		ADC_SQR3_SQ5_1 |
-		ADC_SQR3_SQ6_0 | ADC_SQR3_SQ6_1;
-	ADC1->SQR2 = ADC_SQR2_SQ7_2;
-
-	ADC2->SQR1 = ADC1->SQR1;
-	ADC2->SQR3 =
-		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |
-		ADC_SQR3_SQ2_0 |
-		ADC_SQR3_SQ3_1 |
-		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1 |
-		ADC_SQR3_SQ5_0 |
-		ADC_SQR3_SQ6_1;
-	ADC2->SQR2 = ADC_SQR2_SQ7_2 | ADC_SQR2_SQ7_0;
-
-	// SMPR registers are not configured because they have right values by default
-
-#if 0
-	// ADC initialization
-	ADC1->CR1 = ADC_CR1_DUALMOD_1 | ADC_CR1_DUALMOD_2 | ADC_CR1_SCAN | ADC_CR1_EOCIE;
-	ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | MOTOR_ADC1_2_TRIGGER | ADC_CR2_DMA;
-
-	ADC2->CR1 = ADC_CR1_DUALMOD_1 | ADC_CR1_DUALMOD_2 | ADC_CR1_SCAN;
-	ADC2->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_2;
-
-	// ADC IRQ (only ADC1 IRQ is used because ADC2 is configured in slave mode)
-	chSysDisable();
-	nvicEnableVector(ADC1_2_IRQn, MOTOR_IRQ_PRIORITY_MASK);
-	chSysEnable();
-#endif
 }
 
 int motor_adc_init(void)
 {
 	_shunt_resistance = config_get("motor_current_shunt_mohm") / 1000.0f;
 
+	/*
+	 * DMA configuration
+	 */
 	chSysDisable();
-
-	// TODO: configure DMA
-	// TODO: configure ADC prescaler
-
+	RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN; // No reset is possible because DMA2 is shared with other peripherals
 	chSysEnable();
 
-	enable();
+	// Configuring DMA2 for triple ADC transfers
+	DMA2_Stream0->CR =
+		DMA_SxCR_PL_0 | DMA_SxCR_PL_1 |  // Highest priority
+		DMA_SxCR_MSIZE_0 |               // Half-word
+		DMA_SxCR_PSIZE_0 |               // Half-word
+		DMA_SxCR_MINC |                  // Memory increment enabled
+		DMA_SxCR_CIRC;                   // Circular mode
+
+	DMA2_Stream0->NDTR = NUM_SAMPLES_PER_ADC * 3;
+	DMA2_Stream0->PAR = (uint32_t)&ADC->CDR;
+	DMA2_Stream0->M0AR = (uint32_t)&_adc_dma_buffer;
+
+	DMA2_Stream0->CR |= DMA_SxCR_EN;         // Go go go
+
+	/*
+	 * ADC configuration
+	 */
+	chSysDisable();
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN | RCC_APB2ENR_ADC2EN | RCC_APB2ENR_ADC3EN;
+	RCC->APB2RSTR |= RCC_APB2RSTR_ADCRST;
+	RCC->APB2RSTR &= ~RCC_APB2RSTR_ADCRST;
+	chSysEnable();
+
+	usleep(5);
+
+	/*
+	 * 30MHz clock
+	 * Triple regular simultaneous mode
+	 * DMA mode 1
+	 */
+	ADC->CCR =
+		ADC_CCR_MULTI_4 | ADC_CCR_MULTI_2 | ADC_CCR_MULTI_1 |
+		ADC_CCR_DDS |
+		ADC_CCR_DMA_0;
+
+	usleep(5);
+
+	// ADC on
+	ADC3->CR2 = ADC2->CR2 = ADC1->CR2 = ADC_CR2_ADON;
+
+	/*
+	 * ADC channel sampling pattern:
+	 *         0  1  2  3  4  5
+	 *   ADC1: VA IA VA VA IA VA
+	 *   ADC2: VB IB VB VB IB VB
+	 *   ADC3: VC VS VC VC TP VC
+	 * Where:
+	 *   VA/VB/VC - phase voltage A/B/C
+	 *   IA/IB    - phase current A/B
+	 *   VS       - supply voltage
+	 *   TP       - thermistor bridge output
+	 * ADC channel mapping:
+	 *   VA - 0
+	 *   VB - 1
+	 *   VB - 2
+	 *   IA - 13
+	 *   IB - 12
+	 *   VS - 11
+	 *   TP - 10
+	 */
+	ADC3->SQR1 = ADC2->SQR1 = ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_2; // bin(6-1)
+
+	ADC1->SQR3 =
+		(0  << 0)  |
+		(13 << 5)  |
+		(0  << 10) |
+		(0  << 15) |
+		(13 << 20) |
+		(0  << 25);
+
+	ADC2->SQR3 =
+		(1  << 0)  |
+		(12 << 5)  |
+		(1  << 10) |
+		(1  << 15) |
+		(12 << 20) |
+		(1  << 25);
+
+	ADC3->SQR3 =
+		(2  << 0)  |
+		(11 << 5)  |
+		(2  << 10) |
+		(2  << 15) |
+		(10 << 20) |
+		(2  << 25);
+
+	// SMPR registers are not configured because they have right values by default
+
+	// ADC initialization
+	ADC1->CR1 = ADC_CR1_SCAN | ADC_CR1_EOCIE;
+	ADC2->CR1 = ADC_CR1_SCAN;
+	ADC3->CR1 = ADC_CR1_SCAN;
+
+	ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTEN_0 | MOTOR_ADC_TRIGGER | ADC_CR2_DMA;
+	ADC2->CR2 = ADC_CR2_ADON | ADC_CR2_EXTEN_0 | MOTOR_ADC_TRIGGER | ADC_CR2_DMA;
+	ADC3->CR2 = ADC_CR2_ADON | ADC_CR2_EXTEN_0 | MOTOR_ADC_TRIGGER | ADC_CR2_DMA;
+
+	// ADC IRQ (only ADC1 IRQ is used)
+	chSysDisable();
+	nvicEnableVector(ADC_IRQn, MOTOR_IRQ_PRIORITY_MASK);
+	chSysEnable();
 
 	return 0;
 }
@@ -217,6 +243,7 @@ struct motor_adc_sample motor_adc_get_last_sample(void)
 
 float motor_adc_convert_input_voltage(int raw)
 {
+	// TODO: add non-eraseable configuration parameter
 	static const float RTOP = 10.0F;
 	static const float RBOT = 1.3F;
 	const float SCALE = (RTOP + RBOT) / RBOT;
@@ -226,9 +253,7 @@ float motor_adc_convert_input_voltage(int raw)
 
 float motor_adc_convert_input_current(int raw)
 {
-	// http://www.diodes.com/datasheets/ZXCT1051.pdf
-	const float vout = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
-	const float vsense = vout / 10;
-	const float iload = vsense / _shunt_resistance;
-	return iload;
+	(void)raw;
+	// TODO conversion
+	return 0.f;
 }

@@ -41,6 +41,8 @@ extern "C" {
 #endif
 
 #define MOTOR_ADC_RESOLUTION  12
+#define MOTOR_ADC_SAMPLE_MAX  ((1 << MOTOR_ADC_RESOLUTION) - 1)
+#define MOTOR_ADC_SAMPLE_HALF ((1 << MOTOR_ADC_RESOLUTION) / 2)
 
 extern const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC;
 extern const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC;
@@ -49,9 +51,11 @@ extern const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC;
 struct motor_adc_sample
 {
     uint64_t timestamp;
-    int phase_values[3];
-    int input_voltage;
-    int input_current;
+    int phase_values[3];      ///< TODO rename to phase_voltage_raw
+    int phase_current_raw[2]; ///< Only phases A and B; Vref/2 bias is already subtracted, so the value can be negative
+    int input_current;        ///< TODO remove, unused
+    int input_voltage;        ///< TODO rename to input_voltage_raw
+    int temperature_raw;
 };
 
 
