@@ -96,8 +96,8 @@ static int init_constants(unsigned frequency)
 
 	const int effective_steps = pwm_steps / 2;
 	const float true_frequency = PWM_TIMER_FREQUENCY / (float)pwm_steps;
-	const unsigned adc_period_usec = motor_adc_sampling_period_hnsec() / HNSEC_PER_USEC;
-	lowsyslog("Motor: PWM freq: %f; Effective steps: %i; ADC period: %u usec\n",
+	const float adc_period_usec = motor_adc_sampling_period_hnsec() / (float)HNSEC_PER_USEC;
+	lowsyslog("Motor: PWM freq: %f; Effective steps: %i; ADC period: %f usec\n",
 		true_frequency, effective_steps, adc_period_usec);
 
 	/*
@@ -183,6 +183,7 @@ static void init_timers(void)
 	 * DTS clock divider set 0, hence fDTS = input clock.
 	 * DTG bit 7 must be 0, otherwise it will change multiplier which is not supported yet.
 	 * At 120 MHz one tick ~8.(3) nsec, max 127 * 8.3 ~ 1.05 usec, which is large enough.
+	 * TIM8 doesn't need any dead time, but it doesn't hurt either.
 	 */
 	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
 	const float pwm_dead_time_ticks_float = pwm_dead_time / (1.f / PWM_TIMER_FREQUENCY);
@@ -198,12 +199,12 @@ static void init_timers(void)
 		(unsigned)dead_time_ticks,
 		dead_time_ticks * (1e9f / PWM_TIMER_FREQUENCY));
 
-	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
+	TIM8->BDTR = TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
 	/*
 	 * Default ADC sync config, will be adjusted dynamically
 	 */
-	TIM8->CCR2 = _pwm_top / 4;
+	TIM8->CCR1 = _pwm_top / 4;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -349,7 +350,7 @@ static inline void adjust_adc_sync(int pwm_val)
 	if (adc_trigger_value < 1) {
 		adc_trigger_value = 1;
 	}
-	TIM8->CCR2 = adc_trigger_value;
+	TIM8->CCR1 = adc_trigger_value;
 }
 
 static inline void adjust_adc_sync_default(void)
