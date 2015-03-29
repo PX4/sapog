@@ -42,7 +42,7 @@
 extern "C" {
 #endif
 
-#define MOTOR_ADC1_2_TRIGGER    (ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_0)
+#define MOTOR_ADC_TRIGGER    (ADC_CR2_EXTSEL_3 | ADC_CR2_EXTSEL_2 | ADC_CR2_EXTSEL_0)
 
 struct motor_pwm_commutation_step
 {
