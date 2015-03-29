@@ -56,8 +56,8 @@ void system_tick_hook(void)
 static void writepoll(const char* str)
 {
 	for (const char *p = str; *p; p++) {
-		while (!(USART1->SR & USART_SR_TXE)) { }
-		USART1->DR = *p;
+		while (!(USART3->SR & USART_SR_TXE)) { }
+		USART3->DR = *p;
 	}
 }
 
