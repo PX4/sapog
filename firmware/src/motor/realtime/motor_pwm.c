@@ -248,7 +248,23 @@ int motor_pwm_init(void)
 
 	motor_pwm_set_freewheeling();
 
-	// TODO: enable gates
+	/*
+	 * Initializing the FET driver.
+	 * These pins may be removed from future hardware revisions, because associated features are non-portable.
+	 */
+	// DC offset calibration is not supported
+	palWritePad(GPIO_PORT_DRV_DC_CAL, GPIO_PIN_DRV_DC_CAL, false);
+
+	// Over-current adjustment pin - hardware over-current protection is disabled
+	palWritePad(GPIO_PORT_DRV_OC_ADJ, GPIO_PIN_DRV_OC_ADJ, true);
+
+	// FET driver is always enabled
+	palWritePad(GPIO_PORT_DRV_EN_GATE, GPIO_PIN_DRV_EN_GATE, true);
+
+	/*
+	 * Printing the initial status
+	 */
+	lowsyslog("Motor: Power stage fault mask: 0x%02x\n", (int)motor_pwm_get_power_stage_hardware_fault_mask());
 
 	return 0;
 }
@@ -561,4 +577,22 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	}
 
 	motor_pwm_set_freewheeling();
+}
+
+unsigned motor_pwm_get_power_stage_hardware_fault_mask(void)
+{
+	unsigned status = 0;
+	/*
+	 * Note that all inputs are inverted and pulled up, so they can be used with open drain outputs.
+	 */
+	if (!palReadPad(GPIO_PORT_DRV_PWRGD, GPIO_PIN_DRV_PWRGD)) {
+		status += MOTOR_PWM_FAULT_MASK_POWER_SUPPLY_ERROR;
+	}
+	if (!palReadPad(GPIO_PORT_DRV_OCTW, GPIO_PIN_DRV_OCTW)) {
+		status += MOTOR_PWM_FAULT_MASK_OVER_TEMPERATURE_WARNING;
+	}
+	if (!palReadPad(GPIO_PORT_DRV_FAULT, GPIO_PIN_DRV_FAULT)) {
+		status += MOTOR_PWM_FAULT_MASK_GENERAL_FAILURE;
+	}
+	return status;
 }

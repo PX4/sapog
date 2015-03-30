@@ -76,8 +76,6 @@ static int compare_samples(const void* p1, const void* p2)
 
 static int test_sensors(void)
 {
-	static const int ADC_MAX = (1U << MOTOR_ADC_RESOLUTION) - 1;
-
 	/*
 	 * Enable the synchronous PWM on all phases, obtain a sample and disable PWM again
 	 */
@@ -96,12 +94,12 @@ static int test_sensors(void)
 	/*
 	 * Validate the obtained sample
 	 */
-	const bool valid_voltage = (sample.input_voltage > 0) && (sample.input_voltage < ADC_MAX);
-	const bool valid_current = (sample.input_current > 0) && (sample.input_current < ADC_MAX);
+	const bool valid_voltage     = (sample.input_voltage > 0) && (sample.input_voltage < MOTOR_ADC_SAMPLE_MAX);
+	const bool valid_temperature = (sample.temperature_raw > 0) && (sample.temperature_raw < MOTOR_ADC_SAMPLE_MAX);
 
-	if (!valid_voltage || !valid_current) {
-		lowsyslog("Motor: Invalid sensor readings: raw input voltage %i, raw input current %i\n",
-			sample.input_voltage, sample.input_current);
+	if (!valid_voltage || !valid_temperature) {
+		lowsyslog("Motor: Invalid sensor readings: raw input voltage %i, raw temperature %i\n",
+			sample.input_voltage, sample.temperature_raw);
 		return 1;
 	}
 

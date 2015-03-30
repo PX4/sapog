@@ -102,17 +102,17 @@ int init()
 	/*
 	 * Self test
 	 */
-//	res = motor_test_hardware();
-//	if (res) {
-//		return res;
-//	}
-//	lowsyslog("Hardware OK\n");
+	res = motor_test_hardware();
+	if (res) {
+		return res;
+	}
+	lowsyslog("Hardware OK\n");
 
-//	if (motor_test_motor()) {
-//		lowsyslog("Motor is not connected or damaged\n");
-//	} else {
-//		lowsyslog("Motor OK\n");
-//	}
+	if (motor_test_motor()) {
+		lowsyslog("Motor is not connected or damaged\n");
+	} else {
+		lowsyslog("Motor OK\n");
+	}
 	return 0;
 }
 
