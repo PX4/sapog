@@ -51,10 +51,10 @@ extern const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC;
 struct motor_adc_sample
 {
     uint64_t timestamp;
-    int phase_values[3];      ///< TODO rename to phase_voltage_raw
+    int phase_voltage_raw[3];
     int phase_current_raw[2]; ///< Only phases A and B; Vref/2 bias is already subtracted, so the value can be negative
     int input_current;        ///< TODO remove, unused
-    int input_voltage;        ///< TODO rename to input_voltage_raw
+    int input_voltage_raw;
     int temperature_raw;
 };
 

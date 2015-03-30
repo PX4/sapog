@@ -431,7 +431,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 static void update_input_voltage_current_temperature(const struct motor_adc_sample* sample)
 {
 	static const int ALPHA_RCPR = 7; // A power of two minus one (1, 3, 7)
-	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage, ALPHA_RCPR);
+	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage_raw, ALPHA_RCPR);
 	_state.input_current = LOWPASS(_state.input_current, sample->input_current, ALPHA_RCPR);
 	_state.temperature_raw = LOWPASS(_state.temperature_raw, sample->temperature_raw, ALPHA_RCPR);
 }
@@ -462,7 +462,8 @@ static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
 {
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	_state.neutral_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
+	_state.neutral_voltage =
+		(sample->phase_voltage_raw[step->positive] + sample->phase_voltage_raw[step->negative]) / 2;
 }
 
 static bool is_past_zc(const int bemf)
@@ -573,7 +574,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	update_neutral_voltage(sample);
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	const int bemf = sample->phase_values[step->floating] - _state.neutral_voltage;
+	const int bemf = sample->phase_voltage_raw[step->floating] - _state.neutral_voltage;
 
 	const bool past_zc = is_past_zc(bemf);
 
@@ -697,7 +698,7 @@ static void init_adc_filters(void)
 	}
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
-	const int low = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
+	const int low = (smpl.phase_voltage_raw[0] + smpl.phase_voltage_raw[1] + smpl.phase_voltage_raw[2]) / 3;
 
 	// High phase
 	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
@@ -705,14 +706,14 @@ static void init_adc_filters(void)
 	}
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
-	const int high = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
+	const int high = (smpl.phase_voltage_raw[0] + smpl.phase_voltage_raw[1] + smpl.phase_voltage_raw[2]) / 3;
 
 	// Phase neutral
 	motor_pwm_set_freewheeling();
 	_state.neutral_voltage = (low + high) / 2;
 
 	// Supply voltage and current
-	_state.input_voltage = smpl.input_voltage;
+	_state.input_voltage = smpl.input_voltage_raw;
 	_state.input_current = smpl.input_current;
 }
 
@@ -730,8 +731,9 @@ static int spinup_sample_bemf(void)
 	}
 
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	_state.neutral_voltage = (sample.phase_values[0] + sample.phase_values[1] + sample.phase_values[2]) / 3;
-	return sample.phase_values[step->floating] - _state.neutral_voltage;
+	_state.neutral_voltage =
+		(sample.phase_voltage_raw[0] + sample.phase_voltage_raw[1] + sample.phase_voltage_raw[2]) / 3;
+	return sample.phase_voltage_raw[step->floating] - _state.neutral_voltage;
 }
 
 static uint64_t spinup_wait_zc(const uint64_t step_deadline)

@@ -61,9 +61,9 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 	const struct motor_adc_sample adc_sample = motor_adc_get_last_sample();
 
 	lowsyslog("ADC raw phases:  %i  %i  %i\n",
-		adc_sample.phase_values[0], adc_sample.phase_values[1], adc_sample.phase_values[2]);
+		adc_sample.phase_voltage_raw[0], adc_sample.phase_voltage_raw[1], adc_sample.phase_voltage_raw[2]);
 
-	lowsyslog("ADC raw vtg/cur: V=%i  I=%i\n", adc_sample.input_voltage, adc_sample.input_current);
+	lowsyslog("ADC raw vtg/cur: V=%i  I=%i\n", adc_sample.input_voltage_raw, adc_sample.input_current);
 
 	if ((argc > 0) && !strcmp("enrg", argv[0])) {
 		if (argc != 4) {

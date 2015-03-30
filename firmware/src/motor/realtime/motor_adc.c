@@ -107,16 +107,16 @@ CH_FAST_IRQ_HANDLER(ADC1_2_3_IRQHandler)
 #define SAMPLE(adc_num, sample_index)     (_adc_dma_buffer[3 * sample_index + (adc_num - 1)])
 
 	// Phase voltages, unsigned
-	_sample.phase_values[0] = (SAMPLE(1, 0) + SAMPLE(1, 2) + SAMPLE(1, 3) + SAMPLE(1, 5)) / 4;
-	_sample.phase_values[1] = (SAMPLE(2, 0) + SAMPLE(2, 2) + SAMPLE(2, 3) + SAMPLE(2, 5)) / 4;
-	_sample.phase_values[2] = (SAMPLE(3, 0) + SAMPLE(3, 2) + SAMPLE(3, 3) + SAMPLE(3, 5)) / 4;
+	_sample.phase_voltage_raw[0] = (SAMPLE(1, 0) + SAMPLE(1, 2) + SAMPLE(1, 3) + SAMPLE(1, 5)) / 4;
+	_sample.phase_voltage_raw[1] = (SAMPLE(2, 0) + SAMPLE(2, 2) + SAMPLE(2, 3) + SAMPLE(2, 5)) / 4;
+	_sample.phase_voltage_raw[2] = (SAMPLE(3, 0) + SAMPLE(3, 2) + SAMPLE(3, 3) + SAMPLE(3, 5)) / 4;
 
 	// Phase currents, signed
 	_sample.phase_current_raw[0] = ((int)(SAMPLE(1, 1) + SAMPLE(1, 4)) / 2) - MOTOR_ADC_SAMPLE_HALF;
 	_sample.phase_current_raw[1] = ((int)(SAMPLE(2, 1) + SAMPLE(2, 4)) / 2) - MOTOR_ADC_SAMPLE_HALF;
 
 	// Voltage and temperature, unsigned
-	_sample.input_voltage   = SAMPLE(3, 1);
+	_sample.input_voltage_raw   = SAMPLE(3, 1);
 	_sample.temperature_raw = SAMPLE(3, 4);
 
 #undef SAMPLE
