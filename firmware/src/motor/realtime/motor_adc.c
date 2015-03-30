@@ -41,12 +41,13 @@
 #include <sys.h>
 #include <assert.h>
 #include <unistd.h>
+#include <math.h>
 #include <stm32.h>
 #include <config/config.h>
 
 
 #define ADC_REF_VOLTAGE          3.3f
-#define ADC_RESOLUTION           12
+#define ADC_INPUT_SCALE          (ADC_REF_VOLTAGE / (float)(1 << MOTOR_ADC_RESOLUTION))
 
 #define NUM_SAMPLES_PER_ADC      6
 
@@ -63,11 +64,33 @@ const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPL
 
 const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
 
+/**
+ * Gains depend on the hardware configuration.
+ * The reference design uses:
+ *  - DRV8302's embedded opamps with 2 mOhm shunts and 10x gain.
+ *  - Input voltage divider with ratio Rh=4700/Rl=330.
+ */
+#define DEFAULT_SHUNT_RESISTANCE_OHM            0.002
+#define DEFAULT_CURRENT_SENSOR_GAIN             10.0
 
-CONFIG_PARAM_FLOAT("motor_current_shunt_mohm",         5.0,   0.1,   100.0)
+#define DEFAULT_INPUT_VOLT_DIVIDER_RHIGH        4700.0
+#define DEFAULT_INPUT_VOLT_DIVIDER_RLOW         330.0
+
+CONFIG_PARAM_FLOAT(
+	"motor_phase_current_gain",
+	1.0 / (DEFAULT_CURRENT_SENSOR_GAIN * DEFAULT_SHUNT_RESISTANCE_OHM),
+	1.0,
+	1000.0)
+
+CONFIG_PARAM_FLOAT(
+	"motor_input_voltage_gain",
+	(DEFAULT_INPUT_VOLT_DIVIDER_RHIGH + DEFAULT_INPUT_VOLT_DIVIDER_RLOW) / DEFAULT_INPUT_VOLT_DIVIDER_RLOW,
+	1.0,
+	1000.0)
 
 
-static float _shunt_resistance = 0;
+static float _phase_current_scale = 0;  // Linear
+static float _input_voltage_scale = 0;  // Linear
 
 static uint16_t _adc_dma_buffer[NUM_SAMPLES_PER_ADC * 3];
 static struct motor_adc_sample _sample;
@@ -106,7 +129,11 @@ CH_FAST_IRQ_HANDLER(ADC1_2_3_IRQHandler)
 
 int motor_adc_init(void)
 {
-	_shunt_resistance = config_get("motor_current_shunt_mohm") / 1000.0f;
+	_phase_current_scale = config_get("motor_phase_current_gain") * ADC_INPUT_SCALE;
+	_input_voltage_scale = config_get("motor_input_voltage_gain") * ADC_INPUT_SCALE;
+
+	lowsyslog("Motor: ADC scales: phase current: %f, input voltage: %f\n",
+		_phase_current_scale, _input_voltage_scale);
 
 	/*
 	 * DMA configuration
@@ -251,7 +278,7 @@ float motor_adc_convert_input_voltage(int raw)
 	static const float RTOP = 10.0F;
 	static const float RBOT = 1.3F;
 	const float SCALE = (RTOP + RBOT) / RBOT;
-	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << ADC_RESOLUTION));
+	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << MOTOR_ADC_RESOLUTION));
 	return unscaled * SCALE;
 }
 
@@ -260,4 +287,29 @@ float motor_adc_convert_input_current(int raw)
 	(void)raw;
 	// TODO conversion
 	return 0.f;
+}
+
+float motor_adc_convert_temperature(int raw)
+{
+	if ((raw <= 0) || (raw > MOTOR_ADC_SAMPLE_MAX)) {
+		assert(0);
+		return nan("");  // Sorry Mario, your thermistor went bananas.
+	}
+
+	// Fixed thermistor parameters - assuming that all hardware revisions use the same thermistor model
+	static const float R0 = 10000;
+	static const float B  = 3435;  // 25/85 degC
+
+	// Treating the thermistor bridge as a voltage divider circuit to estimate the thermistor's resistance.
+	const float Vin         = ADC_REF_VOLTAGE;
+	const float Vout        = raw * ADC_INPUT_SCALE;
+	const float Rload       = R0;                   // It is a basic assumption of the algorithm that Rload = R0
+	const float Rthermistor = ((Vin - Vout) * Rload) / Vout;
+
+	// Applying the Steinhart-Hart equation
+	const float T0          = 298.15;              // 25 degC in Kelvin
+	const float rinf        = R0 * expf(-B / T0);
+	const float temperature = B / logf(Rthermistor / rinf);
+
+	return temperature;
 }

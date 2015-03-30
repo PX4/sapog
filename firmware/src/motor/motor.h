@@ -124,6 +124,11 @@ int motor_get_limit_mask(void);
 void motor_get_input_voltage_current(float* out_voltage, float* out_current);
 
 /**
+ * Returns filtered temperature of the power stage.
+ */
+float motor_get_temperature(void);
+
+/**
  * Simple wrappers; refer to RTCTL API docs to learn more
  * @{
  */

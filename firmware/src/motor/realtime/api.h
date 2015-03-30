@@ -136,14 +136,19 @@ uint64_t motor_rtctl_get_zc_failures_since_start(void);
 void motor_rtctl_emergency(void);
 
 /**
- * Returns input voltage and current.
- * If the motor is running, sampling is synchronized with ZC and lowpass filters are applied.
- * If the motor is not running, immediate values are taken.
- * Higher-order low pass filter should be applied to these values anyway.
+ * Returns lowpass-filtered input voltage and current.
+ * If the motor is running, sampling is synchronized with ZC.
  * @param [out] out_voltage Volts
  * @param [out] out_current Amperes
  */
 void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_current);
+
+/**
+ * Returns lowpass-filtered temperature of the power stage in Kelvins.
+ * If the motor is running, sampling is synchronized with ZC.
+ * NAN indicates that the temperature sensor is malfunctioning.
+ */
+float motor_rtctl_get_temperature(void);
 
 /**
  * Minimum safe comm period. Depends on PWM frequency.

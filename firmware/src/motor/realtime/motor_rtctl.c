@@ -156,6 +156,7 @@ static struct control_state            /// Control state
 
 	int input_voltage;
 	int input_current;
+	int temperature_raw;
 
 	int pwm_val;
 	int pwm_val_after_spinup;
@@ -427,11 +428,12 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	motor_adc_disable_from_isr();
 }
 
-static void update_input_voltage_current(const struct motor_adc_sample* sample)
+static void update_input_voltage_current_temperature(const struct motor_adc_sample* sample)
 {
 	static const int ALPHA_RCPR = 7; // A power of two minus one (1, 3, 7)
 	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage, ALPHA_RCPR);
 	_state.input_current = LOWPASS(_state.input_current, sample->input_current, ALPHA_RCPR);
+	_state.temperature_raw = LOWPASS(_state.temperature_raw, sample->temperature_raw, ALPHA_RCPR);
 }
 
 static void add_bemf_sample(const int bemf, const uint64_t timestamp)
@@ -560,6 +562,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (!proceed) {
 		if ((_state.flags & FLAG_ACTIVE) == 0) {
 			motor_forced_rotation_detector_update_from_adc_callback(COMMUTATION_TABLE_FORWARD, sample);
+			update_input_voltage_current_temperature(sample);
 		}
 		return;
 	}
@@ -609,12 +612,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	/*
 	 * Here the BEMF sample is considered to be valid, and can be added to the solution.
-	 * Input voltage/current updates are synced with ZC - this way the noise can be reduced.
+	 * Input voltage/current/temperature updates are synced with ZC - this way the noise can be reduced.
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
 
 	if (past_zc) {
-		update_input_voltage_current(sample);
+		update_input_voltage_current_temperature(sample);
 	}
 
 	/*
@@ -981,23 +984,17 @@ void motor_rtctl_emergency(void)
 
 void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_current)
 {
-	int volt = 0, curr = 0;
-
-	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
-		const struct motor_adc_sample smpl = motor_adc_get_last_sample();
-		volt = smpl.input_voltage;
-		curr = smpl.input_current;
-	} else {
-		volt = _state.input_voltage;
-		curr = _state.input_current;
-	}
-
 	if (out_voltage) {
-		*out_voltage = motor_adc_convert_input_voltage(volt);
+		*out_voltage = motor_adc_convert_input_voltage(_state.input_voltage);
 	}
 	if (out_current) {
-		*out_current = motor_adc_convert_input_current(curr);
+		*out_current = motor_adc_convert_input_current(_state.input_current);
 	}
+}
+
+float motor_rtctl_get_temperature(void)
+{
+	return motor_adc_convert_temperature(_state.temperature_raw);
 }
 
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
