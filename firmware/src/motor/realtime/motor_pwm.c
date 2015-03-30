@@ -172,7 +172,7 @@ static void init_timers(void)
 
 	// ADC sync
 	TIM8->CCMR1 =
-		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
+		TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;
 
 	// OC polarity (no inversion, all disabled except ADC sync)
 	TIM1->CCER = 0;
@@ -208,7 +208,7 @@ static void init_timers(void)
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
-	TIM8->EGR = TIM_EGR_UG | TIM_EGR_COMG;
+	TIM8->EGR = TIM_EGR_UG | TIM_EGR_COMG | TIM_EGR_CC1G;
 }
 
 static void start_timers(void)

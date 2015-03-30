@@ -75,7 +75,7 @@ static struct motor_adc_sample _sample;
 
 
 __attribute__((optimize(3)))
-CH_FAST_IRQ_HANDLER(ADC_IRQHandler)
+CH_FAST_IRQ_HANDLER(ADC1_2_3_IRQHandler)
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 
@@ -116,7 +116,16 @@ int motor_adc_init(void)
 	RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN; // No reset is possible because DMA2 is shared with other peripherals
 	chSysEnable();
 
-	// Configuring DMA2 for triple ADC transfers
+	/*
+	 * - The user manual says that in regular simultaneous triple mode, DMA transfer requests are 32-bit:
+	 *   "Three 32-bit DMA transfer requests are generated".
+	 * - As one should expect from STM, the manual later contradicts itself by saying that in this mode,
+	 *   "On each DMA request (one data item is available), a half-word representing an ADC-converted
+	 *   data item is transferred."
+	 * - The examples provided with SPL use 16-bit transfers too.
+	 *
+	 * STMicroelectronics, if you're reading this, kindly note that your documentation is not my favorite reading.
+	 */
 	DMA2_Stream0->CR =
 		DMA_SxCR_PL_0 | DMA_SxCR_PL_1 |  // Highest priority
 		DMA_SxCR_MSIZE_0 |               // Half-word
@@ -139,8 +148,6 @@ int motor_adc_init(void)
 	RCC->APB2RSTR &= ~RCC_APB2RSTR_ADCRST;
 	chSysEnable();
 
-	usleep(5);
-
 	/*
 	 * 30MHz clock
 	 * Triple regular simultaneous mode
@@ -150,8 +157,6 @@ int motor_adc_init(void)
 		ADC_CCR_MULTI_4 | ADC_CCR_MULTI_2 | ADC_CCR_MULTI_1 |
 		ADC_CCR_DDS |
 		ADC_CCR_DMA_0;
-
-	usleep(5);
 
 	// ADC on
 	ADC3->CR2 = ADC2->CR2 = ADC1->CR2 = ADC_CR2_ADON;
