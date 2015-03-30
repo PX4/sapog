@@ -65,19 +65,19 @@
 #define TIMEVT_RCC_RSTR         RCC->APB1RSTR
 #define TIMEVT_RCC_ENR_MASK     RCC_APB1ENR_TIM4EN
 #define TIMEVT_RCC_RSTR_MASK    RCC_APB1RSTR_TIM4RST
-#define TIMEVT_INPUT_CLOCK      STM32_PCLK1
+#define TIMEVT_INPUT_CLOCK      (STM32_PCLK1 * 2)
 
 /**
  * Timestamping timer declaration
  */
-#define TIMSTP            TIM6
-#define TIMSTP_IRQn       TIM6_DAC_IRQn
-#define TIMSTP_IRQHandler TIM6_IRQHandler
+#define TIMSTP                  TIM6
+#define TIMSTP_IRQn             TIM6_DAC_IRQn
+#define TIMSTP_IRQHandler       TIM6_IRQHandler
 #define TIMSTP_RCC_ENR          RCC->APB1ENR
 #define TIMSTP_RCC_RSTR         RCC->APB1RSTR
 #define TIMSTP_RCC_ENR_MASK     RCC_APB1ENR_TIM6EN
 #define TIMSTP_RCC_RSTR_MASK    RCC_APB1RSTR_TIM6RST
-#define TIMSTP_INPUT_CLOCK      STM32_PCLK1
+#define TIMSTP_INPUT_CLOCK      (STM32_PCLK1 * 2)
 
 /**
  * Sanity check
