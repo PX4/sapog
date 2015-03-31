@@ -274,19 +274,12 @@ struct motor_adc_sample motor_adc_get_last_sample(void)
 
 float motor_adc_convert_input_voltage(int raw)
 {
-	// TODO: add non-eraseable configuration parameter
-	static const float RTOP = 10.0F;
-	static const float RBOT = 1.3F;
-	const float SCALE = (RTOP + RBOT) / RBOT;
-	const float unscaled = raw * (ADC_REF_VOLTAGE / (float)(1 << MOTOR_ADC_RESOLUTION));
-	return unscaled * SCALE;
+	return _input_voltage_scale * raw;
 }
 
 float motor_adc_convert_input_current(int raw)
 {
-	(void)raw;
-	// TODO conversion
-	return 0.f;
+	return _phase_current_scale * raw;
 }
 
 float motor_adc_convert_temperature(int raw)

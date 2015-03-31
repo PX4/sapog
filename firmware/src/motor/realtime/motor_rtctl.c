@@ -154,7 +154,7 @@ static struct control_state            /// Control state
 
 	int neutral_voltage;
 
-	int input_voltage;
+	int input_voltage_raw;
 	int input_current;
 	int temperature_raw;
 
@@ -422,12 +422,12 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	motor_adc_disable_from_isr();
 }
 
-static void update_input_voltage_current_temperature(const struct motor_adc_sample* sample)
+static void update_input_voltage_current_temperature(int voltage_raw, int current_raw, int temperature_raw)
 {
 	static const int ALPHA_RCPR = 7; // A power of two minus one (1, 3, 7)
-	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage_raw, ALPHA_RCPR);
-	_state.input_current = LOWPASS(_state.input_current, sample->input_current, ALPHA_RCPR);
-	_state.temperature_raw = LOWPASS(_state.temperature_raw, sample->temperature_raw, ALPHA_RCPR);
+	_state.input_voltage_raw = LOWPASS(_state.input_voltage_raw, voltage_raw, ALPHA_RCPR);
+	_state.input_current = LOWPASS(_state.input_current, current_raw, ALPHA_RCPR);
+	_state.temperature_raw = LOWPASS(_state.temperature_raw, temperature_raw, ALPHA_RCPR);
 }
 
 static void add_bemf_sample(const int bemf, const uint64_t timestamp)
@@ -557,7 +557,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (!proceed) {
 		if ((_state.flags & FLAG_ACTIVE) == 0) {
 			motor_forced_rotation_detector_update_from_adc_callback(COMMUTATION_TABLE_FORWARD, sample);
-			update_input_voltage_current_temperature(sample);
+			// Params update - current is forced to zero
+			update_input_voltage_current_temperature(sample->input_voltage_raw,
+				0, sample->temperature_raw);
 		}
 		return;
 	}
@@ -608,11 +610,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	/*
 	 * Here the BEMF sample is considered to be valid, and can be added to the solution.
 	 * Input voltage/current/temperature updates are synced with ZC - this way the noise can be reduced.
+	 * Note that update is always skipped when phase C is at low because it lacks a current sensor.
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
 
-	if (past_zc) {
-		update_input_voltage_current_temperature(sample);
+	if (past_zc && _state.comm_table[_state.current_comm_step].negative < 2) {
+		const int current = -sample->phase_current_raw[_state.comm_table[_state.current_comm_step].negative];
+		update_input_voltage_current_temperature(sample->input_voltage_raw, current, sample->temperature_raw);
 	}
 
 	/*
@@ -707,8 +711,8 @@ static void init_adc_filters(void)
 	_state.neutral_voltage = (low + high) / 2;
 
 	// Supply voltage and current
-	_state.input_voltage = smpl.input_voltage_raw;
-	_state.input_current = smpl.input_current;
+	_state.input_voltage_raw = smpl.input_voltage_raw;
+	_state.temperature_raw = smpl.temperature_raw;
 }
 
 static int spinup_sample_bemf(void)
@@ -973,7 +977,7 @@ void motor_rtctl_emergency(void)
 void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_current)
 {
 	if (out_voltage) {
-		*out_voltage = motor_adc_convert_input_voltage(_state.input_voltage);
+		*out_voltage = motor_adc_convert_input_voltage(_state.input_voltage_raw);
 	}
 	if (out_current) {
 		*out_current = motor_adc_convert_input_current(_state.input_current);
@@ -1022,7 +1026,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
 	PRINT_INT("flags",           state_copy.flags);
 	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
-	PRINT_INT("input voltage",   state_copy.input_voltage);
+	PRINT_INT("input voltage",   state_copy.input_voltage_raw);
 	PRINT_INT("input current",   state_copy.input_current);
 	PRINT_INT("pwm val",         state_copy.pwm_val);
 

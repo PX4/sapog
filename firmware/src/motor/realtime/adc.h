@@ -53,7 +53,6 @@ struct motor_adc_sample
     uint64_t timestamp;
     int phase_voltage_raw[3];
     int phase_current_raw[2]; ///< Only phases A and B; Vref/2 bias is already subtracted, so the value can be negative
-    int input_current;        ///< TODO remove, unused
     int input_voltage_raw;
     int temperature_raw;
 };

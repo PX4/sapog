@@ -78,7 +78,6 @@ static struct state
 
 	float input_voltage;
 	float input_current;
-	float input_curent_offset;
 	float temperature;
 
 	enum motor_rtctl_state rtctl_state;
@@ -171,24 +170,14 @@ static float lowpass(float xold, float xnew, float tau, float dt)
 
 static void init_filters(void)
 {
-	// Assuming that initial current is zero
-	motor_rtctl_get_input_voltage_current(&_state.input_voltage, &_state.input_curent_offset);
+	motor_rtctl_get_input_voltage_current(&_state.input_voltage, &_state.input_current);
 	_state.temperature = motor_rtctl_get_temperature();
-	_state.input_current = 0.0f;
 }
 
 static void update_filters(float dt)
 {
 	float voltage = 0, current = 0;
 	motor_rtctl_get_input_voltage_current(&voltage, &current);
-
-	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
-		// Current sensor offset calibration, corner frequency is much lower.
-		const float offset_tau = _params.voltage_current_lowpass_tau * 100;
-		_state.input_curent_offset = lowpass(_state.input_curent_offset, current, offset_tau, dt);
-	}
-
-	current -= _state.input_curent_offset;
 
 	_state.input_voltage = lowpass(_state.input_voltage, voltage, _params.voltage_current_lowpass_tau, dt);
 	_state.input_current = lowpass(_state.input_current, current, _params.voltage_current_lowpass_tau, dt);

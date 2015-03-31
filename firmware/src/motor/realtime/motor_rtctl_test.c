@@ -103,7 +103,10 @@ static int test_sensors(void)
 		return 1;
 	}
 
-	lowsyslog("Motor: Raw input voltage %i, raw input current %i\n", sample.input_voltage_raw, sample.input_current);
+	lowsyslog("Motor: Raw phase voltages: %i %i %i\n",
+		sample.phase_voltage_raw[0], sample.phase_voltage_raw[1], sample.phase_voltage_raw[2]);
+	lowsyslog("Motor: Raw phase currents: %i %i\n", sample.phase_current_raw[0], sample.phase_current_raw[1]);
+	lowsyslog("Motor: Raw input voltage, temperature: %i %i\n", sample.input_voltage_raw, sample.temperature_raw);
 	return 0;
 }
 
