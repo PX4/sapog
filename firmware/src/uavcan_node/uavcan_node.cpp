@@ -58,8 +58,8 @@ uavcan_stm32::CanInitHelper<> can;
 auto node_status_code = uavcan::protocol::NodeStatus::STATUS_INITIALIZING;
 bool passive_mode = true;
 
-CONFIG_PARAM_INT("can_bitrate",    1000000, 20000, 1000000)
-CONFIG_PARAM_INT("uavcan_node_id", 0,       0,     125)      ///< 0 for Passive Mode (default)
+CONFIG_PARAM_INT("can_bitrate",    0,  0, 1000000)      ///< 0 for Autobaud (default)
+CONFIG_PARAM_INT("uavcan_node_id", 0,  0,     125)      ///< 0 for Passive Mode (default)
 
 Node& get_node()
 {
@@ -294,10 +294,68 @@ class : public chibios_rt::BaseStaticThread<3000>
 	uavcan::LazyConstructor<EnumerationHandler> enumeration_handler_;
 	int watchdog_id_ = -1;
 
-	void init()
+	void init_bus()
 	{
-		watchdog_id_ = watchdog_create(10000);
+		static const unsigned AUTOBAUD_VALUES_BPS[4] = {
+			1000000,
+			500000,
+			250000,
+			125000
+		};
 
+		static const unsigned AUTOBAUD_LISTENING_DELAY_MSEC = 2050;
+
+		led::Overlay led;
+
+		led.set(led::Color::PURPLE);
+
+		while (true) {
+			if (config_get("can_bitrate") > 0) {
+				const int can_res = can.init(config_get("can_bitrate"));
+				if (can_res >= 0) {
+					::lowsyslog("UAVCAN: CAN bitrate %u bps\n",
+						unsigned(config_get("can_bitrate")));
+					return;
+				}
+				::lowsyslog("UAVCAN: Failed to init CAN bus at requested baud rate %u bps: error %i\n",
+					unsigned(config_get("can_bitrate")), can_res);
+			}
+
+			for (auto& bps: AUTOBAUD_VALUES_BPS) {
+				watchdog_reset(watchdog_id_);
+				::usleep(1000);
+				::lowsyslog("UAVCAN: Autobaud: Trying %u bps...\n", bps);
+
+				const int can_res = can.init(bps);
+				if (can_res < 0) {
+					::lowsyslog("UAVCAN: Autobaud: Could not init CAN driver at %u bps: error %i\n",
+						bps, can_res);
+					continue;
+				}
+
+				::lowsyslog("UAVCAN: Autobaud: CAN driver initialized at %u bps, listening...\n",
+					bps);
+
+				::usleep(AUTOBAUD_LISTENING_DELAY_MSEC * 1000);
+
+				for (unsigned i = 0; i < can.driver.getNumIfaces(); i++) {
+					if (!can.driver.getIface(i)->isRxBufferEmpty()) {
+						::lowsyslog("UAVCAN: Autobaud: Bus activity at %u bps, iface %u, done\n",
+							bps, i);
+						return;
+					}
+				}
+			}
+
+			::lowsyslog("UAVCAN: Could not init CAN bus, will try again soon\n");
+			watchdog_reset(watchdog_id_);
+			::usleep(5000);
+			watchdog_reset(watchdog_id_);
+		}
+	}
+
+	void init_node()
+	{
 		configure_node();
 
 		get_node().setRestartRequestHandler(&restart_request_handler);
@@ -346,7 +404,11 @@ class : public chibios_rt::BaseStaticThread<3000>
 public:
 	msg_t main() override
 	{
-		init();
+		watchdog_id_ = watchdog_create(10000);
+		init_bus();
+		watchdog_reset(watchdog_id_);
+		init_node();
+		watchdog_reset(watchdog_id_);
 
 		while (true) {
 			get_node().getNodeStatusProvider().setStatusCode(node_status_code);
@@ -386,35 +448,6 @@ bool is_passive_mode()
 
 int init()
 {
-	int remained_attempts = 5;
-
-	while (true) {
-		int can_res = can.init(config_get("can_bitrate"));
-		if (can_res >= 0) {
-			::lowsyslog("UAVCAN: CAN bitrate %u bps\n", unsigned(config_get("can_bitrate")));
-			break;
-		}
-
-		::lowsyslog("UAVCAN: CAN init failed [%i], trying default bitrate...\n", can_res);
-
-		auto descr = ::config_param();
-		(void)config_get_descr("can_bitrate", &descr);
-
-		can_res = can.init(descr.default_);
-		if (can_res >= 0) {
-			::lowsyslog("UAVCAN: CAN bitrate %u bps\n", unsigned(descr.default_));
-			break;
-		}
-
-		remained_attempts--;
-		if (remained_attempts <= 0) {
-			::lowsyslog("UAVCAN: CAN driver init failure: %i\n", can_res);
-			return -1;
-		}
-
-		::usleep(100000);
-	}
-
 	(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
 
 	return 0;
