@@ -258,7 +258,9 @@ int motor_pwm_init(void)
 	// Over-current adjustment pin - hardware over-current protection is disabled
 	palWritePad(GPIO_PORT_DRV_OC_ADJ, GPIO_PIN_DRV_OC_ADJ, true);
 
-	// FET driver is always enabled
+	// EN_GATE must be cycled in order to reset errors
+	palWritePad(GPIO_PORT_DRV_EN_GATE, GPIO_PIN_DRV_EN_GATE, false);
+	usleep(10000);
 	palWritePad(GPIO_PORT_DRV_EN_GATE, GPIO_PIN_DRV_EN_GATE, true);
 
 	/*
