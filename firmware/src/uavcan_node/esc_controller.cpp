@@ -52,7 +52,7 @@ float max_dc_to_start;
 
 CONFIG_PARAM_INT("uavcan_esc_index",             0,    0,    15)
 CONFIG_PARAM_INT("uavcan_esc_command_ttl_ms",    200,  100,  5000)
-CONFIG_PARAM_FLOAT("uavcan_esc_max_dc_to_start", 0.1,  0.01, 1.0)
+CONFIG_PARAM_FLOAT("uavcan_esc_max_dc_to_start", 0.4,  0.01, 1.0)
 
 
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
