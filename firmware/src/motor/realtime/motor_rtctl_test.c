@@ -46,7 +46,7 @@
 static const int INITIAL_DELAY_MS = 300;
 static const int SAMPLE_DELAY_MS  = 10;
 
-static const int ANALOG_TOLERANCE_PERCENT = 5;
+static const int ANALOG_TOLERANCE_PERCENT = 10;
 
 
 static int test_one_phase(int phase, bool level)
