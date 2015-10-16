@@ -57,7 +57,7 @@ const PALConfig pal_default_config = {
 
 void __early_init(void)
 {
-	stm32_clock_init();
+//	stm32_clock_init();
 }
 
 void boardInit(void)

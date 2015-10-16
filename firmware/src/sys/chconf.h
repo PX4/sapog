@@ -65,4 +65,6 @@ void system_tick_hook(void);
 #define PORT_IDLE_THREAD_STACK_SIZE    64
 #define PORT_INT_REQUIRED_STACK        512
 
+#define CORTEX_VTOR_INIT 0x2000
+
 #include "../../chibios/os/kernel/templates/chconf.h"

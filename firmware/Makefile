@@ -59,7 +59,7 @@ UINCDIR = src           \
 #
 
 UDEFS += -DUAVCAN_STM32_TIMER_NUMBER=7    \
-         -DUAVCAN_STM32_NUM_IFACES=2      \
+         -DUAVCAN_STM32_NUM_IFACES=1      \
          -DUAVCAN_MEM_POOL_BLOCK_SIZE=56  \
          -DUAVCAN_STM32_CHIBIOS=1
 

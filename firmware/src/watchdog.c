@@ -55,6 +55,8 @@ static int _num_watchdogs __attribute__((section (".noinit")));
 
 static void set_timeout(int timeout_ms)
 {
+	return;
+
 	if (timeout_ms <= 0) {
 		assert(0);
 		timeout_ms = 1;
@@ -78,6 +80,8 @@ static void set_timeout(int timeout_ms)
 
 void watchdog_init(void)
 {
+	return;
+
 	assert_always(_wdg_timeout_ms == 0);      // Make sure it wasn't initialized earlier
 	assert_always(RCC->CSR & RCC_CSR_LSION);  // Make dure LSI is enabled
 	while (!(RCC->CSR & RCC_CSR_LSIRDY)) { }  // Wait for LSI startup
@@ -101,6 +105,8 @@ void watchdog_init(void)
 
 int watchdog_create(int timeout_ms)
 {
+	return 0;
+
 	if (timeout_ms <= 0) {
 		assert(0);
 		return -1;
@@ -126,6 +132,8 @@ int watchdog_create(int timeout_ms)
 
 void watchdog_reset(int id)
 {
+	return;
+
 	assert(id >= 0 && id < _num_watchdogs);
 
 	chSysSuspend();
