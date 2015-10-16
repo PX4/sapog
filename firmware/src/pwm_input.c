@@ -54,8 +54,8 @@ static EVENTSOURCE_DECL(_update_event);
 static volatile unsigned _last_pulse_width_usec;
 
 CONFIG_PARAM_BOOL("pwm_enable", true)
-CONFIG_PARAM_INT("pwm_min_pulse_width_usec",  1000,  800, 1200)
-CONFIG_PARAM_INT("pwm_max_pulse_width_usec",  2000, 1800, 2200)
+CONFIG_PARAM_INT("pwm_min_usec",  1000,  800, 1200)
+CONFIG_PARAM_INT("pwm_max_usec",  2000, 1800, 2200)
 
 
 static void icu_pulse_width_callback(ICUDriver* icup)
@@ -88,8 +88,8 @@ static msg_t thread(void* arg)
 	EventListener listener;
 	chEvtRegisterMask(&_update_event, &listener, ALL_EVENTS);
 
-	const unsigned min_pulse_width_usec = config_get("pwm_min_pulse_width_usec");
-	const unsigned max_pulse_width_usec = config_get("pwm_max_pulse_width_usec");
+	const unsigned min_pulse_width_usec = config_get("pwm_min_usec");
+	const unsigned max_pulse_width_usec = config_get("pwm_max_usec");
 
 	for (;;) {
 		if (chEvtWaitAnyTimeout(ALL_EVENTS, US2ST(65536)) == 0) {
