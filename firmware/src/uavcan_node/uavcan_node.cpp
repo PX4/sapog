@@ -170,7 +170,7 @@ class ParamManager: public uavcan::IParamManager
 	}
 
 	void readParamDefaultMaxMin(const Name& name, Value& out_default,
-	                            NumericValue& out_max, NumericValue& out_min) const override
+								NumericValue& out_max, NumericValue& out_min) const override
 	{
 		config_param descr;
 		const int res = config_get_descr(name.c_str(), &descr);
@@ -216,6 +216,7 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
 	}
 } restart_request_handler;
 
+
 /*
  * Enumeration handler
  */
@@ -224,10 +225,10 @@ class EnumerationHandler : public uavcan::TimerBase
 	static constexpr int CONFIRMATION_CHECK_INTERVAL_MSEC = 50;
 
 	typedef uavcan::MethodBinder<EnumerationHandler*,
-	                             void (EnumerationHandler::*)
-	                             (const uavcan::ReceivedDataStructure<uavcan::protocol::enumeration::Begin::Request>&,
-	                              uavcan::protocol::enumeration::Begin::Response&)>
-	        CallbackBinder;
+								 void (EnumerationHandler::*)
+								 (const uavcan::ReceivedDataStructure<uavcan::protocol::enumeration::Begin::Request>&,
+								  uavcan::protocol::enumeration::Begin::Response&)>
+			CallbackBinder;
 
 	uavcan::ServiceServer<uavcan::protocol::enumeration::Begin, CallbackBinder> srv_;
 	uavcan::Publisher<uavcan::protocol::enumeration::Indication> pub_;
@@ -242,7 +243,7 @@ class EnumerationHandler : public uavcan::TimerBase
 		msg.parameter_name = "esc_index";
 		pub_.broadcast(msg);
 
-		(void)config_set("motor_reverse", reverse);
+		(void)config_set("ctl_dir", reverse ? 1 : 0);
 
 		motor_stop();  // Shouldn't be running anyway
 	}
@@ -307,7 +308,7 @@ public:
 /*
  * UAVCAN spin loop
  */
-class : public chibios_rt::BaseStaticThread<3000>
+class : public chibios_rt::BaseStaticThread<4000>
 {
 	uavcan::LazyConstructor<EnumerationHandler> enumeration_handler_;
 	int watchdog_id_ = -1;
@@ -393,21 +394,21 @@ void set_node_status_critical()
 }
 
 struct bootloader_app_shared_t {
-    union {
-        uint64_t ull;
-        uint32_t ul[2];
-    } crc;
-    uint32_t signature;
-    uint32_t bus_speed;
-    uint32_t node_id;
+	union {
+		uint64_t ull;
+		uint32_t ul[2];
+	} crc;
+	uint32_t signature;
+	uint32_t bus_speed;
+	uint32_t node_id;
 } __attribute__ ((packed));
 
 static uint64_t bootloader_calculate_signature(
-    const bootloader_app_shared_t *pshared
+	const bootloader_app_shared_t *pshared
 ) {
-    uavcan::DataTypeSignatureCRC crc;
-    crc.add((uint8_t*)(&pshared->signature), sizeof(uint32_t) * 3u);
-    return crc.get();
+	uavcan::DataTypeSignatureCRC crc;
+	crc.add((uint8_t*)(&pshared->signature), sizeof(uint32_t) * 3u);
+	return crc.get();
 }
 
 
@@ -428,17 +429,17 @@ static uint64_t bootloader_calculate_signature(
 
 
 static bool bootloader_read(bootloader_app_shared_t *shared) {
-    shared->signature = signature_LOC;
-    shared->bus_speed = bus_speed_LOC;
-    shared->node_id = node_id_LOC;
-    shared->crc.ul[CRC_L] = crc_LoLOC;
-    shared->crc.ul[CRC_H] = crc_HiLOC;
+	shared->signature = signature_LOC;
+	shared->bus_speed = bus_speed_LOC;
+	shared->node_id = node_id_LOC;
+	shared->crc.ul[CRC_L] = crc_LoLOC;
+	shared->crc.ul[CRC_H] = crc_HiLOC;
 
-    if (shared->crc.ull == bootloader_calculate_signature(shared)) {
-        return true;
-    } else {
-        return false;
-    }
+	if (shared->crc.ull == bootloader_calculate_signature(shared)) {
+		return true;
+	} else {
+		return false;
+	}
 }
 
 int init()

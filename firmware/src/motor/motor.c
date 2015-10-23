@@ -112,7 +112,7 @@ CONFIG_PARAM_FLOAT("mot_dc_accel",            0.1,    0.001,   0.5)
 CONFIG_PARAM_FLOAT("mot_dc_slope",               5.0,    0.1,     20.0)
 
 CONFIG_PARAM_INT("mot_num_poles",                14,     2,       100)
-CONFIG_PARAM_BOOL("ctl_dir",                 false)
+CONFIG_PARAM_INT("ctl_dir",                 0, 0, 1)
 
 CONFIG_PARAM_INT("mot_rpm_min",                  1000,   50,      5000)
 
