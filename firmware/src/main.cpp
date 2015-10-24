@@ -73,7 +73,7 @@ int init()
 	/*
 	 * Safety
 	 */
-	// watchdog_init();
+	watchdog_init();
 
 	/*
 	 * Motor control (must be initialized earlier than communicaton interfaces)
@@ -162,7 +162,7 @@ int main()
 
 	const int init_status = init();
 
-	//const int watchdog_id = watchdog_create(10000);
+	const int watchdog_id = watchdog_create(10000);
 
 	console_init();
 
@@ -182,7 +182,7 @@ int main()
 	 * Here we run some high-level self diagnostics, indicating the system health via UAVCAN and LED.
 	 */
 	while (1) {
-		//watchdog_reset(watchdog_id);
+		watchdog_reset(watchdog_id);
 
 		if (motor_is_blocked()) {
 			led_ctl.set(led::Color::YELLOW);
