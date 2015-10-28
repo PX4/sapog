@@ -99,9 +99,8 @@ inline static void read(bootloader_app_shared_t *pshared)
 	pshared->signature = getreg32(signature_LOC);
 	pshared->bus_speed = getreg32(bus_speed_LOC);
 	pshared->node_id = getreg32(node_id_LOC);
-	pshared->crc.ul[CRC_L] = getreg32(crc_LoLOC);
-	pshared->crc.ul[CRC_H] = getreg32(crc_HiLOC);
-
+	pshared->crc = (uint64_t)getreg32(crc_LoLOC) |
+				   ((uint64_t)getreg32(crc_HiLOC) << 32u);
 }
 
 /****************************************************************************
@@ -117,8 +116,9 @@ inline static void write(bootloader_app_shared_t *pshared)
 	putreg32(pshared->signature, signature_LOC);
 	putreg32(pshared->bus_speed, bus_speed_LOC);
 	putreg32(pshared->node_id, node_id_LOC);
-	putreg32(pshared->crc.ul[CRC_L], crc_LoLOC);
-	putreg32(pshared->crc.ul[CRC_H], crc_HiLOC);
+
+	putreg32((uint32_t)(pshared->crc), crc_LoLOC);
+	putreg32((uint32_t)(pshared->crc >> 32u), crc_HiLOC);
 
 	/* Leave filter init mode */
 	putreg32(0, STM32_CAN1_FMR);
@@ -195,7 +195,7 @@ int bootloader_app_shared_read(bootloader_app_shared_t *shared,
 
 	if ((role == App ? working.signature == BOOTLOADER_COMMON_APP_SIGNATURE
 	     : working.signature == BOOTLOADER_COMMON_BOOTLOADER_SIGNATURE)
-	    && (working.crc.ull == calulate_signature(&working))) {
+	    && (working.crc == calulate_signature(&working))) {
 		*shared = working;
 		rv = 0;
 	}
@@ -234,7 +234,7 @@ void bootloader_app_shared_write(bootloader_app_shared_t *shared,
 		(role ==
 		 App ? BOOTLOADER_COMMON_APP_SIGNATURE :
 		 BOOTLOADER_COMMON_BOOTLOADER_SIGNATURE);
-	working.crc.ull = calulate_signature(&working);
+	working.crc = calulate_signature(&working);
 	write(&working);
 
 }

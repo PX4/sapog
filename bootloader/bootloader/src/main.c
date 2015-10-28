@@ -931,7 +931,7 @@ static void application_run(size_t fw_image_size, bootloader_app_shared_t *commo
 
 	uint32_t fw_image[2] = {bootloader.fw_image[0], bootloader.fw_image[1]};
 
-	if (fw_image[0] != 0xffffffff
+	if (fw_image[0] != 0xffffffffu
 	    && fw_image[1] > APPLICATION_LOAD_ADDRESS
 	    && fw_image[1] < (APPLICATION_LOAD_ADDRESS + fw_image_size)) {
 
@@ -949,7 +949,7 @@ static void application_run(size_t fw_image_size, bootloader_app_shared_t *commo
 		 * App are node ID and Can bit rate.
 		 */
 
-		if (common->crc.valid) {
+		if (common->crc) {
 			bootloader_app_shared_write(common, BootLoader);
 		}
 
@@ -1039,6 +1039,7 @@ int main(int argc, char *argv[])
 	bootloader_app_shared_t common;
 
 	board_initialize();
+	up_timer_initialize();
 
 	/* Begin with all data zeroed */
 
@@ -1077,7 +1078,7 @@ int main(int argc, char *argv[])
 	 * Mark CRC to say this is not from
 	 * auto baud and Node Allocation
 	 */
-	common.crc.valid = false;
+	common.crc = false;
 
 	/* Either way prevent Deja vu by invalidating the struct*/
 
@@ -1172,7 +1173,7 @@ int main(int argc, char *argv[])
 		 * Mark CRC to say this is from
 		 * auto baud and Node Allocation
 		 */
-		common.crc.valid = true;
+		common.crc = true;
 
 		/* Auto bauding may have taken a long time, so restart the tboot time*/
 

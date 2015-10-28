@@ -155,7 +155,7 @@ endif
 
 INCLUDE_PATHS = $(PROJECT_INC_PATHS) $(SYS_INC_PATHS) $(UAVCAN_INC_PATHS)
 LIBRARY_PATHS = $(PROJECT_LIB_PATHS) $(SYS_LIB_PATHS)
-ARCH_CC_FLAGS = -ffreestanding -fsingle-precision-constant -fno-common -fmessage-length=0 -Wall -fno-exceptions -ffunction-sections -fdata-sections
+ARCH_CC_FLAGS = -ffreestanding -fno-common -fmessage-length=0 -Wall -fno-exceptions -ffunction-sections -fdata-sections
 CFLAGS = $(MCU_CC_FLAGS) -c $(OPTIM_FLAGS) $(CC_DEBUG_FLAGS) $(ARCH_CC_FLAGS)
 CXXFLAGS = $(CFLAGS) -fno-rtti -fno-threadsafe-statics
 LD_FLAGS = $(MCU_CC_FLAGS) $(OPTIM_FLAGS) -Wl,--gc-sections $(SYS_LD_FLAGS) -Wl,-Map=$(PROJECT_BUILD)$(PROJECT).map -ffreestanding -nostartfiles

@@ -93,11 +93,7 @@ typedef enum eRole  {
 ****************************************************************************/
 
 typedef struct bootloader_app_shared_t {
-	union {
-		uint64_t ull;
-		uint32_t ul[2];
-		uint8_t  valid;
-	} crc;
+	uint64_t crc;
 	uint32_t signature;
 	uint32_t bus_speed;
 	uint32_t node_id;
