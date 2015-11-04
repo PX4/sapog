@@ -46,7 +46,7 @@ namespace
 
 unsigned self_light_index = 0;
 
-CONFIG_PARAM_INT("uavcan_light_index", 0,   0,  255)
+CONFIG_PARAM_INT("light_index", 0,   0,  255)
 
 
 void cb_light_command(const uavcan::ReceivedDataStructure<uavcan::equipment::indication::LightsCommand>& msg)
@@ -90,7 +90,7 @@ int init_indication_controller(uavcan::INode& node)
 	static uavcan::Subscriber<uavcan::equipment::indication::LightsCommand> sub_light(node);
 	static uavcan::Subscriber<uavcan::equipment::indication::BeepCommand> sub_beep(node);
 
-	self_light_index = config_get("uavcan_light_index");
+	self_light_index = config_get("light_index");
 
 	int res = 0;
 

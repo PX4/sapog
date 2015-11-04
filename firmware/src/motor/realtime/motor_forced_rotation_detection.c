@@ -54,16 +54,16 @@ static struct precomputed_params
 } _params;
 
 
-CONFIG_PARAM_INT("motor_forced_rot_bemf_threshold",    20,    5,     500)
-CONFIG_PARAM_INT("motor_forced_rot_steps_to_detect",   20,    6,     200)
-CONFIG_PARAM_INT("motor_forced_rot_max_step_usec",     50000, 2000,  100000)
+CONFIG_PARAM_INT("enum_bemf",    20,    5,     500)
+CONFIG_PARAM_INT("enum_steps",   20,    6,     200)
+CONFIG_PARAM_INT("enum_max_step",     50000, 2000,  100000)
 
 
 void motor_forced_rotation_detector_init(void)
 {
-	_params.bemf_threshold  = config_get("motor_forced_rot_bemf_threshold");
-	_params.voting_threshold = config_get("motor_forced_rot_steps_to_detect");
-	_params.max_step_period = config_get("motor_forced_rot_max_step_usec") * HNSEC_PER_USEC;
+	_params.bemf_threshold  = config_get("enum_bemf");
+	_params.voting_threshold = config_get("enum_steps");
+	_params.max_step_period = config_get("enum_max_step") * HNSEC_PER_USEC;
 
 	motor_forced_rotation_detector_reset();
 }

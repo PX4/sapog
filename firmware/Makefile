@@ -37,6 +37,8 @@ UDEFS = -DFW_VERSION_MAJOR=0 -DFW_VERSION_MINOR=1
 export PX4ESC_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 export PX4ESC_SRC_DIR = $(abspath $(PX4ESC_BASE)/src)
 
+PYTHON   := python
+
 #
 # Sources
 #
@@ -57,7 +59,7 @@ UINCDIR = src           \
 #
 
 UDEFS += -DUAVCAN_STM32_TIMER_NUMBER=7    \
-         -DUAVCAN_STM32_NUM_IFACES=2      \
+         -DUAVCAN_STM32_NUM_IFACES=1      \
          -DUAVCAN_MEM_POOL_BLOCK_SIZE=56  \
          -DUAVCAN_STM32_CHIBIOS=1
 
@@ -90,7 +92,7 @@ include $(CHIBIOS)/os/ports/GCC/ARMCMx/STM32F1xx/port.mk
 include $(CHIBIOS)/os/kernel/kernel.mk
 include $(CHIBIOS)/os/various/cpp_wrappers/kernel.mk
 
-LDSCRIPT= $(PORTLD)/STM32F107xC.ld
+LDSCRIPT= STM32F107xC.ld
 
 VARIOUSSRC = $(CHIBIOS)/os/various/syscalls.c    \
              $(CHIBIOS)/os/various/chprintf.c    \
@@ -129,10 +131,10 @@ USE_CPPOPT = -std=c++11 -fno-rtti -fno-threadsafe-statics
 RELEASE ?= 0
 ifneq ($(RELEASE),0)
     DDEFS += -DRELEASE_BUILD -DNDEBUG
-    USE_OPT += -O2 -fomit-frame-pointer
+    USE_OPT += -Os -fomit-frame-pointer
 else
     DDEFS += -DDEBUG_BUILD
-    USE_OPT += -O1 -g3
+    USE_OPT += -Og -g3
 endif
 
 #
@@ -158,7 +160,7 @@ AOPT =
 # THUMB-specific options here
 TOPT = -mthumb -DTHUMB
 
-WARN = -Wall -Wextra -Werror -Wshadow -Wpointer-arith -Wpacked
+WARN = -Wall -Wextra -Werror -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes
 CWARN = $(WARN) -Wstrict-prototypes
 CPPWARN = $(WARN)
 
@@ -166,3 +168,7 @@ CPPWARN = $(WARN)
 DDEFS += -Dasm=__asm
 
 include $(CHIBIOS)/os/ports/GCC/ARMCMx/rules.mk
+
+%.image: %.bin
+	$(PYTHON) ../tools/make_can_boot_descriptor.py --verbose -g $< build/org.pixhawk.px4esc-bldc-v1-1.0.00000000.uavcan.bin
+
