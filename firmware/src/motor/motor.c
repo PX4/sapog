@@ -107,40 +107,40 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("motor_dc_min_voltage",         1.1,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("motor_dc_step_max",            0.1,    0.001,   0.5)
-CONFIG_PARAM_FLOAT("motor_dc_slope",               5.0,    0.1,     20.0)
+CONFIG_PARAM_FLOAT("mot_v_max",         1.1,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("mot_dc_accel",            0.1,    0.001,   0.5)
+CONFIG_PARAM_FLOAT("mot_dc_slope",               5.0,    0.1,     20.0)
 
-CONFIG_PARAM_INT("motor_num_poles",                14,     2,       100)
-CONFIG_PARAM_BOOL("motor_reverse",                 false)
+CONFIG_PARAM_INT("mot_num_poles",                14,     2,       100)
+CONFIG_PARAM_INT("ctl_dir",                 0, 0, 1)
 
-CONFIG_PARAM_INT("motor_rpm_min",                  1000,   50,      5000)
+CONFIG_PARAM_INT("mot_rpm_min",                  1000,   50,      5000)
 
-CONFIG_PARAM_FLOAT("motor_current_limit",          20.0,   1.0,     60.0)
-CONFIG_PARAM_FLOAT("motor_current_limit_p",        0.2,    0.01,    2.0)
+CONFIG_PARAM_FLOAT("mot_i_max",          20.0,   1.0,     60.0)
+CONFIG_PARAM_FLOAT("mot_i_max_p",        0.2,    0.01,    2.0)
 
-CONFIG_PARAM_FLOAT("motor_volt_curr_lowpass_freq", 20.0,   1.0,     200.0)
-CONFIG_PARAM_INT("motor_num_halts_to_latch",       7,      1,       100)
+CONFIG_PARAM_FLOAT("mot_lpf_freq", 20.0,   1.0,     200.0)
+CONFIG_PARAM_INT("mot_stop_thres",       7,      1,       100)
 
 
 static void configure(void)
 {
-	_params.dc_min_voltage = config_get("motor_dc_min_voltage");
-	_params.dc_step_max    = config_get("motor_dc_step_max");
-	_params.dc_slope       = config_get("motor_dc_slope");
+	_params.dc_min_voltage = config_get("mot_v_max");
+	_params.dc_step_max    = config_get("mot_dc_accel");
+	_params.dc_slope       = config_get("mot_dc_slope");
 
-	_params.poles = config_get("motor_num_poles");
-	_params.reverse = config_get("motor_reverse");
+	_params.poles = config_get("mot_num_poles");
+	_params.reverse = config_get("ctl_dir");
 
 	_params.comm_period_limit = motor_rtctl_get_min_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
-	_params.rpm_min = config_get("motor_rpm_min");
+	_params.rpm_min = config_get("mot_rpm_min");
 
-	_params.current_limit = config_get("motor_current_limit");
-	_params.current_limit_p = config_get("motor_current_limit_p");
+	_params.current_limit = config_get("mot_i_max");
+	_params.current_limit_p = config_get("mot_i_max_p");
 
-	_params.voltage_current_lowpass_tau = 1.0f / config_get("motor_volt_curr_lowpass_freq");
-	_params.num_unexpected_stops_to_latch = config_get("motor_num_halts_to_latch");
+	_params.voltage_current_lowpass_tau = 1.0f / config_get("mot_lpf_freq");
+	_params.num_unexpected_stops_to_latch = config_get("mot_stop_thres");
 
 	lowsyslog("Motor: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }

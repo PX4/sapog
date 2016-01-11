@@ -65,6 +65,28 @@ static bool _frozen = false;
 
 static Mutex _mutex;
 
+struct bootloader_app_descriptor {
+    uint64_t signature;
+    uint64_t image_crc;
+    uint32_t image_size;
+    uint32_t vcs_commit;
+    uint8_t major_version;
+    uint8_t minor_version;
+    uint8_t reserved[6];
+} __attribute__((packed));
+
+__attribute__((section(".app_descriptor"),used))
+volatile struct bootloader_app_descriptor
+flash_app_descriptor = {
+    .signature = 0x3030637365445041L,
+    .image_crc = 0L,
+    .image_size = 0L,
+    .vcs_commit = 0L,
+    .major_version = 0u,
+    .minor_version = 1u,
+    .reserved = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu}
+};
+
 
 static uint32_t crc32_step(uint32_t crc, uint8_t new_byte)
 {

@@ -53,7 +53,7 @@
 #define PWM_DEAD_TIME_NANOSEC   750
 
 
-CONFIG_PARAM_INT("motor_pwm_frequency",    30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_INT("mot_pwm_hz",    30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 
 /**
  * Local constants, initialized once
@@ -230,7 +230,7 @@ static void start_timers(void)
 
 int motor_pwm_init(void)
 {
-	const int ret = init_constants(config_get("motor_pwm_frequency"));
+	const int ret = init_constants(config_get("mot_pwm_hz"));
 	if (ret) {
 		return ret;
 	}

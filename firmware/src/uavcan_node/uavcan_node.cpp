@@ -41,7 +41,9 @@
 #include <sys/sys.h>
 #include <config/config.h>
 #include <uavcan/protocol/param_server.hpp>
-#include <uavcan/protocol/EnumerationRequest.hpp>
+#include <uavcan/protocol/enumeration/Begin.hpp>
+#include <uavcan/protocol/enumeration/Indication.hpp>
+#include <uavcan_stm32/bxcan.hpp>
 #include <unistd.h>
 #include <motor/motor.h>
 #include <watchdog.h>
@@ -55,11 +57,9 @@ typedef uavcan::Node<UAVCAN_MEM_POOL_BLOCK_SIZE * 128> Node;
 
 uavcan_stm32::CanInitHelper<> can;
 
-auto node_status_code = uavcan::protocol::NodeStatus::STATUS_INITIALIZING;
-bool passive_mode = true;
-
-CONFIG_PARAM_INT("can_bitrate",    1000000, 20000, 1000000)
-CONFIG_PARAM_INT("uavcan_node_id", 0,       0,     125)      ///< 0 for Passive Mode (default)
+auto node_status_mode = uavcan::protocol::NodeStatus::MODE_OPERATIONAL;
+auto node_status_health = uavcan::protocol::NodeStatus::HEALTH_OK;
+uint8_t node_id = 0;
 
 Node& get_node()
 {
@@ -71,8 +71,8 @@ void configure_node()
 {
 	Node& node = get_node();
 
-	node.setNodeID(config_get("uavcan_node_id"));
-	node.setName("org.pixhawk.px4esc");
+	node.setNodeID(node_id);
+	node.setName("org.pixhawk.px4esc-bldc-v1");
 
 	/*
 	 * Software version
@@ -83,7 +83,7 @@ void configure_node()
 	swver.minor = FW_VERSION_MINOR;
 
 	swver.vcs_commit = GIT_HASH;
-	swver.optional_field_mask |= swver.OPTIONAL_FIELD_MASK_VCS_COMMIT;
+	swver.optional_field_flags |= swver.OPTIONAL_FIELD_FLAG_VCS_COMMIT;
 
 	node.setSoftwareVersion(swver);
 
@@ -115,17 +115,28 @@ class ParamManager: public uavcan::IParamManager
 	void convert(float native_value, config_data_type native_type, uavcan::protocol::param::Value& out_value) const
 	{
 		if (native_type == CONFIG_TYPE_BOOL) {
-			out_value.value_bool.push_back(native_value != 0);
+			out_value.to<uavcan::protocol::param::Value::Tag::boolean_value>() = bool(native_value != 0);
 		} else if (native_type == CONFIG_TYPE_INT) {
-			out_value.value_int.push_back(native_value);
+			out_value.to<uavcan::protocol::param::Value::Tag::integer_value>() = native_value;
 		} else if (native_type == CONFIG_TYPE_FLOAT) {
-			out_value.value_float.push_back(native_value);
+			out_value.to<uavcan::protocol::param::Value::Tag::real_value>() = native_value;
 		} else {
 			; // :(
 		}
 	}
 
-	void getParamNameByIndex(ParamIndex index, ParamName& out_name) const override
+	void convertNumeric(float native_value, config_data_type native_type, uavcan::protocol::param::NumericValue& out_value) const
+	{
+		if (native_type == CONFIG_TYPE_INT) {
+			out_value.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = native_value;
+		} else if (native_type == CONFIG_TYPE_FLOAT) {
+			out_value.to<uavcan::protocol::param::NumericValue::Tag::real_value>() = native_value;
+		} else {
+			; // :(
+		}
+	}
+
+	void getParamNameByIndex(Index index, Name& out_name) const override
 	{
 		const char* name = config_name_by_index(index);
 		if (name != nullptr) {
@@ -133,15 +144,23 @@ class ParamManager: public uavcan::IParamManager
 		}
 	}
 
-	void assignParamValue(const ParamName& name, const ParamValue& value) override
+	void assignParamValue(const Name& name, const Value& value) override
 	{
-		const float native_value = (!value.value_bool.empty()) ? (value.value_bool[0]
-		        ? 1 : 0) : (!value.value_int.empty())
-		        ? value.value_int[0] : value.value_float[0];
+		Value v = value;
+		float native_value = 0.0f;
+
+		if (v.is(uavcan::protocol::param::Value::Tag::boolean_value)) {
+			native_value = v.to<uavcan::protocol::param::Value::Tag::boolean_value>() ? 1.0f : 0.0f;
+		} else if (v.is(uavcan::protocol::param::Value::Tag::integer_value)) {
+			native_value = v.to<uavcan::protocol::param::Value::Tag::integer_value>();
+		} else if (value.is(uavcan::protocol::param::Value::Tag::real_value)) {
+			native_value = v.to<uavcan::protocol::param::Value::Tag::real_value>();
+		}
+
 		(void)config_set(name.c_str(), native_value);
 	}
 
-	void readParamValue(const ParamName& name, ParamValue& out_value) const override
+	void readParamValue(const Name& name, Value& out_value) const override
 	{
 		config_param descr;
 		const int res = config_get_descr(name.c_str(), &descr);
@@ -150,15 +169,15 @@ class ParamManager: public uavcan::IParamManager
 		}
 	}
 
-	void readParamDefaultMaxMin(const ParamName& name, ParamValue& out_default,
-	                            ParamValue& out_max, ParamValue& out_min) const override
+	void readParamDefaultMaxMin(const Name& name, Value& out_default,
+								NumericValue& out_max, NumericValue& out_min) const override
 	{
 		config_param descr;
 		const int res = config_get_descr(name.c_str(), &descr);
 		if (res >= 0) {
 			convert(descr.default_, descr.type, out_default);
-			convert(descr.max, descr.type, out_max);
-			convert(descr.min, descr.type, out_min);
+			convertNumeric(descr.max, descr.type, out_max);
+			convertNumeric(descr.min, descr.type, out_min);
 		}
 	}
 
@@ -197,6 +216,7 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
 	}
 } restart_request_handler;
 
+
 /*
  * Enumeration handler
  */
@@ -205,39 +225,34 @@ class EnumerationHandler : public uavcan::TimerBase
 	static constexpr int CONFIRMATION_CHECK_INTERVAL_MSEC = 50;
 
 	typedef uavcan::MethodBinder<EnumerationHandler*,
-	                             void (EnumerationHandler::*)
-	                             (const uavcan::ReceivedDataStructure<uavcan::protocol::EnumerationRequest>&)>
-	        CallbackBinder;
+								 void (EnumerationHandler::*)
+								 (const uavcan::ReceivedDataStructure<uavcan::protocol::enumeration::Begin::Request>&,
+								  uavcan::protocol::enumeration::Begin::Response&)>
+			CallbackBinder;
 
-	uavcan::Subscriber<uavcan::protocol::EnumerationRequest, CallbackBinder> sub_;
+	uavcan::ServiceServer<uavcan::protocol::enumeration::Begin, CallbackBinder> srv_;
+	uavcan::Publisher<uavcan::protocol::enumeration::Indication> pub_;
 	uavcan::MonotonicTime confirmation_deadline_;
-	uavcan::NodeID received_node_id_;
 	mutable led::Overlay led_ctl;
 
-	void finish(bool reverse) const
+	void finish(bool reverse)
 	{
-		::lowsyslog("UAVCAN: Enumeration confirmed: node ID: %d, motor reverse: %d\n",
-			(int)received_node_id_.get(), (int)reverse);
+		::lowsyslog("UAVCAN: Enumeration confirmed: motor reverse: %d\n", (int)reverse);
 
-		(void)config_set("uavcan_node_id", received_node_id_.get());
-		(void)config_set("motor_reverse", reverse);
+		uavcan::protocol::enumeration::Indication msg;
+		msg.parameter_name = "esc_index";
+		pub_.broadcast(msg);
+
+		(void)config_set("ctl_dir", reverse ? 1 : 0);
 
 		motor_stop();  // Shouldn't be running anyway
-
-		const int save_res = config_save();
-
-		::lowsyslog("UAVCAN: Enumeration: Config saved (status: %d), restarting...\n", save_res);
-
-		motor_beep(1000, 500);
-		::usleep(500000);
-		NVIC_SystemReset();
 	}
 
 	void handleTimerEvent(const uavcan::TimerEvent& event) override
 	{
 		led_ctl.blink(led::Color::CYAN);
 
-		if ((event.real_time >= confirmation_deadline_) || !received_node_id_.isUnicast()) {
+		if (event.real_time >= confirmation_deadline_) {
 			::lowsyslog("UAVCAN: Enumeration request expired\n");
 			this->stop();
 			led_ctl.unset();
@@ -251,45 +266,49 @@ class EnumerationHandler : public uavcan::TimerBase
 		}
 	}
 
-	void sub_cb(const uavcan::ReceivedDataStructure<uavcan::protocol::EnumerationRequest>& msg)
+	void handleBegin(const uavcan::ReceivedDataStructure<uavcan::protocol::enumeration::Begin::Request>& req,
+					 uavcan::protocol::enumeration::Begin::Response& resp)
 	{
-		::lowsyslog("UAVCAN: Enumeration request from %d, received node ID: %d, timeout: %d sec\n",
-			(int)msg.getSrcNodeID().get(), (int)msg.node_id, (int)msg.timeout_sec);
+		::lowsyslog("UAVCAN: Enumeration request from %d, parameter: %s, timeout: %d sec\n",
+			(int)req.getSrcNodeID().get(), (const char*)req.parameter_name.c_str(), (int)req.timeout_sec);
 
-		if (!uavcan::NodeID(msg.node_id).isUnicast()) {
-			::lowsyslog("UAVCAN: Enumeration failure - INVALID PARAMS\n");
+		if (req.parameter_name != "esc_index") {
+			::lowsyslog("UAVCAN: Enumeration failure - INVALID PARAM NAME\n");
+			resp.error = uavcan::protocol::enumeration::Begin::Response::ERROR_INVALID_PARAMETER;
 			return;
 		}
 
 		if (!motor_is_idle()) {
 			::lowsyslog("UAVCAN: Enumeration failure - MOTOR CONTROLLER IS NOT IDLE\n");
+			resp.error = uavcan::protocol::enumeration::Begin::Response::ERROR_INVALID_MODE;
 			return;
 		}
 
-		received_node_id_ = msg.node_id;
-
-		confirmation_deadline_ = msg.getMonotonicTimestamp() +
-					 uavcan::MonotonicDuration::fromMSec(msg.timeout_sec * 1000);
+		confirmation_deadline_ = req.getMonotonicTimestamp() +
+					 uavcan::MonotonicDuration::fromMSec(req.timeout_sec * 1000);
 
 		this->startPeriodic(uavcan::MonotonicDuration::fromMSec(CONFIRMATION_CHECK_INTERVAL_MSEC));
+
+		resp.error = uavcan::protocol::enumeration::Begin::Response::ERROR_OK;
 	}
 
 public:
 	EnumerationHandler(uavcan::INode& node)
 		: uavcan::TimerBase(node)
-		, sub_(node)
+		, srv_(node)
+		, pub_(node)
 	{ }
 
 	int start()
 	{
-		return sub_.start(CallbackBinder(this, &EnumerationHandler::sub_cb));
+		return srv_.start(CallbackBinder(this, &EnumerationHandler::handleBegin));
 	}
 };
 
 /*
  * UAVCAN spin loop
  */
-class : public chibios_rt::BaseStaticThread<3000>
+class : public chibios_rt::BaseStaticThread<4000>
 {
 	uavcan::LazyConstructor<EnumerationHandler> enumeration_handler_;
 	int watchdog_id_ = -1;
@@ -313,34 +332,28 @@ class : public chibios_rt::BaseStaticThread<3000>
 		}
 		assert(get_node().isStarted());
 
-		passive_mode = get_node().isPassiveMode();
-
-		if (!passive_mode) {
-			while (get_param_server().start(&param_manager) < 0) {
-				; // That's impossible to fail
-			}
-
-			while (init_esc_controller(get_node()) < 0) {
-				::lowsyslog("UAVCAN: ESC controller init failed\n");
-				::sleep(1);
-			}
-
-			while (init_indication_controller(get_node()) < 0) {
-				::lowsyslog("UAVCAN: Indication controller init failed\n");
-				::sleep(1);
-			}
-
-			::lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
-		} else {
-			::lowsyslog("UAVCAN: PASSIVE MODE\n");
-
-			enumeration_handler_.construct<uavcan::INode&>(get_node());
-			while (enumeration_handler_->start() < 0) {
-				::lowsyslog("UAVCAN: Enumeration handler start failed\n");
-				::sleep(1);
-			}
-			::lowsyslog("UAVCAN: Enumeration handler started\n");
+		while (get_param_server().start(&param_manager) < 0) {
+			; // That's impossible to fail
 		}
+
+		while (init_esc_controller(get_node()) < 0) {
+			::lowsyslog("UAVCAN: ESC controller init failed\n");
+			::sleep(1);
+		}
+
+		while (init_indication_controller(get_node()) < 0) {
+			::lowsyslog("UAVCAN: Indication controller init failed\n");
+			::sleep(1);
+		}
+
+		::lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
+
+		enumeration_handler_.construct<uavcan::INode&>(get_node());
+		while (enumeration_handler_->start() < 0) {
+			::lowsyslog("UAVCAN: Enumeration handler start failed\n");
+			::sleep(1);
+		}
+		::lowsyslog("UAVCAN: Enumeration handler started\n");
 	}
 
 public:
@@ -349,7 +362,8 @@ public:
 		init();
 
 		while (true) {
-			get_node().getNodeStatusProvider().setStatusCode(node_status_code);
+			get_node().getNodeStatusProvider().setHealth(node_status_health);
+			get_node().getNodeStatusProvider().setMode(node_status_mode);
 
 			const int spin_res = get_node().spin(uavcan::MonotonicDuration::fromMSec(100));
 			if (spin_res < 0) {
@@ -366,56 +380,82 @@ public:
 
 void set_node_status_ok()
 {
-	node_status_code = uavcan::protocol::NodeStatus::STATUS_OK;
+	node_status_health = uavcan::protocol::NodeStatus::HEALTH_OK;
 }
 
 void set_node_status_warning()
 {
-	node_status_code = uavcan::protocol::NodeStatus::STATUS_WARNING;
+	node_status_health = uavcan::protocol::NodeStatus::HEALTH_WARNING;
 }
 
 void set_node_status_critical()
 {
-	node_status_code = uavcan::protocol::NodeStatus::STATUS_CRITICAL;
+	node_status_health = uavcan::protocol::NodeStatus::HEALTH_CRITICAL;
 }
 
-bool is_passive_mode()
-{
-	return passive_mode;
+struct bootloader_app_shared_t {
+	union {
+		uint64_t ull;
+		uint32_t ul[2];
+	} crc;
+	uint32_t signature;
+	uint32_t bus_speed;
+	uint32_t node_id;
+} __attribute__ ((packed));
+
+static uint64_t bootloader_calculate_signature(
+	const bootloader_app_shared_t *pshared
+) {
+	uavcan::DataTypeSignatureCRC crc;
+	crc.add((uint8_t*)(&pshared->signature), sizeof(uint32_t) * 3u);
+	return crc.get();
+}
+
+
+/*  CAN_FiRx where (i=0..27|13, x=1, 2)
+ *                      STM32_CAN1_FIR(i,x)
+ * Using i = 2 does not requier there block
+ * to be enabled nor FINIT in CAN_FMR to be set.
+ * todo:Validate this claim on F2, F3
+ */
+
+#define crc_HiLOC       (uavcan_stm32::bxcan::Can[0]->FilterRegister[2].FR1)
+#define crc_LoLOC       (uavcan_stm32::bxcan::Can[0]->FilterRegister[2].FR2)
+#define signature_LOC   (uavcan_stm32::bxcan::Can[0]->FilterRegister[3].FR1)
+#define bus_speed_LOC   (uavcan_stm32::bxcan::Can[0]->FilterRegister[3].FR2)
+#define node_id_LOC     (uavcan_stm32::bxcan::Can[0]->FilterRegister[4].FR1)
+#define CRC_H 1
+#define CRC_L 0
+
+
+static bool bootloader_read(bootloader_app_shared_t *shared) {
+	shared->signature = signature_LOC;
+	shared->bus_speed = bus_speed_LOC;
+	shared->node_id = node_id_LOC;
+	shared->crc.ul[CRC_L] = crc_LoLOC;
+	shared->crc.ul[CRC_H] = crc_HiLOC;
+
+	if (shared->crc.ull == bootloader_calculate_signature(shared)) {
+		return true;
+	} else {
+		return false;
+	}
 }
 
 int init()
 {
-	int remained_attempts = 5;
+	struct bootloader_app_shared_t bl_shared;
 
-	while (true) {
-		int can_res = can.init(config_get("can_bitrate"));
-		if (can_res >= 0) {
-			::lowsyslog("UAVCAN: CAN bitrate %u bps\n", unsigned(config_get("can_bitrate")));
-			break;
-		}
+	if (bootloader_read(&bl_shared)) {
+		node_id = uint8_t(bl_shared.node_id);
+		can.init(bl_shared.bus_speed);
 
-		::lowsyslog("UAVCAN: CAN init failed [%i], trying default bitrate...\n", can_res);
-
-		auto descr = ::config_param();
-		(void)config_get_descr("can_bitrate", &descr);
-
-		can_res = can.init(descr.default_);
-		if (can_res >= 0) {
-			::lowsyslog("UAVCAN: CAN bitrate %u bps\n", unsigned(descr.default_));
-			break;
-		}
-
-		remained_attempts--;
-		if (remained_attempts <= 0) {
-			::lowsyslog("UAVCAN: CAN driver init failure: %i\n", can_res);
-			return -1;
-		}
-
-		::usleep(100000);
+		(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
+	} else {
+		::lowsyslog("UAVCAN: bootloader read failed; not starting node\n");
+		::sleep(1);
 	}
 
-	(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
 
 	return 0;
 }

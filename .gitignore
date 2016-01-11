@@ -22,3 +22,6 @@ build
 
 # Generated
 dsdlc_generated
+
+# Mac
+.DS_Store

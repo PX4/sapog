@@ -50,9 +50,9 @@ unsigned self_index;
 unsigned command_ttl_ms;
 float max_dc_to_start;
 
-CONFIG_PARAM_INT("uavcan_esc_index",             0,    0,    15)
-CONFIG_PARAM_INT("uavcan_esc_command_ttl_ms",    200,  100,  5000)
-CONFIG_PARAM_FLOAT("uavcan_esc_max_dc_to_start", 0.1,  0.01, 1.0)
+CONFIG_PARAM_INT("esc_index",             0,    0,    15)
+CONFIG_PARAM_INT("cmd_ttl_ms",    200,  100,  5000)
+CONFIG_PARAM_FLOAT("cmd_start_dc", 0.1,  0.01, 1.0)
 
 
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
@@ -121,9 +121,9 @@ int init_esc_controller(uavcan::INode& node)
 	static uavcan::Subscriber<uavcan::equipment::esc::RPMCommand> sub_rpm_command(node);
 	static uavcan::Timer timer_10hz(node);
 
-	self_index = config_get("uavcan_esc_index");
-	command_ttl_ms = config_get("uavcan_esc_command_ttl_ms");
-	max_dc_to_start = config_get("uavcan_esc_max_dc_to_start");
+	self_index = config_get("esc_index");
+	command_ttl_ms = config_get("cmd_ttl_ms");
+	max_dc_to_start = config_get("cmd_start_dc");
 
 	int res = 0;
 
