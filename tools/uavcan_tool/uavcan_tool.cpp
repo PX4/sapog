@@ -283,7 +283,7 @@ int main(int argc, const char** argv)
     }
     const int self_node_id = std::stoi(argv[1]);
     std::vector<std::string> iface_names(argv + 2, argv + argc);
-    uavcan_linux::NodePtr node = initNode(iface_names, self_node_id, "org.pixhawk.px4esc.uavcan_tool");
+    uavcan_linux::NodePtr node = initNode(iface_names, self_node_id, "org.pixhawk.sapog.uavcan_tool");
     runForever(node);
     return 0;
 }

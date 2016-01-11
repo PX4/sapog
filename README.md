@@ -1,9 +1,10 @@
-PX4ESC firmware
-===============
+PX4 Sapog
+=========
 
-Please refer to the documentation page at <https://pixhawk.org/firmware/px4esc>.
+Please refer to the documentation page at <https://pixhawk.org/firmware/sapog>.
 
 ### Hardware timer usage
+
 * TIM1 - 3-phase FET bridge PWM
 * TIM2 - ADC synchronization, works in lockstep with TIM1
 * TIM3 - RGB LED PWM

@@ -30,12 +30,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-PROJECT = px4esc
+PROJECT = sapog
 
 UDEFS = -DFW_VERSION_MAJOR=0 -DFW_VERSION_MINOR=1
 
-export PX4ESC_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
-export PX4ESC_SRC_DIR = $(abspath $(PX4ESC_BASE)/src)
+export SAPOG_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
+export SAPOG_SRC_DIR = $(abspath $(SAPOG_BASE)/src)
 
 PYTHON   := python
 
@@ -43,12 +43,12 @@ PYTHON   := python
 # Sources
 #
 
-CSRC = $(wildcard $(PX4ESC_SRC_DIR)/*.c)     \
-       $(wildcard $(PX4ESC_SRC_DIR)/*/*.c)   \
-       $(wildcard $(PX4ESC_SRC_DIR)/*/*/*.c)
+CSRC = $(wildcard $(SAPOG_SRC_DIR)/*.c)     \
+       $(wildcard $(SAPOG_SRC_DIR)/*/*.c)   \
+       $(wildcard $(SAPOG_SRC_DIR)/*/*/*.c)
 
-CPPSRC = $(wildcard $(PX4ESC_SRC_DIR)/*.cpp)   \
-         $(wildcard $(PX4ESC_SRC_DIR)/*/*.cpp)
+CPPSRC = $(wildcard $(SAPOG_SRC_DIR)/*.cpp)   \
+         $(wildcard $(SAPOG_SRC_DIR)/*/*.cpp)
 
 UINCDIR = src           \
           src/sys       \
@@ -170,5 +170,5 @@ DDEFS += -Dasm=__asm
 include $(CHIBIOS)/os/ports/GCC/ARMCMx/rules.mk
 
 %.image: %.bin
-	$(PYTHON) ../tools/make_can_boot_descriptor.py --verbose -g $< build/org.pixhawk.px4esc-bldc-v1-1.0.00000000.uavcan.bin
+	$(PYTHON) ../tools/make_can_boot_descriptor.py --verbose -g $< build/org.pixhawk.sapog-v1-1.0.00000000.uavcan.bin
 

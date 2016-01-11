@@ -139,7 +139,7 @@ void print_banner()
 	lowsyslog("\n\n\n");
 	lowsyslog("\x1b\x5b\x48");      // Home sweet home
 	lowsyslog("\x1b\x5b\x32\x4a");  // Clear
-	lowsyslog("PX4ESC\n");
+	lowsyslog("PX4 Sapog\n");
 	lowsyslog("Git commit hash 0x%08x\n", GIT_HASH);
 }
 
