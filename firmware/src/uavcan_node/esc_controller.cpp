@@ -52,7 +52,7 @@ float max_dc_to_start;
 
 CONFIG_PARAM_INT("uavcan_esc_index",             0,    0,    15)
 CONFIG_PARAM_INT("uavcan_esc_command_ttl_ms",    200,  100,  5000)
-CONFIG_PARAM_FLOAT("uavcan_esc_max_dc_to_start", 0.4,  0.01, 1.0)
+CONFIG_PARAM_FLOAT("uavcan_esc_max_dc_to_start", 0.1,  0.01, 1.0)
 
 
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
@@ -97,7 +97,7 @@ void cb_10Hz(const uavcan::TimerEvent& event)
 	msg.esc_index = self_index;
 	msg.rpm = motor_get_rpm();
 	motor_get_input_voltage_current(&msg.voltage, &msg.current);
-	msg.temperature = motor_get_temperature();
+	msg.temperature = std::numeric_limits<float>::quiet_NaN();
 	msg.power_rating_pct = static_cast<unsigned>(motor_get_duty_cycle() * 100 + 0.5F);
 	msg.error_count = motor_get_zc_failures_since_start();
 

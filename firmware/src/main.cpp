@@ -50,19 +50,11 @@
 namespace
 {
 
-CONFIG_PARAM_FLOAT("diag_temperature_warning_degc",  60, 50, 105)
-CONFIG_PARAM_FLOAT("diag_temperature_critical_degc", 80, 70, 105)
-
 led::Overlay led_ctl;
 
 int init()
 {
 	int res = 0;
-
-	/*
-	 * Safety
-	 */
-	watchdog_init();
 
 	/*
 	 * Indication
@@ -77,8 +69,11 @@ int init()
 	if (res) {
 		return res;
 	}
-	// TODO HACK FIXME - we don't have a configuration storage yet, so it's a workaround
-	(void)config_set("uavcan_node_id", 42);
+
+	/*
+	 * Safety
+	 */
+	watchdog_init();
 
 	/*
 	 * Motor control (must be initialized earlier than communicaton interfaces)
@@ -96,7 +91,6 @@ int init()
 	/*
 	 * UAVCAN node
 	 */
-	::usleep(100000);
 	res = uavcan_node::init();
 	if (res) {
 		return res;
@@ -163,14 +157,13 @@ int main()
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
-	::usleep(300000);
+	usleep(300000);
 	print_banner();
 
 	const int init_status = init();
 
 	const int watchdog_id = watchdog_create(10000);
 
-	::usleep(100000);
 	console_init();
 
 	if (init_status) {
@@ -187,11 +180,7 @@ int main()
 
 	/*
 	 * Here we run some high-level self diagnostics, indicating the system health via UAVCAN and LED.
-	 * TODO: PROPER LOGIC
 	 */
-	const float temperature_warning_threshold  = config_get("diag_temperature_warning_degc") + 273;
-	const float temperature_critical_threshold = config_get("diag_temperature_critical_degc") + 273;
-
 	while (1) {
 		watchdog_reset(watchdog_id);
 
@@ -204,17 +193,7 @@ int main()
 			} else {
 				led_ctl.set(led::Color::DARK_GREEN);
 			}
-
-			const float temperature = motor_get_temperature();
-			if (temperature > temperature_critical_threshold) {
-				uavcan_node::set_node_status_critical();
-			}
-			else if (temperature > temperature_warning_threshold) {
-				uavcan_node::set_node_status_warning();
-			}
-			else {
-				uavcan_node::set_node_status_ok();
-			}
+			uavcan_node::set_node_status_ok();
 		}
 		::usleep(100 * 1000);
 	}

@@ -46,7 +46,7 @@
 static const int INITIAL_DELAY_MS = 300;
 static const int SAMPLE_DELAY_MS  = 10;
 
-static const int ANALOG_TOLERANCE_PERCENT = 10;
+static const int ANALOG_TOLERANCE_PERCENT = 5;
 
 
 static int test_one_phase(int phase, bool level)
@@ -62,7 +62,7 @@ static int test_one_phase(int phase, bool level)
 	manip_cmd[phase] = level ? MOTOR_PWM_MANIP_HIGH : MOTOR_PWM_MANIP_LOW;
 	motor_pwm_manip(manip_cmd);
 	usleep(SAMPLE_DELAY_MS * 1000);
-	const int sample = motor_adc_get_last_sample().phase_voltage_raw[phase];
+	const int sample = motor_adc_get_last_sample().phase_values[phase];
 
 	manip_cmd[phase] = MOTOR_PWM_MANIP_FLOATING;
 	motor_pwm_manip(manip_cmd);
@@ -76,6 +76,8 @@ static int compare_samples(const void* p1, const void* p2)
 
 static int test_sensors(void)
 {
+	static const int ADC_MAX = (1U << MOTOR_ADC_RESOLUTION) - 1;
+
 	/*
 	 * Enable the synchronous PWM on all phases, obtain a sample and disable PWM again
 	 */
@@ -94,19 +96,16 @@ static int test_sensors(void)
 	/*
 	 * Validate the obtained sample
 	 */
-	const bool valid_voltage     = (sample.input_voltage_raw > 0) && (sample.input_voltage_raw < MOTOR_ADC_SAMPLE_MAX);
-	const bool valid_temperature = (sample.temperature_raw > 0) && (sample.temperature_raw < MOTOR_ADC_SAMPLE_MAX);
+	const bool valid_voltage = (sample.input_voltage > 0) && (sample.input_voltage < ADC_MAX);
+	const bool valid_current = (sample.input_current > 0) && (sample.input_current < ADC_MAX);
 
-	if (!valid_voltage || !valid_temperature) {
-		lowsyslog("Motor: Invalid sensor readings: raw input voltage %i, raw temperature %i\n",
-			sample.input_voltage_raw, sample.temperature_raw);
+	if (!valid_voltage || !valid_current) {
+		lowsyslog("Motor: Invalid sensor readings: raw input voltage %i, raw input current %i\n",
+			sample.input_voltage, sample.input_current);
 		return 1;
 	}
 
-	lowsyslog("Motor: Raw phase voltages: %i %i %i\n",
-		sample.phase_voltage_raw[0], sample.phase_voltage_raw[1], sample.phase_voltage_raw[2]);
-	lowsyslog("Motor: Raw phase currents: %i %i\n", sample.phase_current_raw[0], sample.phase_current_raw[1]);
-	lowsyslog("Motor: Raw input voltage, temperature: %i %i\n", sample.input_voltage_raw, sample.temperature_raw);
+	lowsyslog("Motor: Raw input voltage %i, raw input current %i\n", sample.input_voltage, sample.input_current);
 	return 0;
 }
 
@@ -199,14 +198,14 @@ static int test_cross_phase_conductivity(void)
 		const int low_second = (phase + 2) % MOTOR_NUM_PHASES;
 		assert((low_first != phase) && (low_second != phase) && (low_first != low_second));
 
-		const int low_sum = sample.phase_voltage_raw[low_first] + sample.phase_voltage_raw[low_second];
+		const int low_sum = sample.phase_values[low_first] + sample.phase_values[low_second];
 
-		const bool valid = (low_sum * 2) < sample.phase_voltage_raw[phase];
+		const bool valid = (low_sum * 2) < sample.phase_values[phase];
 
 		if (!valid) {
 			num_detects++;
 			lowsyslog("Motor: Phase %i cross conductivity: %i %i %i\n", phase,
-				sample.phase_voltage_raw[0], sample.phase_voltage_raw[1], sample.phase_voltage_raw[2]);
+				sample.phase_values[0], sample.phase_values[1], sample.phase_values[2]);
 		}
 	}
 
@@ -280,7 +279,7 @@ int motor_rtctl_test_motor(void)
 	usleep(SAMPLE_DELAY_MS * 1000);
 	sample = motor_adc_get_last_sample();
 
-	if (sample.phase_voltage_raw[1] > threshold || sample.phase_voltage_raw[2] > threshold) {
+	if (sample.phase_values[1] > threshold || sample.phase_values[2] > threshold) {
 		result++;
 	}
 
@@ -292,10 +291,10 @@ int motor_rtctl_test_motor(void)
 	usleep(SAMPLE_DELAY_MS * 1000);
 	sample = motor_adc_get_last_sample();
 
-	if (abs(sample.phase_voltage_raw[0] - sample.phase_voltage_raw[1]) > threshold) {
+	if (abs(sample.phase_values[0] - sample.phase_values[1]) > threshold) {
 		result++;
 	}
-	if (abs(sample.phase_voltage_raw[0] - sample.phase_voltage_raw[2]) > threshold) {
+	if (abs(sample.phase_values[0] - sample.phase_values[2]) > threshold) {
 		result++;
 	}
 

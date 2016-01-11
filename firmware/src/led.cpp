@@ -35,7 +35,7 @@
 #include "led.hpp"
 #include <hal.h>
 #include <assert.h>
-#include <stm32.h>
+#include <stm32f10x.h>
 #include <algorithm>
 
 #undef TIM1
@@ -88,17 +88,16 @@ void init(void)
 	TIMX->CR1 = 0;
 	TIMX->CR2 = 0;
 
-	// CC2, CC3, CC4 are R, G, B
+	// CC1, CC2, CC3 are R, G, B. Inverted mode.
 	TIMX->CCMR1 =
-		TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0 |
-		TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
+		TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 |
+		TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
 
 	TIMX->CCMR2 =
-		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0 |
-		TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_0;
+		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 
 	// No inversion, all enabled
-	TIMX->CCER = TIM_CCER_CC4E | TIM_CCER_CC3E | TIM_CCER_CC2E;
+	TIMX->CCER = TIM_CCER_CC3E | TIM_CCER_CC2E | TIM_CCER_CC1E;
 
 	// Start
 	TIMX->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -112,9 +111,9 @@ static void set_hex_impl(std::uint32_t hex_rgb)
 	const unsigned pwm_green = ((hex_rgb & 0x00FF00U) >> 8)  * 257U;
 	const unsigned pwm_blue  = ((hex_rgb & 0x0000FFU) >> 0)  * 257U;
 
-	TIMX->CCR2 = pwm_red;
+	TIMX->CCR1 = pwm_red;
+	TIMX->CCR2 = pwm_blue;
 	TIMX->CCR3 = pwm_green;
-	TIMX->CCR4 = pwm_blue;
 }
 
 void emergency_override(Color color)

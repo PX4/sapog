@@ -49,8 +49,8 @@ extern "C" {
  * Faster alternatives for GPIO API that can be used from IRQ handlers.
  */
 #if DEBUG_BUILD
-#  define TESTPAD_SET(port, pin)        (port)->BSRR.H.set = 1 << (pin)
-#  define TESTPAD_CLEAR(port, pin)      (port)->BSRR.H.clear = 1 << (pin)
+#  define TESTPAD_SET(port, pin)        (port)->BSRR = 1 << (pin)
+#  define TESTPAD_CLEAR(port, pin)      (port)->BRR = 1 << (pin)
 #else
 #  define TESTPAD_SET(port, pin)
 #  define TESTPAD_CLEAR(port, pin)
@@ -58,7 +58,6 @@ extern "C" {
 
 /**
  * Common priority for all hard real time IRQs.
- * Note that motor control always uses the highest DMA priority.
  */
 #define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(CORTEX_MAXIMUM_PRIORITY)
 

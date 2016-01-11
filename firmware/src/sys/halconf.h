@@ -52,7 +52,7 @@
 #define HAL_USE_SDC                 FALSE
 #define HAL_USE_SERIAL              TRUE
 #define HAL_USE_SERIAL_USB          FALSE
-#define HAL_USE_SPI                 TRUE
+#define HAL_USE_SPI                 FALSE
 #define HAL_USE_UART                FALSE
 #define HAL_USE_USB                 FALSE
 

@@ -78,7 +78,7 @@ static struct state
 
 	float input_voltage;
 	float input_current;
-	float temperature;
+	float input_curent_offset;
 
 	enum motor_rtctl_state rtctl_state;
 
@@ -170,8 +170,9 @@ static float lowpass(float xold, float xnew, float tau, float dt)
 
 static void init_filters(void)
 {
-	motor_rtctl_get_input_voltage_current(&_state.input_voltage, &_state.input_current);
-	_state.temperature = motor_rtctl_get_temperature();
+	// Assuming that initial current is zero
+	motor_rtctl_get_input_voltage_current(&_state.input_voltage, &_state.input_curent_offset);
+	_state.input_current = 0.0f;
 }
 
 static void update_filters(float dt)
@@ -179,11 +180,16 @@ static void update_filters(float dt)
 	float voltage = 0, current = 0;
 	motor_rtctl_get_input_voltage_current(&voltage, &current);
 
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
+		// Current sensor offset calibration, corner frequency is much lower.
+		const float offset_tau = _params.voltage_current_lowpass_tau * 100;
+		_state.input_curent_offset = lowpass(_state.input_curent_offset, current, offset_tau, dt);
+	}
+
+	current -= _state.input_curent_offset;
+
 	_state.input_voltage = lowpass(_state.input_voltage, voltage, _params.voltage_current_lowpass_tau, dt);
 	_state.input_current = lowpass(_state.input_current, current, _params.voltage_current_lowpass_tau, dt);
-
-	_state.temperature = lowpass(_state.temperature, motor_rtctl_get_temperature(),
-		_params.voltage_current_lowpass_tau, dt);
 }
 
 static void stop(bool expected)
@@ -617,6 +623,7 @@ int motor_get_limit_mask(void)
 void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 {
 	chMtxLock(&_mutex);
+
 	if (out_voltage) {
 		*out_voltage = _state.input_voltage;
 	}
@@ -624,14 +631,6 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 		*out_current = _state.input_current;
 	}
 	chMtxUnlock();
-}
-
-float motor_get_temperature(void)
-{
-	chMtxLock(&_mutex);
-	const float ret = _state.temperature;
-	chMtxUnlock();
-	return ret;
 }
 
 void motor_confirm_initialization(void)

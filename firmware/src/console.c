@@ -179,15 +179,11 @@ static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])
 
 static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	float voltage = 0;
-	float current = 0;
+	float voltage = 0, current = 0;
 	motor_get_input_voltage_current(&voltage, &current);
-
-	const float temperature_degc = motor_get_temperature() - 273.0f;
 
 	lowsyslog("Power V/A     %-9f %f\n", voltage, current);
 	lowsyslog("RPM/DC        %-9u %f\n", motor_get_rpm(), motor_get_duty_cycle());
-	lowsyslog("Temperature C %f\n", temperature_degc);
 	lowsyslog("Active limits %i\n", motor_get_limit_mask());
 	lowsyslog("ZC failures   %lu\n", (unsigned long)motor_get_zc_failures_since_start());
 }

@@ -76,7 +76,7 @@ UINCDIR += dsdlc_generated
 # OS configuration
 #
 
-UDEFS += -DCORTEX_ENABLE_WFI_IDLE=1 -DSTDOUT_SD=SD3 -DSTDIN_SD=STDOUT_SD -DCHPRINTF_USE_FLOAT=1 -DSHELL_MAX_ARGUMENTS=5
+UDEFS += -DCORTEX_ENABLE_WFI_IDLE=1 -DSTDOUT_SD=SD1 -DSTDIN_SD=STDOUT_SD -DCHPRINTF_USE_FLOAT=1 -DSHELL_MAX_ARGUMENTS=5
 
 USE_LINK_GC = yes
 USE_THUMB = yes
@@ -84,13 +84,13 @@ USE_VERBOSE_COMPILE ?= no
 USE_FWLIB = no
 
 CHIBIOS = chibios
-include $(CHIBIOS)/os/hal/platforms/STM32F4xx/platform.mk
+include $(CHIBIOS)/os/hal/platforms/STM32F1xx/platform_f105_f107.mk
 include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/ports/GCC/ARMCMx/STM32F2xx/port.mk
+include $(CHIBIOS)/os/ports/GCC/ARMCMx/STM32F1xx/port.mk
 include $(CHIBIOS)/os/kernel/kernel.mk
 include $(CHIBIOS)/os/various/cpp_wrappers/kernel.mk
 
-LDSCRIPT= STM32F205.ld
+LDSCRIPT= $(PORTLD)/STM32F107xC.ld
 
 VARIOUSSRC = $(CHIBIOS)/os/various/syscalls.c    \
              $(CHIBIOS)/os/various/chprintf.c    \
@@ -129,7 +129,7 @@ USE_CPPOPT = -std=c++11 -fno-rtti -fno-threadsafe-statics
 RELEASE ?= 0
 ifneq ($(RELEASE),0)
     DDEFS += -DRELEASE_BUILD -DNDEBUG
-    USE_OPT += -O2 -g3 -fomit-frame-pointer
+    USE_OPT += -O2 -fomit-frame-pointer
 else
     DDEFS += -DDEBUG_BUILD
     USE_OPT += -O1 -g3

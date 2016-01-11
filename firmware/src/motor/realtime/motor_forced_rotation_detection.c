@@ -86,8 +86,8 @@ static bool does_sample_match_step(const struct motor_adc_sample* sample,
 	assert(step->positive >= 0 && step->positive < MOTOR_NUM_PHASES);
 
 	const int thres = _params.bemf_threshold;
-	return (sample->phase_voltage_raw[step->floating] >= (sample->phase_voltage_raw[step->negative] + thres)) &&
-	       (sample->phase_voltage_raw[step->positive] >= (sample->phase_voltage_raw[step->floating] + thres));
+	return (sample->phase_values[step->floating] >= (sample->phase_values[step->negative] + thres)) &&
+	       (sample->phase_values[step->positive] >= (sample->phase_values[step->floating] + thres));
 }
 
 static int find_matching_step_index(const struct motor_pwm_commutation_step* comm_table,

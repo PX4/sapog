@@ -42,7 +42,7 @@
 extern "C" {
 #endif
 
-#define MOTOR_ADC_TRIGGER    (ADC_CR2_EXTSEL_3 | ADC_CR2_EXTSEL_2 | ADC_CR2_EXTSEL_0)
+#define MOTOR_ADC1_2_TRIGGER    (ADC_CR2_EXTSEL_1 | ADC_CR2_EXTSEL_0)
 
 struct motor_pwm_commutation_step
 {
@@ -60,14 +60,6 @@ enum motor_pwm_phase_manip
 	MOTOR_PWM_MANIP_END_
 };
 
-enum motor_pwm_fault_mask
-{
-	MOTOR_PWM_FAULT_MASK_POWER_SUPPLY_ERROR       = 1,
-	MOTOR_PWM_FAULT_MASK_OVER_TEMPERATURE_WARNING = 2,
-	MOTOR_PWM_FAULT_MASK_GENERAL_FAILURE          = 4,
-	MOTOR_PWM_FAULT_MASK_END_
-};
-
 /**
  * Sanity constraints
  */
@@ -78,7 +70,7 @@ enum motor_pwm_fault_mask
  * Initialize the PWM hardware.
  * PWM mode is edge-aligned, the frequency is defined as:
  *      f = pwm_clock / (pwm_top + 1)
- * effective_steps_to_freq = lambda steps: 120e6 / (steps * 2)
+ * effective_steps_to_freq = lambda steps: 72e6 / (steps * 2)
  * @param [in] frequency - PWM frequency, Hz
  * @param [in] prevent_full_duty_cycle_bump - Limit the duty cycle range so that there will be no jump near 100%
  * @return 0 on success, anything else if the requested frequency is invalid
@@ -124,12 +116,6 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
  * Should be called from high priority threads
  */
 void motor_pwm_beep(int frequency, int duration_msec);
-
-/**
- * Requests status flags directly from the power stage hardware, via MCU input pins.
- * This function never fails.
- */
-unsigned motor_pwm_get_power_stage_hardware_fault_mask(void);
 
 #ifdef __cplusplus
 }

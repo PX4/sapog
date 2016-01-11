@@ -42,23 +42,13 @@
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
-#include <stm32.h>
+#include <stm32f10x.h>
 #include <config/config.h>
 
-// Undefining unused timers for extra paranoia
-//#undef TIM1
-#undef TIM2
-#undef TIM3
-#undef TIM4
-#undef TIM5
-#undef TIM6
-#undef TIM7
-//#undef TIM8
-#undef TIM9
-#undef TIM10
-#undef TIM11
-
-#define PWM_TIMER_FREQUENCY     STM32_SYSCLK
+#define PWM_TIMER_FREQUENCY     STM32_TIMCLK2
+#if STM32_TIMCLK2 != STM32_TIMCLK1
+# error "Invalid timer clock"
+#endif
 
 #define PWM_DEAD_TIME_NANOSEC   750
 
@@ -96,8 +86,8 @@ static int init_constants(unsigned frequency)
 
 	const int effective_steps = pwm_steps / 2;
 	const float true_frequency = PWM_TIMER_FREQUENCY / (float)pwm_steps;
-	const float adc_period_usec = motor_adc_sampling_period_hnsec() / (float)HNSEC_PER_USEC;
-	lowsyslog("Motor: PWM freq: %f; Effective steps: %i; ADC period: %f usec\n",
+	const unsigned adc_period_usec = motor_adc_sampling_period_hnsec() / HNSEC_PER_USEC;
+	lowsyslog("Motor: PWM freq: %f; Effective steps: %i; ADC period: %u usec\n",
 		true_frequency, effective_steps, adc_period_usec);
 
 	/*
@@ -140,26 +130,31 @@ static void init_timers(void)
 
 	chSysDisable();
 
-	// TIM1/8
-	RCC->APB2ENR |= (RCC_APB2ENR_TIM1EN | RCC_APB2ENR_TIM8EN);
-	RCC->APB2RSTR |=  (RCC_APB2RSTR_TIM1RST | RCC_APB2RSTR_TIM8RST);
-	RCC->APB2RSTR &= ~(RCC_APB2RSTR_TIM1RST | RCC_APB2RSTR_TIM8RST);
+	// TIM1
+	RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+	RCC->APB2RSTR |=  RCC_APB2RSTR_TIM1RST;
+	RCC->APB2RSTR &= ~RCC_APB2RSTR_TIM1RST;
+
+	// TIM2
+	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+	RCC->APB1RSTR |=  RCC_APB1RSTR_TIM2RST;
+	RCC->APB1RSTR &= ~RCC_APB1RSTR_TIM2RST;
 
 	chSysEnable();
 
 	// Reload value
-	TIM8->ARR = TIM1->ARR = _pwm_top;
+	TIM2->ARR = TIM1->ARR = _pwm_top;
 
 	// Left-aligned PWM, direction up (will be enabled later)
-	TIM8->CR1 = TIM1->CR1 = 0;
+	TIM2->CR1 = TIM1->CR1 = 0;
 
 	// Output idle state 0, buffered updates
-	TIM8->CR2 = TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
+	TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
 
 	/*
 	 * OC channels
 	 * TIM1 CC1, CC2, CC3 are used to control the FETs; TIM1 CC4 is not used.
-	 * TIM8 CC1 is used to trigger the ADC conversion.
+	 * TIM2 CC2 is used to trigger the ADC conversion.
 	 */
 	// Phase A, phase B
 	TIM1->CCMR1 =
@@ -171,19 +166,18 @@ static void init_timers(void)
 		TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 
 	// ADC sync
-	TIM8->CCMR1 =
-		TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;
+	TIM2->CCMR1 =
+		TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
 
 	// OC polarity (no inversion, all disabled except ADC sync)
 	TIM1->CCER = 0;
-	TIM8->CCER = TIM_CCER_CC1E;
+	TIM2->CCER = TIM_CCER_CC2E;
 
 	/*
 	 * Dead time generator setup.
 	 * DTS clock divider set 0, hence fDTS = input clock.
 	 * DTG bit 7 must be 0, otherwise it will change multiplier which is not supported yet.
-	 * At 120 MHz one tick ~8.(3) nsec, max 127 * 8.3 ~ 1.05 usec, which is large enough.
-	 * TIM8 doesn't need any dead time, but it doesn't hurt either.
+	 * At 72 MHz one tick ~ 13.9 nsec, max 127 * 13.9 ~ 1.764 usec, which is large enough.
 	 */
 	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
 	const float pwm_dead_time_ticks_float = pwm_dead_time / (1.f / PWM_TIMER_FREQUENCY);
@@ -195,20 +189,18 @@ static void init_timers(void)
 		assert(0);
 		dead_time_ticks = 127;
 	}
-	lowsyslog("Motor: PWM dead time %u ticks, %f nsec\n",
-		(unsigned)dead_time_ticks,
-		dead_time_ticks * (1e9f / PWM_TIMER_FREQUENCY));
+	lowsyslog("Motor: PWM dead time %u ticks\n", (unsigned)dead_time_ticks);
 
-	TIM8->BDTR = TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
+	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
 	/*
 	 * Default ADC sync config, will be adjusted dynamically
 	 */
-	TIM8->CCR1 = _pwm_top / 4;
+	TIM2->CCR2 = _pwm_top / 4;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
-	TIM8->EGR = TIM_EGR_UG | TIM_EGR_COMG | TIM_EGR_CC1G;
+	TIM2->EGR = TIM_EGR_UG | TIM_EGR_COMG;
 }
 
 static void start_timers(void)
@@ -217,21 +209,21 @@ static void start_timers(void)
 
 	// Make sure the timers are not running
 	assert_always(!(TIM1->CR1 & TIM_CR1_CEN));
-	assert_always(!(TIM8->CR1 & TIM_CR1_CEN));
+	assert_always(!(TIM2->CR1 & TIM_CR1_CEN));
 
 	// Start synchronously
 	TIM1->CR2 |= TIM_CR2_MMS_0;                   // TIM1 is master
-	TIM8->SMCR = TIM_SMCR_SMS_1 | TIM_SMCR_SMS_2; // TIM2 is slave
+	TIM2->SMCR = TIM_SMCR_SMS_1 | TIM_SMCR_SMS_2; // TIM2 is slave
 
 	TIM1->CR1 |= TIM_CR1_CEN;                     // Start all
 
 	// Make sure the timers have started now
 	assert_always(TIM1->CR1 & TIM_CR1_CEN);
-	assert_always(TIM8->CR1 & TIM_CR1_CEN);
+	assert_always(TIM2->CR1 & TIM_CR1_CEN);
 
 	// Configure the synchronous reset - TIM1 master, TIM2 slave
 	TIM1->CR2 &= ~TIM_CR2_MMS;                    // Master, UG bit triggers TRGO
-	TIM8->SMCR = TIM_SMCR_SMS_2;                  // Slave, TRGI triggers UG
+	TIM2->SMCR = TIM_SMCR_SMS_2;                  // Slave, TRGI triggers UG
 
 	irq_primask_restore(irqstate);
 }
@@ -247,27 +239,6 @@ int motor_pwm_init(void)
 	start_timers();
 
 	motor_pwm_set_freewheeling();
-
-	/*
-	 * Initializing the FET driver.
-	 * These pins may be removed from future hardware revisions, because associated features are non-portable.
-	 */
-	// DC offset calibration is not supported
-	palWritePad(GPIO_PORT_DRV_DC_CAL, GPIO_PIN_DRV_DC_CAL, false);
-
-	// Over-current adjustment pin - hardware over-current protection is disabled
-	palWritePad(GPIO_PORT_DRV_OC_ADJ, GPIO_PIN_DRV_OC_ADJ, true);
-
-	// EN_GATE must be cycled in order to reset errors
-	palWritePad(GPIO_PORT_DRV_EN_GATE, GPIO_PIN_DRV_EN_GATE, false);
-	usleep(10000);
-	palWritePad(GPIO_PORT_DRV_EN_GATE, GPIO_PIN_DRV_EN_GATE, true);
-
-	/*
-	 * Printing the initial status
-	 */
-	lowsyslog("Motor: Power stage fault mask: 0x%02x\n", (int)motor_pwm_get_power_stage_hardware_fault_mask());
-
 	return 0;
 }
 
@@ -368,7 +339,7 @@ static inline void adjust_adc_sync(int pwm_val)
 	if (adc_trigger_value < 1) {
 		adc_trigger_value = 1;
 	}
-	TIM8->CCR1 = adc_trigger_value;
+	TIM2->CCR2 = adc_trigger_value;
 }
 
 static inline void adjust_adc_sync_default(void)
@@ -579,22 +550,4 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	}
 
 	motor_pwm_set_freewheeling();
-}
-
-unsigned motor_pwm_get_power_stage_hardware_fault_mask(void)
-{
-	unsigned status = 0;
-	/*
-	 * Note that all inputs are inverted and pulled up, so they can be used with open drain outputs.
-	 */
-	if (!palReadPad(GPIO_PORT_DRV_PWRGD, GPIO_PIN_DRV_PWRGD)) {
-		status += MOTOR_PWM_FAULT_MASK_POWER_SUPPLY_ERROR;
-	}
-	if (!palReadPad(GPIO_PORT_DRV_OCTW, GPIO_PIN_DRV_OCTW)) {
-		status += MOTOR_PWM_FAULT_MASK_OVER_TEMPERATURE_WARNING;
-	}
-	if (!palReadPad(GPIO_PORT_DRV_FAULT, GPIO_PIN_DRV_FAULT)) {
-		status += MOTOR_PWM_FAULT_MASK_GENERAL_FAILURE;
-	}
-	return status;
 }

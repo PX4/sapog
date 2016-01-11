@@ -40,7 +40,7 @@
 #include <hal.h>
 #include <sys.h>
 #include <assert.h>
-#include <stm32.h>
+#include <stm32f10x.h>
 
 // To prevent occasional use of a wrong timer
 #undef TIM1
@@ -58,26 +58,40 @@
 /**
  * Event callout timer declaration
  */
-#define TIMEVT            	TIM4
-#define TIMEVT_IRQn       	TIM4_IRQn
-#define TIMEVT_IRQHandler 	TIM4_IRQHandler
-#define TIMEVT_RCC_ENR          RCC->APB1ENR
-#define TIMEVT_RCC_RSTR         RCC->APB1RSTR
-#define TIMEVT_RCC_ENR_MASK     RCC_APB1ENR_TIM4EN
-#define TIMEVT_RCC_RSTR_MASK    RCC_APB1RSTR_TIM4RST
-#define TIMEVT_INPUT_CLOCK      STM32_TIMCLK1
+#define TIMEVT_NUM   4
+
+#define TIMEVT            GLUE2(TIM, TIMEVT_NUM)
+#define TIMEVT_IRQn       GLUE3(TIM, TIMEVT_NUM, _IRQn)
+#define TIMEVT_IRQHandler GLUE3(TIM, TIMEVT_NUM, _IRQHandler)
+
+#if TIMEVT_NUM == 1 || (TIMEVT_NUM >= 8 && TIMEVT_NUM <= 11)
+#  error Nope
+#else
+#  define TIMEVT_RCC_ENR          RCC->APB1ENR
+#  define TIMEVT_RCC_RSTR         RCC->APB1RSTR
+#  define TIMEVT_RCC_ENR_MASK     GLUE3(RCC_APB1ENR_TIM,  TIMEVT_NUM, EN)
+#  define TIMEVT_RCC_RSTR_MASK    GLUE3(RCC_APB1RSTR_TIM, TIMEVT_NUM, RST)
+#  define TIMEVT_INPUT_CLOCK      STM32_TIMCLK1
+#endif
 
 /**
  * Timestamping timer declaration
  */
-#define TIMSTP                  TIM6
-#define TIMSTP_IRQn             TIM6_DAC_IRQn
-#define TIMSTP_IRQHandler       TIM6_IRQHandler
-#define TIMSTP_RCC_ENR          RCC->APB1ENR
-#define TIMSTP_RCC_RSTR         RCC->APB1RSTR
-#define TIMSTP_RCC_ENR_MASK     RCC_APB1ENR_TIM6EN
-#define TIMSTP_RCC_RSTR_MASK    RCC_APB1RSTR_TIM6RST
-#define TIMSTP_INPUT_CLOCK      STM32_TIMCLK1
+#define TIMSTP_NUM   6
+
+#define TIMSTP            GLUE2(TIM, TIMSTP_NUM)
+#define TIMSTP_IRQn       GLUE3(TIM, TIMSTP_NUM, _IRQn)
+#define TIMSTP_IRQHandler GLUE3(TIM, TIMSTP_NUM, _IRQHandler)
+
+#if TIMSTP_NUM == 1 || (TIMSTP_NUM >= 8 && TIMSTP_NUM <= 11)
+#  error Nope
+#else
+#  define TIMSTP_RCC_ENR          RCC->APB1ENR
+#  define TIMSTP_RCC_RSTR         RCC->APB1RSTR
+#  define TIMSTP_RCC_ENR_MASK     GLUE3(RCC_APB1ENR_TIM,  TIMSTP_NUM, EN)
+#  define TIMSTP_RCC_RSTR_MASK    GLUE3(RCC_APB1RSTR_TIM, TIMSTP_NUM, RST)
+#  define TIMSTP_INPUT_CLOCK      STM32_TIMCLK1
+#endif
 
 /**
  * Sanity check

@@ -154,9 +154,8 @@ static struct control_state            /// Control state
 
 	int neutral_voltage;
 
-	int input_voltage_raw;
+	int input_voltage;
 	int input_current;
-	int temperature_raw;
 
 	int pwm_val;
 	int pwm_val_after_spinup;
@@ -179,6 +178,8 @@ static struct precomputed_params       /// Parameters are read only
 	float spinup_duty_cycle_increment;
 
 	uint32_t adc_sampling_period;
+
+	float dc_testpad_threshold;
 } _params;
 
 static bool _initialization_confirmed = false;
@@ -194,10 +195,12 @@ CONFIG_PARAM_INT("motor_zc_detects_to_start",          40,    6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   2000)
-CONFIG_PARAM_INT("motor_spinup_start_comm_period_usec",60000, 10000, 200000)
+CONFIG_PARAM_INT("motor_spinup_start_comm_period_usec",50000, 10000, 200000)
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  2000,  1000,  10000)
 CONFIG_PARAM_INT("motor_spinup_num_good_comms",        60,    6,     1000)
-CONFIG_PARAM_FLOAT("motor_spinup_duty_cycle_inc",      0.03,  0.001, 0.1)
+CONFIG_PARAM_FLOAT("motor_spinup_duty_cycle_inc",      0.025, 0.001, 0.1)
+// Debug
+CONFIG_PARAM_FLOAT("motor_dc_testpad_threshold",       0.3,   0.0,   1.0)
 
 
 static void configure(void)
@@ -215,6 +218,8 @@ static void configure(void)
 	_params.spinup_end_comm_period      = config_get("motor_spinup_end_comm_period_usec") * HNSEC_PER_USEC;
 	_params.spinup_num_good_comms       = config_get("motor_spinup_num_good_comms");
 	_params.spinup_duty_cycle_increment = config_get("motor_spinup_duty_cycle_inc");
+
+	_params.dc_testpad_threshold = config_get("motor_dc_testpad_threshold");
 
 	/*
 	 * Validation
@@ -422,12 +427,11 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	motor_adc_disable_from_isr();
 }
 
-static void update_input_voltage_current_temperature(int voltage_raw, int current_raw, int temperature_raw)
+static void update_input_voltage_current(const struct motor_adc_sample* sample)
 {
 	static const int ALPHA_RCPR = 7; // A power of two minus one (1, 3, 7)
-	_state.input_voltage_raw = LOWPASS(_state.input_voltage_raw, voltage_raw, ALPHA_RCPR);
-	_state.input_current = LOWPASS(_state.input_current, current_raw, ALPHA_RCPR);
-	_state.temperature_raw = LOWPASS(_state.temperature_raw, temperature_raw, ALPHA_RCPR);
+	_state.input_voltage = LOWPASS(_state.input_voltage, sample->input_voltage, ALPHA_RCPR);
+	_state.input_current = LOWPASS(_state.input_current, sample->input_current, ALPHA_RCPR);
 }
 
 static void add_bemf_sample(const int bemf, const uint64_t timestamp)
@@ -456,8 +460,7 @@ static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
 {
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	_state.neutral_voltage =
-		(sample->phase_voltage_raw[step->positive] + sample->phase_voltage_raw[step->negative]) / 2;
+	_state.neutral_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 }
 
 static bool is_past_zc(const int bemf)
@@ -557,9 +560,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	if (!proceed) {
 		if ((_state.flags & FLAG_ACTIVE) == 0) {
 			motor_forced_rotation_detector_update_from_adc_callback(COMMUTATION_TABLE_FORWARD, sample);
-			// Params update - current is forced to zero
-			update_input_voltage_current_temperature(sample->input_voltage_raw,
-				0, sample->temperature_raw);
 		}
 		return;
 	}
@@ -570,7 +570,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 */
 	update_neutral_voltage(sample);
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	const int bemf = sample->phase_voltage_raw[step->floating] - _state.neutral_voltage;
+	const int bemf = sample->phase_values[step->floating] - _state.neutral_voltage;
 
 	const bool past_zc = is_past_zc(bemf);
 
@@ -609,14 +609,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	/*
 	 * Here the BEMF sample is considered to be valid, and can be added to the solution.
-	 * Input voltage/current/temperature updates are synced with ZC - this way the noise can be reduced.
-	 * Note that update is always skipped when phase C is at low because it lacks a current sensor.
+	 * Input voltage/current updates are synced with ZC - this way the noise can be reduced.
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
 
-	if (past_zc && _state.comm_table[_state.current_comm_step].negative < 2) {
-		const int current = -sample->phase_current_raw[_state.comm_table[_state.current_comm_step].negative];
-		update_input_voltage_current_temperature(sample->input_voltage_raw, current, sample->temperature_raw);
+	if (past_zc) {
+		update_input_voltage_current(sample);
 	}
 
 	/*
@@ -696,7 +694,7 @@ static void init_adc_filters(void)
 	}
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
-	const int low = (smpl.phase_voltage_raw[0] + smpl.phase_voltage_raw[1] + smpl.phase_voltage_raw[2]) / 3;
+	const int low = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
 
 	// High phase
 	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
@@ -704,15 +702,15 @@ static void init_adc_filters(void)
 	}
 	motor_pwm_manip(manip_cmd);
 	smpl = motor_adc_get_last_sample();
-	const int high = (smpl.phase_voltage_raw[0] + smpl.phase_voltage_raw[1] + smpl.phase_voltage_raw[2]) / 3;
+	const int high = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
 
 	// Phase neutral
 	motor_pwm_set_freewheeling();
 	_state.neutral_voltage = (low + high) / 2;
 
 	// Supply voltage and current
-	_state.input_voltage_raw = smpl.input_voltage_raw;
-	_state.temperature_raw = smpl.temperature_raw;
+	_state.input_voltage = smpl.input_voltage;
+	_state.input_current = smpl.input_current;
 }
 
 static int spinup_sample_bemf(void)
@@ -729,9 +727,8 @@ static int spinup_sample_bemf(void)
 	}
 
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	_state.neutral_voltage =
-		(sample.phase_voltage_raw[0] + sample.phase_voltage_raw[1] + sample.phase_voltage_raw[2]) / 3;
-	return sample.phase_voltage_raw[step->floating] - _state.neutral_voltage;
+	_state.neutral_voltage = (sample.phase_values[0] + sample.phase_values[1] + sample.phase_values[2]) / 3;
+	return sample.phase_values[step->floating] - _state.neutral_voltage;
 }
 
 static uint64_t spinup_wait_zc(const uint64_t step_deadline)
@@ -909,6 +906,14 @@ void motor_rtctl_set_duty_cycle(float duty_cycle)
 {
 	// We don't need a critical section to write an integer
 	_state.pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
+
+#if DEBUG_BUILD
+	if (duty_cycle > _params.dc_testpad_threshold) {
+		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	} else {
+		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	}
+#endif
 }
 
 enum motor_rtctl_state motor_rtctl_get_state(void)
@@ -976,17 +981,23 @@ void motor_rtctl_emergency(void)
 
 void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_current)
 {
+	int volt = 0, curr = 0;
+
+	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
+		const struct motor_adc_sample smpl = motor_adc_get_last_sample();
+		volt = smpl.input_voltage;
+		curr = smpl.input_current;
+	} else {
+		volt = _state.input_voltage;
+		curr = _state.input_current;
+	}
+
 	if (out_voltage) {
-		*out_voltage = motor_adc_convert_input_voltage(_state.input_voltage_raw);
+		*out_voltage = motor_adc_convert_input_voltage(volt);
 	}
 	if (out_current) {
-		*out_current = motor_adc_convert_input_current(_state.input_current);
+		*out_current = motor_adc_convert_input_current(curr);
 	}
-}
-
-float motor_rtctl_get_temperature(void)
-{
-	return motor_adc_convert_temperature(_state.temperature_raw);
 }
 
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
@@ -1026,7 +1037,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
 	PRINT_INT("flags",           state_copy.flags);
 	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
-	PRINT_INT("input voltage",   state_copy.input_voltage_raw);
+	PRINT_INT("input voltage",   state_copy.input_voltage);
 	PRINT_INT("input current",   state_copy.input_current);
 	PRINT_INT("pwm val",         state_copy.pwm_val);
 
