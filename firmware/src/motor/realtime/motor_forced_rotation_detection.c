@@ -35,7 +35,7 @@
 #include "forced_rotation_detection.h"
 #include "internal.h"
 #include "timer.h"
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 #include <string.h>
 
 

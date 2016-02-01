@@ -34,8 +34,6 @@
 
 #pragma once
 
-#include <sys/sys.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif

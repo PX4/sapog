@@ -35,7 +35,7 @@
 #include "indication_controller.hpp"
 #include <uavcan/equipment/indication/LightsCommand.hpp>
 #include <uavcan/equipment/indication/BeepCommand.hpp>
-#include <config/config.h>
+#include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
 #include <led.hpp>
 
@@ -46,7 +46,7 @@ namespace
 
 unsigned self_light_index = 0;
 
-CONFIG_PARAM_INT("light_index", 0,   0,  255)
+os::config::Param<unsigned> param_light_index("light_index", 0,    0,    255);
 
 
 void cb_light_command(const uavcan::ReceivedDataStructure<uavcan::equipment::indication::LightsCommand>& msg)
@@ -90,7 +90,7 @@ int init_indication_controller(uavcan::INode& node)
 	static uavcan::Subscriber<uavcan::equipment::indication::LightsCommand> sub_light(node);
 	static uavcan::Subscriber<uavcan::equipment::indication::BeepCommand> sub_beep(node);
 
-	self_light_index = config_get("light_index");
+	self_light_index = param_light_index.get();
 
 	int res = 0;
 

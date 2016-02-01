@@ -33,15 +33,13 @@
  ****************************************************************************/
 
 #include <hal.h>
-#include "sys.h"
 
 /**
  * This function will safely terminate the power stage in case of a software failure
  */
 void unhandled_exception_trap(void)
 {
-	dbg_panic_msg = "TRAP";
-	chSysHalt();
+	chSysHalt("TRAP");
 }
 
 void NMIVector(void) __attribute__((alias("unhandled_exception_trap")));

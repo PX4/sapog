@@ -35,7 +35,6 @@
 #pragma once
 
 #include <ch.hpp>
-#include <sys.h>
 #include <cstdint>
 
 namespace led

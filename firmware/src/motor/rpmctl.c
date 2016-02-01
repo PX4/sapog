@@ -33,7 +33,7 @@
  ****************************************************************************/
 
 #include "rpmctl.h"
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 #include <math.h>
 
 

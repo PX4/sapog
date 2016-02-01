@@ -36,7 +36,7 @@
 #include <uavcan/equipment/esc/RawCommand.hpp>
 #include <uavcan/equipment/esc/RPMCommand.hpp>
 #include <uavcan/equipment/esc/Status.hpp>
-#include <config/config.h>
+#include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
 
 namespace uavcan_node
@@ -50,9 +50,9 @@ unsigned self_index;
 unsigned command_ttl_ms;
 float max_dc_to_start;
 
-CONFIG_PARAM_INT("esc_index",             0,    0,    15)
-CONFIG_PARAM_INT("cmd_ttl_ms",    200,  100,  5000)
-CONFIG_PARAM_FLOAT("cmd_start_dc", 0.1,  0.01, 1.0)
+os::config::Param<unsigned> param_esc_index("esc_index", 0,    0,    15);
+os::config::Param<unsigned> param_cmd_ttl_ms("cmd_ttl_ms", 200,  100,  5000);
+os::config::Param<float> param_cmd_start_dc("cmd_start_dc", 0.1,  0.01, 1.0);
 
 
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
@@ -121,9 +121,9 @@ int init_esc_controller(uavcan::INode& node)
 	static uavcan::Subscriber<uavcan::equipment::esc::RPMCommand> sub_rpm_command(node);
 	static uavcan::Timer timer_10hz(node);
 
-	self_index = config_get("esc_index");
-	command_ttl_ms = config_get("cmd_ttl_ms");
-	max_dc_to_start = config_get("cmd_start_dc");
+	self_index = param_esc_index.get();
+	command_ttl_ms = param_cmd_ttl_ms.get();
+	max_dc_to_start = param_cmd_start_dc.get();
 
 	int res = 0;
 

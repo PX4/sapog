@@ -36,11 +36,10 @@
 #include "pwm.h"
 #include "adc.h"
 #include "internal.h"
+#include "irq.h"
 #include <ch.h>
 #include <hal.h>
-#include <sys.h>
 #include <assert.h>
-#include <stm32f10x.h>
 
 // To prevent occasional use of a wrong timer
 #undef TIM1

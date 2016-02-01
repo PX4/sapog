@@ -32,129 +32,30 @@
  *
  ****************************************************************************/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+// TODO: rewrite in C++
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <ch.h>
 #include <hal.h>
-#include <sys.h>
 #include <shell.h>
-#include <watchdog.h>
-#include <config/config.h>
+#include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
-#include "console.h"
+#include "console.hpp"
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-static char* getline(const char* prompt);
-static void print_status(int err);
-
-
-static int print_param(const char* name, bool verbose)
+static void cmd_cfg(BaseSequentialStream *, int argc, char *argv[])
 {
-	static int _max_name_len;
-	if (_max_name_len == 0) {
-		for (int i = 0;; i++) {
-			const char* nm = config_name_by_index(i);
-			if (!nm) {
-				break;
-			}
-			int len = strlen(nm);
-			if (len > _max_name_len) {
-				_max_name_len = len;
-			}
-		}
-	}
-
-	struct config_param par;
-	const int res = config_get_descr(name, &par);
-	if (res) {
-		return res;
-	}
-
-	if (par.type == CONFIG_TYPE_FLOAT) {
-		lowsyslog("%-*s = %-12f", _max_name_len, name, config_get(name));
-		if (verbose) {
-			lowsyslog("[%f, %f] (%f)", par.min, par.max, par.default_);
-		}
-	} else {
-		lowsyslog("%-*s = %-12i", _max_name_len, name, (int)config_get(name));
-		if (verbose) {
-			lowsyslog("[%i, %i] (%i)", (int)par.min, (int)par.max, (int)par.default_);
-		}
-	}
-	puts("");
-	return 0;
-}
-
-static void cmd_cfg(BaseSequentialStream *chp, int argc, char *argv[])
-{
-	const char* const command = (argc < 1) ? "" : argv[0];
-
-	if (!strcmp(command, "list")) {
-		for (int i = 0;; i++) {
-			const char* name = config_name_by_index(i);
-			if (!name) {
-				break;
-			}
-			const int res = print_param(name, true);
-			if (res) {
-				lowsyslog("Internal error %i\n", res);
-				assert(0);
-			}
-		}
-	}
-	else if (!strcmp(command, "save") || !strcmp(command, "erase")) {
-		if (motor_is_idle()) {
-			const bool save = !strcmp(command, "save");
-			print_status((save ? config_save : config_erase)());
-		} else {
-			puts("I'm sorry Dave, I'm afraid I can't do that");
-		}
-	}
-	else if (!strcmp(command, "get")) {
-		if (argc < 2) {
-			puts("Error: Not enough arguments");
-			return;
-		}
-		const int ret = print_param(argv[1], false);
-		if (ret) {
-			print_status(ret);
-		}
-	}
-	else if (!strcmp(command, "set")) {
-		if (argc < 3) {
-			puts("Error: Not enough arguments");
-			return;
-		}
-		const char* const name = argv[1];
-		const float value = atoff(argv[2]);
-		const int res = config_set(name, value);
-		if (res == 0) {
-			print_param(name, false);
-		}
-		print_status(res);
-	}
-	else {
-		puts("Usage:\n"
-			"  cfg list\n"
-			"  cfg save\n"
-			"  cfg erase\n"
-			"  cfg get <name>\n"
-			"  cfg set <name> <value>");
-	}
+	// TODO: refuse to save/erase while the motor is running
+	os::config::executeCLICommand(argc, argv);
 }
 
 static void cmd_reset(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	const char* line = getline("Really? y/(n) ");
-	if (line && (line[0] == 'Y' || line[0] == 'y')) {
-		puts("RESTART\n\n");
-		chThdSleep(MS2ST(100)); // Flush the serial buffers
-		NVIC_SystemReset();
-	} else {
-		puts("Abort");
-	}
+	chThdSleep(MS2ST(100)); // Flush the serial buffers
+	NVIC_SystemReset();
 }
 
 static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])
@@ -182,10 +83,10 @@ static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[])
 	float voltage = 0, current = 0;
 	motor_get_input_voltage_current(&voltage, &current);
 
-	lowsyslog("Power V/A     %-9f %f\n", voltage, current);
-	lowsyslog("RPM/DC        %-9u %f\n", motor_get_rpm(), motor_get_duty_cycle());
-	lowsyslog("Active limits %i\n", motor_get_limit_mask());
-	lowsyslog("ZC failures   %lu\n", (unsigned long)motor_get_zc_failures_since_start());
+	std::printf("Power V/A     %-9f %f\n", voltage, current);
+	std::printf("RPM/DC        %-9u %f\n", motor_get_rpm(), motor_get_duty_cycle());
+	std::printf("Active limits %i\n", motor_get_limit_mask());
+	std::printf("ZC failures   %lu\n", (unsigned long)motor_get_zc_failures_since_start());
 }
 
 static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])
@@ -193,7 +94,7 @@ static void cmd_test(BaseSequentialStream *chp, int argc, char *argv[])
 	puts("Hardware test...");
 	int res = motor_test_hardware();
 	if (res) {
-		lowsyslog("FAILED %i\n", res);
+		std::printf("FAILED %i\n", res);
 	} else {
 		puts("OK");
 	}
@@ -228,7 +129,7 @@ static void cmd_dc(BaseSequentialStream *chp, int argc, char *argv[])
 	}
 
 	const float value = atoff(argv[0]);
-	lowsyslog("Duty cycle %f\n", value);
+	std::printf("Duty cycle %f\n", value);
 	motor_set_duty_cycle(value, TTL_MS);
 }
 
@@ -259,7 +160,7 @@ static void cmd_rpm(BaseSequentialStream *chp, int argc, char *argv[])
 	long value = (long)atoff(argv[0]);
 	value = (value < 0) ? 0 : value;
 	value = (value > 65535) ? 65535 : value;
-	lowsyslog("RPM %li\n", value);
+	std::printf("RPM %li\n", value);
 	motor_set_rpm((unsigned)value, TTL_MS);
 }
 
@@ -273,23 +174,6 @@ static void cmd_m(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_execute_cli_command(argc, (const char**)argv);
 }
 
-#if DEBUG_BUILD
-static void cmd_wdt(BaseSequentialStream *chp, int argc, char *argv[])
-{
-	if (argc == 0) {
-		puts("Makes a watchdog timeout after X ms. Usage:\n  wdt <X>");
-		return;
-	}
-
-	int timeout_ms = atoi(argv[0]);
-	if (timeout_ms < 1) {
-		timeout_ms = 1;
-	}
-	const int wdid = watchdog_create(timeout_ms);
-	lowsyslog("WDID: %i\n", wdid);
-}
-#endif
-
 #define COMMAND(cmd)    {#cmd, cmd_##cmd},
 static const ShellCommand _commands[] =
 {
@@ -302,55 +186,18 @@ static const ShellCommand _commands[] =
 	COMMAND(rpm)
 	COMMAND(md)
 	COMMAND(m)
-#if DEBUG_BUILD
-	COMMAND(wdt)
-#endif
 	{NULL, NULL}
 };
 
 // --------------------------
 
-int puts(const char* str)
-{
-	lowsyslog(str);
-	lowsyslog("\n");
-	return strlen(str) + 2;
-}
-
-static char* getline(const char* prompt)
-{
-	static char _linebuf[32];
-	memset(_linebuf, 0, sizeof(_linebuf));
-	if (prompt) {
-		lowsyslog(prompt);
-	}
-	if (!shellGetLine((BaseSequentialStream*) &STDIN_SD, _linebuf, sizeof(_linebuf))) {
-		return _linebuf;
-	}
-	return NULL;
-}
-
-static void print_status(int err)
-{
-	if (err == 0) {
-		puts("OK");
-	} else {
-		lowsyslog("ERROR %d %s\n", err, strerror(abs(err)));
-	}
-}
-
 static const ShellConfig _config = {(BaseSequentialStream*)&STDOUT_SD, _commands};
 
-static WORKING_AREA(_wa_shell, 1024);
+static THD_WORKING_AREA(_wa_shell, 1024);
 
 void console_init(void)
 {
-	if (palReadPad(GPIO_PORT_SERIAL_RX, GPIO_PIN_SERIAL_RX) == 0) {
-		lowsyslog("Console: RX pin is low, console will not be inited\n");
-		return;
-	}
-
 	shellInit();
 
-	assert_always(shellCreateStatic(&_config, _wa_shell, sizeof(_wa_shell), LOWPRIO));
+	ASSERT_ALWAYS(shellCreateStatic(&_config, _wa_shell, sizeof(_wa_shell), LOWPRIO));
 }

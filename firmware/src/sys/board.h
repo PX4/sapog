@@ -111,11 +111,13 @@ extern "C" {
 /// Called from ChibiOS init
 void boardInit(void);
 
-uint8_t board_get_hardware_revision(void);
+// TODO: move and use uint8
+unsigned char board_get_hardware_revision(void);
 
 #define BOARD_UNIQUE_ID_SIZE    12
 
-void board_read_unique_id(uint8_t out_uid[BOARD_UNIQUE_ID_SIZE]);
+// TODO: move and use uint8
+void board_read_unique_id(unsigned char out_uid[BOARD_UNIQUE_ID_SIZE]);
 
 #ifdef __cplusplus
 }

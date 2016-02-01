@@ -37,14 +37,14 @@
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"
+#include "irq.h"
 #include "forced_rotation_detection.h"
-#include <sys.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 
 
 #define STEP_SWITCHING_DELAY_HNSEC (1 * HNSEC_PER_USEC)

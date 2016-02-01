@@ -34,7 +34,6 @@
 
 #pragma once
 
-#include <sys.h>
 #include "api.h"
 #include "pwm.h"
 #include "adc.h"

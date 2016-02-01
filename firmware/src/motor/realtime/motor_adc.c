@@ -36,13 +36,12 @@
 #include "internal.h"
 #include "pwm.h"
 #include "timer.h"
+#include "irq.h"
 #include <ch.h>
 #include <hal.h>
-#include <sys.h>
 #include <assert.h>
 #include <unistd.h>
-#include <stm32f10x.h>
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 
 
 #define ADC_REF_VOLTAGE          3.3f

@@ -35,7 +35,7 @@
 #include "pwm_input.h"
 #include <ch.h>
 #include <hal.h>
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 #include <motor/motor.h>
 #include <assert.h>
 
@@ -85,7 +85,7 @@ static msg_t thread(void* arg)
 {
 	(void)arg;
 
-	EventListener listener;
+	event_listener_t listener;
 	chEvtRegisterMask(&_update_event, &listener, ALL_EVENTS);
 
 	const unsigned min_pulse_width_usec = config_get("pwm_min_usec");
@@ -153,7 +153,7 @@ void pwm_input_init(void)
 
 	chEvtInit(&_update_event);
 
-	static WORKING_AREA(_wa_thread, 1024);
+	static THD_WORKING_AREA(_wa_thread, 1024);
 	assert_always(chThdCreateStatic(_wa_thread, sizeof(_wa_thread), NORMALPRIO, thread, NULL));
 
 	static ICUConfig icucfg = {

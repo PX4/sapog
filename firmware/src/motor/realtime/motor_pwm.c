@@ -35,15 +35,14 @@
 #include "pwm.h"
 #include "adc.h"
 #include "timer.h"
+#include "irq.h"
 #include <ch.h>
 #include <hal.h>
-#include <sys.h>
 #include <unistd.h>
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
-#include <stm32f10x.h>
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 
 #define PWM_TIMER_FREQUENCY     STM32_TIMCLK2
 #if STM32_TIMCLK2 != STM32_TIMCLK1
