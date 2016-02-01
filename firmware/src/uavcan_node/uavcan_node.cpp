@@ -72,7 +72,7 @@ void configure_node()
 	Node& node = get_node();
 
 	node.setNodeID(node_id);
-	node.setName("org.pixhawk.sapog-v1");
+	node.setName("io.px4.sapog");
 
 	/*
 	 * Software version

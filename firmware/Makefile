@@ -170,5 +170,5 @@ DDEFS += -Dasm=__asm
 include $(CHIBIOS)/os/ports/GCC/ARMCMx/rules.mk
 
 %.image: %.bin
-	$(PYTHON) ../tools/make_can_boot_descriptor.py --verbose -g $< build/org.pixhawk.sapog-v1-1.0.00000000.uavcan.bin
+	$(PYTHON) ../tools/make_can_boot_descriptor.py --verbose -g $< build/io.px4.sapog-1.0.00000000.uavcan.bin
 
