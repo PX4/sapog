@@ -81,62 +81,50 @@ void die(int status)
 
 os::watchdog::Timer init()
 {
-	/*
-	 * Watchdog
-	 */
+	// Watchdog
 	os::watchdog::init();
 	os::watchdog::Timer wdt;
 	wdt.startMSec(WATCHDOG_TIMEOUT);
 
-	/*
-	 * Config
-	 */
-	int res = os::config::init();
-	if (res < 0)
+	// Config
+	const int config_init_res = os::config::init();
+	if (config_init_res < 0)
 	{
-		die(res);
+		die(config_init_res);
 	}
 
-	/*
-	 * Indication
-	 */
+	// Banner
+	os::lowsyslog("PX4 Sapog %d.%d.%08x / %d %s\n",
+		  FW_VERSION_MAJOR, FW_VERSION_MINOR, GIT_HASH, config_init_res,
+		  os::watchdog::wasLastResetTriggeredByWatchdog() ? "WDTRESET" : "OK");
+
+	// Indication
 	led::init();
 	led_ctl.set(led::Color::PALE_WHITE);
 
-	/*
-	 * Motor control (must be initialized earlier than communicaton interfaces)
-	 */
-	res = motor_init();
+	// Motor control (must be initialized earlier than communicaton interfaces)
+	int res = motor_init();
 	if (res < 0) {
 		die(res);
 	}
 
-	/*
-	 * PWM input
-	 */
+	// PWM input
 	pwm_input_init();
 
-	/*
-	 * UAVCAN node
-	 */
+	// UAVCAN node
 	res = uavcan_node::init();
 	if (res < 0) {
 		die(res);
 	}
 
-	/*
-	 * Self test
-	 */
+	// Self test
 	res = motor_test_hardware();
 	if (res != 0) {
 		die(res);
 	}
-	os::lowsyslog("Hardware OK\n");
 
 	if (motor_test_motor()) {
 		os::lowsyslog("Motor is not connected or damaged\n");
-	} else {
-		os::lowsyslog("Motor OK\n");
 	}
 
 	return wdt;
@@ -147,15 +135,6 @@ void do_startup_beep()
 	motor_beep(1000, 100);
 	::usleep(200 * 1000);
 	motor_beep(1000, 100);
-}
-
-void print_banner()
-{
-	os::lowsyslog("\n\n\n");
-	os::lowsyslog("\x1b\x5b\x48");      // Home sweet home
-	os::lowsyslog("\x1b\x5b\x32\x4a");  // Clear
-	os::lowsyslog("PX4 Sapog\n");
-	os::lowsyslog("Git commit hash 0x%08x\n", GIT_HASH);
 }
 
 }
@@ -177,15 +156,11 @@ int main()
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
-	os::lowsyslog("BOOT\n");
-
-	usleep(300000);
-	print_banner();
-
 	auto wdt = init();
 
 	console_init();
 
+	usleep(300000);
 	do_startup_beep();
 
 	motor_confirm_initialization();
