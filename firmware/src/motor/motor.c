@@ -56,7 +56,7 @@ static unsigned comm_period_to_rpm(uint32_t comm_period);
 
 
 static int _watchdog_id;
-static mutex_t _mutex;
+static MUTEX_DECL(_mutex);
 static EVENTSOURCE_DECL(_setpoint_update_event);
 static THD_WORKING_AREA(_wa_control_thread, 1024);
 
