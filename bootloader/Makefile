@@ -180,7 +180,7 @@ clean:
 		  $(PROJECT_OBJECTS) \
 		  $(addprefix $(PROJECT_BUILD)arch/, $(SYS_OBJECTS)) \
 		  $(UAVCAN_OBJECTS)
-	rm -f build
+	rm -rf build
 
 $(BL_BUILD)arch/%.o: $(ARCH_SRC)%.S
 	@mkdir -p $(@D)
