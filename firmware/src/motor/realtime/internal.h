@@ -45,6 +45,20 @@ extern "C" {
 
 #define MOTOR_NUM_COMMUTATION_STEPS      6
 
+#ifndef STRINGIZE
+#  define STRINGIZE2(x)         #x
+#  define STRINGIZE(x)          STRINGIZE2(x)
+#endif
+
+#ifndef ASSERT_ALWAYS
+# define ASSERT_ALWAYS(x)                                                     \
+    do {                                                                      \
+        if ((x) == 0) {                                                       \
+            chSysHalt(__FILE__ ":" STRINGIZE(__LINE__) ":" STRINGIZE(x));     \
+        }                                                                     \
+    } while (0)
+#endif
+
 /**
  * Faster alternatives for GPIO API that can be used from IRQ handlers.
  */
@@ -58,8 +72,9 @@ extern "C" {
 
 /**
  * Common priority for all hard real time IRQs.
+ * Shall be set to maximum, which is zero.
  */
-#define MOTOR_IRQ_PRIORITY_MASK    CORTEX_PRIORITY_MASK(CORTEX_MAXIMUM_PRIORITY)
+#define MOTOR_IRQ_PRIORITY_MASK    0
 
 #ifdef __cplusplus
 }

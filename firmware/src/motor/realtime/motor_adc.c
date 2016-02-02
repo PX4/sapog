@@ -109,12 +109,12 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 static void adc_calibrate(ADC_TypeDef* const adc)
 {
 	// RSTCAL
-	assert_always(!(adc->CR2 & ADC_CR2_RSTCAL));
+	ASSERT_ALWAYS(!(adc->CR2 & ADC_CR2_RSTCAL));
 	adc->CR2 |= ADC_CR2_RSTCAL;
 	while (adc->CR2 & ADC_CR2_RSTCAL) { }
 
 	// CAL
-	assert_always(!(adc->CR2 & ADC_CR2_CAL));
+	ASSERT_ALWAYS(!(adc->CR2 & ADC_CR2_CAL));
 	adc->CR2 |= ADC_CR2_CAL;
 	while (adc->CR2 & ADC_CR2_CAL) { }
 }
@@ -194,7 +194,7 @@ static void enable(void)
 
 int motor_adc_init(void)
 {
-	_shunt_resistance = config_get("mot_i_shunt_mr") / 1000.0f;
+	_shunt_resistance = configGet("mot_i_shunt_mr") / 1000.0f;
 
 	chSysDisable();
 

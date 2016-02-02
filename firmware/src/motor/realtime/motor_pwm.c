@@ -65,7 +65,7 @@ static uint16_t _adc_advance_ticks;
 
 static int init_constants(unsigned frequency)
 {
-	assert_always(_pwm_top == 0);   // Make sure it was not initialized already
+	ASSERT_ALWAYS(_pwm_top == 0);   // Make sure it was not initialized already
 
 	/*
 	 * PWM top, derived from frequency
@@ -86,7 +86,7 @@ static int init_constants(unsigned frequency)
 	const int effective_steps = pwm_steps / 2;
 	const float true_frequency = PWM_TIMER_FREQUENCY / (float)pwm_steps;
 	const unsigned adc_period_usec = motor_adc_sampling_period_hnsec() / HNSEC_PER_USEC;
-	lowsyslog("Motor: PWM freq: %f; Effective steps: %i; ADC period: %u usec\n",
+	printf("Motor: PWM freq: %f; Effective steps: %i; ADC period: %u usec\n",
 		true_frequency, effective_steps, adc_period_usec);
 
 	/*
@@ -118,14 +118,14 @@ static int init_constants(unsigned frequency)
 	assert(adc_trigger_advance_ticks_float < (_pwm_top * 0.4f));
 	_adc_advance_ticks = (uint16_t)adc_trigger_advance_ticks_float;
 
-	lowsyslog("Motor: PWM range [%u; %u], ADC advance ticks %u\n",
+	printf("Motor: PWM range [%u; %u], ADC advance ticks %u\n",
 		(unsigned)_pwm_min, (unsigned)_pwm_top, (unsigned)_adc_advance_ticks);
 	return 0;
 }
 
 static void init_timers(void)
 {
-	assert_always(_pwm_top > 0);   // Make sure it was initialized
+	ASSERT_ALWAYS(_pwm_top > 0);   // Make sure it was initialized
 
 	chSysDisable();
 
@@ -188,7 +188,7 @@ static void init_timers(void)
 		assert(0);
 		dead_time_ticks = 127;
 	}
-	lowsyslog("Motor: PWM dead time %u ticks\n", (unsigned)dead_time_ticks);
+	printf("Motor: PWM dead time %u ticks\n", (unsigned)dead_time_ticks);
 
 	TIM1->BDTR = TIM_BDTR_AOE | TIM_BDTR_MOE | dead_time_ticks;
 
@@ -207,8 +207,8 @@ static void start_timers(void)
 	const irqstate_t irqstate = irq_primask_save();
 
 	// Make sure the timers are not running
-	assert_always(!(TIM1->CR1 & TIM_CR1_CEN));
-	assert_always(!(TIM2->CR1 & TIM_CR1_CEN));
+	ASSERT_ALWAYS(!(TIM1->CR1 & TIM_CR1_CEN));
+	ASSERT_ALWAYS(!(TIM2->CR1 & TIM_CR1_CEN));
 
 	// Start synchronously
 	TIM1->CR2 |= TIM_CR2_MMS_0;                   // TIM1 is master
@@ -217,8 +217,8 @@ static void start_timers(void)
 	TIM1->CR1 |= TIM_CR1_CEN;                     // Start all
 
 	// Make sure the timers have started now
-	assert_always(TIM1->CR1 & TIM_CR1_CEN);
-	assert_always(TIM2->CR1 & TIM_CR1_CEN);
+	ASSERT_ALWAYS(TIM1->CR1 & TIM_CR1_CEN);
+	ASSERT_ALWAYS(TIM2->CR1 & TIM_CR1_CEN);
 
 	// Configure the synchronous reset - TIM1 master, TIM2 slave
 	TIM1->CR2 &= ~TIM_CR2_MMS;                    // Master, UG bit triggers TRGO
@@ -229,7 +229,7 @@ static void start_timers(void)
 
 int motor_pwm_init(void)
 {
-	const int ret = init_constants(config_get("mot_pwm_hz"));
+	const int ret = init_constants(configGet("mot_pwm_hz"));
 	if (ret) {
 		return ret;
 	}

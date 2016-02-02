@@ -37,6 +37,7 @@
 #include "realtime/api.h"
 #include <math.h>
 #include <ch.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <assert.h>
 #include <zubax_chibios/config/config.h>
@@ -125,24 +126,24 @@ CONFIG_PARAM_INT("mot_stop_thres",       7,      1,       100)
 
 static void configure(void)
 {
-	_params.dc_min_voltage = config_get("mot_v_max");
-	_params.dc_step_max    = config_get("mot_dc_accel");
-	_params.dc_slope       = config_get("mot_dc_slope");
+	_params.dc_min_voltage = configGet("mot_v_max");
+	_params.dc_step_max    = configGet("mot_dc_accel");
+	_params.dc_slope       = configGet("mot_dc_slope");
 
-	_params.poles = config_get("mot_num_poles");
-	_params.reverse = config_get("ctl_dir");
+	_params.poles = configGet("mot_num_poles");
+	_params.reverse = configGet("ctl_dir");
 
 	_params.comm_period_limit = motor_rtctl_get_min_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
-	_params.rpm_min = config_get("mot_rpm_min");
+	_params.rpm_min = configGet("mot_rpm_min");
 
-	_params.current_limit = config_get("mot_i_max");
-	_params.current_limit_p = config_get("mot_i_max_p");
+	_params.current_limit = configGet("mot_i_max");
+	_params.current_limit_p = configGet("mot_i_max_p");
 
-	_params.voltage_current_lowpass_tau = 1.0f / config_get("mot_lpf_freq");
-	_params.num_unexpected_stops_to_latch = config_get("mot_stop_thres");
+	_params.voltage_current_lowpass_tau = 1.0f / configGet("mot_lpf_freq");
+	_params.num_unexpected_stops_to_latch = configGet("mot_stop_thres");
 
-	lowsyslog("Motor: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
+	printf("Motor: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
 
 static void poll_beep(void)
@@ -215,7 +216,7 @@ static void handle_unexpected_stop(void)
 	stop(false);
 
 	// Usually unexpected stop means that the control is fucked up, so it's good to have some insight
-	lowsyslog("Motor: Unexpected stop [%i of %i], below is some debug info\n",
+	printf("Motor: Unexpected stop [%i of %i], below is some debug info\n",
 		_state.num_unexpected_stops, _params.num_unexpected_stops_to_latch);
 	motor_rtctl_print_debug_info();
 
@@ -249,7 +250,7 @@ static void update_control_non_running(void)
 		const int elapsed_ms = (motor_rtctl_timestamp_hnsec() - timestamp) / HNSEC_PER_MSEC;
 		_state.setpoint_ttl_ms += elapsed_ms;
 
-		lowsyslog("Motor: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
+		printf("Motor: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
 
 		if (_state.rtctl_state == MOTOR_RTCTL_STATE_IDLE) {
 			handle_unexpected_stop();
@@ -406,7 +407,7 @@ static void update_setpoint_ttl(int dt_ms)
 	_state.setpoint_ttl_ms -= dt_ms;
 	if (_state.setpoint_ttl_ms <= 0) {
 		stop(true);
-		lowsyslog("Motor: Setpoint TTL expired, stop\n");
+		printf("Motor: Setpoint TTL expired, stop\n");
 	}
 }
 
@@ -442,9 +443,9 @@ static msg_t control_thread(void* arg)
 		 */
 		const tprio_t desired_thread_priority = (comm_period > 0) ? HIGHPRIO : NORMALPRIO;
 
-		if (desired_thread_priority != chThdGetPriority()) {
+		if (desired_thread_priority != chThdGetPriorityX()) {
 			const tprio_t old = chThdSetPriority(desired_thread_priority);
-			lowsyslog("Motor: Priority changed: %i --> %i\n", (int)old, (int)desired_thread_priority);
+			printf("Motor: Priority changed: %i --> %i\n", (int)old, (int)desired_thread_priority);
 		}
 
 		/*
@@ -471,16 +472,16 @@ static msg_t control_thread(void* arg)
 
 		chMtxUnlock(&_mutex);
 
-		watchdog_reset(_watchdog_id);
+		watchdogReset(_watchdog_id);
 	}
 
-	assert_always(0);
+	abort();
 	return 0;
 }
 
 int motor_init(void)
 {
-	_watchdog_id = watchdog_create(WATCHDOG_TIMEOUT_MSEC);
+	_watchdog_id = watchdogCreate(WATCHDOG_TIMEOUT_MSEC);
 	if (_watchdog_id < 0) {
 		return _watchdog_id;
 	}
@@ -490,14 +491,11 @@ int motor_init(void)
 		return ret;
 	}
 
-	chMtxInit(&_mutex);
-	chEvtInit(&_setpoint_update_event);
-
 	configure();
 
 	init_filters();
 	if (_state.input_voltage < MIN_VALID_INPUT_VOLTAGE || _state.input_voltage > MAX_VALID_INPUT_VOLTAGE) {
-		lowsyslog("Motor: Invalid input voltage: %f\n", _state.input_voltage);
+		printf("Motor: Invalid input voltage: %f\n", _state.input_voltage);
 		return -1;
 	}
 
@@ -508,8 +506,9 @@ int motor_init(void)
 
 	motor_rtctl_stop();
 
-	assert_always(chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread),
-	                                HIGHPRIO, control_thread, NULL));
+	if (!chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread), HIGHPRIO, control_thread, NULL)) {
+		abort();
+	}
 	return 0;
 }
 
@@ -734,7 +733,7 @@ static unsigned comm_period_to_rpm(uint32_t comm_period_hnsec)
 void motor_execute_cli_command(int argc, const char* argv[])
 {
 	if (motor_is_running()) {
-		lowsyslog("Unable to execute CLI command now\n");
+		printf("Unable to execute CLI command now\n");
 		return;
 	}
 

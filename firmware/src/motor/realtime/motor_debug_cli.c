@@ -54,20 +54,20 @@ static enum motor_pwm_phase_manip arg_to_pwm_manip(const char* arg)
 void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 {
 	if (argc < 0 || argv == NULL) {
-		lowsyslog("Invalid args\n");
+		printf("Invalid args\n");
 		return;
 	}
 
 	const struct motor_adc_sample adc_sample = motor_adc_get_last_sample();
 
-	lowsyslog("ADC raw phases:  %i  %i  %i\n",
+	printf("ADC raw phases:  %i  %i  %i\n",
 		adc_sample.phase_values[0], adc_sample.phase_values[1], adc_sample.phase_values[2]);
 
-	lowsyslog("ADC raw vtg/cur: V=%i  I=%i\n", adc_sample.input_voltage, adc_sample.input_current);
+	printf("ADC raw vtg/cur: V=%i  I=%i\n", adc_sample.input_voltage, adc_sample.input_current);
 
 	if ((argc > 0) && !strcmp("enrg", argv[0])) {
 		if (argc != 4) {
-			lowsyslog("Invalid num args\n");
+			printf("Invalid num args\n");
 			return;
 		}
 		const int polarity[MOTOR_NUM_PHASES] = {
@@ -75,7 +75,7 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 			atoi(argv[2]),
 			atoi(argv[3])
 		};
-		lowsyslog("%i %i %i\n", polarity[0], polarity[1], polarity[2]);
+		printf("%i %i %i\n", polarity[0], polarity[1], polarity[2]);
 		motor_pwm_energize(polarity);
 	} else if ((argc >= 1) && (argc <= 3)) {
 		const enum motor_pwm_phase_manip manip_cmd[MOTOR_NUM_PHASES] = {
@@ -83,10 +83,10 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 			(argc > 1) ? arg_to_pwm_manip(argv[1]) : MOTOR_PWM_MANIP_FLOATING,
 			(argc > 2) ? arg_to_pwm_manip(argv[2]) : MOTOR_PWM_MANIP_FLOATING
 		};
-		lowsyslog("Manip %i %i %i\n", (int)manip_cmd[0], (int)manip_cmd[1], (int)manip_cmd[2]);
+		printf("Manip %i %i %i\n", (int)manip_cmd[0], (int)manip_cmd[1], (int)manip_cmd[2]);
 		motor_pwm_manip(manip_cmd);
 	} else {
 		motor_pwm_set_freewheeling();
-		lowsyslog("Freewheeling\n");
+		printf("Freewheeling\n");
 	}
 }

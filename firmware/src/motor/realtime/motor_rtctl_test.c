@@ -100,12 +100,12 @@ static int test_sensors(void)
 	const bool valid_current = (sample.input_current > 0) && (sample.input_current < ADC_MAX);
 
 	if (!valid_voltage || !valid_current) {
-		lowsyslog("Motor: Invalid sensor readings: raw input voltage %i, raw input current %i\n",
+		printf("Motor: Invalid sensor readings: raw input voltage %i, raw input current %i\n",
 			sample.input_voltage, sample.input_current);
 		return 1;
 	}
 
-	lowsyslog("Motor: Raw input voltage %i, raw input current %i\n", sample.input_voltage, sample.input_current);
+	printf("Motor: Raw input voltage %i, raw input current %i\n", sample.input_voltage, sample.input_current);
 	return 0;
 }
 
@@ -129,7 +129,7 @@ static int test_power_stage(void)
 		// Low level
 		const int low = test_one_phase(phase, false);
 		if (low > threshold) {
-			lowsyslog("Motor: Selftest FAILURE at phase %i: low sample %i is above threshold %i\n",
+			printf("Motor: Selftest FAILURE at phase %i: low sample %i is above threshold %i\n",
 			          phase, low, threshold);
 			result++;
 		}
@@ -138,14 +138,14 @@ static int test_power_stage(void)
 		const int high = test_one_phase(phase, true);
 		high_samples[phase] = high;
 		if (high < threshold) {
-			lowsyslog("Motor: Selftest FAILURE at phase %i: high sample %i is below threshold %i\n",
+			printf("Motor: Selftest FAILURE at phase %i: high sample %i is below threshold %i\n",
 			          phase, high, threshold);
 			result++;
 		}
 		// It is not possible to check against the high threshold directly
 		// because its value will depend on the supply voltage
 
-		lowsyslog("Motor: Selftest phase %i: low %i, high %i\n", phase, low, high);
+		printf("Motor: Selftest phase %i: low %i, high %i\n", phase, low, high);
 	}
 
 	/*
@@ -158,7 +158,7 @@ static int test_power_stage(void)
 
 	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
 		if (abs(high_samples[phase] - high_median) > threshold) {
-			lowsyslog("Motor: Selftest FAILURE at phase %i: sample %i is far from median %i\n",
+			printf("Motor: Selftest FAILURE at phase %i: sample %i is far from median %i\n",
 			          phase, high_samples[phase], high_median);
 			result++;
 		}
@@ -204,7 +204,7 @@ static int test_cross_phase_conductivity(void)
 
 		if (!valid) {
 			num_detects++;
-			lowsyslog("Motor: Phase %i cross conductivity: %i %i %i\n", phase,
+			printf("Motor: Phase %i cross conductivity: %i %i %i\n", phase,
 				sample.phase_values[0], sample.phase_values[1], sample.phase_values[2]);
 		}
 	}
@@ -212,7 +212,7 @@ static int test_cross_phase_conductivity(void)
 	motor_pwm_set_freewheeling();
 
 	if (num_detects == MOTOR_NUM_PHASES) {
-		lowsyslog("Motor: All phases are shorted, assuming the motor is connected\n");
+		printf("Motor: All phases are shorted, assuming the motor is connected\n");
 		num_detects = 0;
 	}
 
@@ -228,7 +228,7 @@ int motor_rtctl_test_hardware(void)
 	motor_pwm_set_freewheeling();
 	usleep(INITIAL_DELAY_MS * 1000);
 
-	lowsyslog("Motor: Power stage test...\n");
+	printf("Motor: Power stage test...\n");
 	{
 		int res = test_power_stage();
 		if (res != 0) {
@@ -236,7 +236,7 @@ int motor_rtctl_test_hardware(void)
 		}
 	}
 
-	lowsyslog("Motor: Cross phase test...\n");
+	printf("Motor: Cross phase test...\n");
 	{
 		int res = test_cross_phase_conductivity();
 		if (res != 0) {
@@ -244,7 +244,7 @@ int motor_rtctl_test_hardware(void)
 		}
 	}
 
-	lowsyslog("Motor: Sensors test...\n");
+	printf("Motor: Sensors test...\n");
 	{
 		int res = test_sensors();
 		if (res != 0) {

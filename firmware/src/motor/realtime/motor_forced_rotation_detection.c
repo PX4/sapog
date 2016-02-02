@@ -37,6 +37,7 @@
 #include "timer.h"
 #include <zubax_chibios/config/config.h>
 #include <string.h>
+#include <assert.h>
 
 
 static struct state
@@ -61,9 +62,9 @@ CONFIG_PARAM_INT("enum_max_step",     50000, 2000,  100000)
 
 void motor_forced_rotation_detector_init(void)
 {
-	_params.bemf_threshold  = config_get("enum_bemf");
-	_params.voting_threshold = config_get("enum_steps");
-	_params.max_step_period = config_get("enum_max_step") * HNSEC_PER_USEC;
+	_params.bemf_threshold  = configGet("enum_bemf");
+	_params.voting_threshold = configGet("enum_steps");
+	_params.max_step_period = configGet("enum_max_step") * HNSEC_PER_USEC;
 
 	motor_forced_rotation_detector_reset();
 }
