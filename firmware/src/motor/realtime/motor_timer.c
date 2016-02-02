@@ -61,7 +61,7 @@
 
 #define TIMEVT            GLUE2(TIM, TIMEVT_NUM)
 #define TIMEVT_IRQn       GLUE3(TIM, TIMEVT_NUM, _IRQn)
-#define TIMEVT_IRQHandler GLUE3(TIM, TIMEVT_NUM, _IRQHandler)
+#define TIMEVT_IRQHandler GLUE3(STM32_TIM, TIMEVT_NUM, _HANDLER)
 
 #if TIMEVT_NUM == 1 || (TIMEVT_NUM >= 8 && TIMEVT_NUM <= 11)
 #  error Nope
@@ -80,7 +80,7 @@
 
 #define TIMSTP            GLUE2(TIM, TIMSTP_NUM)
 #define TIMSTP_IRQn       GLUE3(TIM, TIMSTP_NUM, _IRQn)
-#define TIMSTP_IRQHandler GLUE3(TIM, TIMSTP_NUM, _IRQHandler)
+#define TIMSTP_IRQHandler GLUE3(STM32_TIM, TIMSTP_NUM, _HANDLER)
 
 #if TIMSTP_NUM == 1 || (TIMSTP_NUM >= 8 && TIMSTP_NUM <= 11)
 #  error Nope

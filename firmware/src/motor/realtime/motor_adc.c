@@ -74,7 +74,7 @@ static struct motor_adc_sample _sample;
 
 
 __attribute__((optimize(3)))
-CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
+CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 
