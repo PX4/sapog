@@ -177,6 +177,8 @@ int main()
 	chSysInit();
 	sdStart(&STDOUT_SD, NULL);
 
+	os::lowsyslog("BOOT\n");
+
 	usleep(300000);
 	print_banner();
 
