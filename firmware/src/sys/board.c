@@ -57,8 +57,8 @@ const PALConfig pal_default_config = {
 
 void __early_init(void)
 {
-	// Enable LSI; the other clocks are already running
-	RCC->CSR |= RCC_CSR_LSION;
+	stm32_clock_init();
+	// Making sure LSI is up and running
  	while ((RCC->CSR & RCC_CSR_LSIRDY) == 0);
 }
 

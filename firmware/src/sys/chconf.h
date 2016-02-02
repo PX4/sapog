@@ -34,18 +34,19 @@
 
 #pragma once
 
+// There is no 32-bit timers on STM32F105
 #define STM32_ST_USE_TIMER              3
 #define CH_CFG_ST_RESOLUTION            16
-#define CH_FREQUENCY                    2000
+#define CH_CFG_ST_FREQUENCY             2000
 
 #define CH_CFG_USE_SEMAPHORES           TRUE
 #define CH_DBG_FILL_THREADS             TRUE
 
+#define PORT_IDLE_THREAD_STACK_SIZE     64
+#define PORT_INT_REQUIRED_STACK         512
+
 #if defined(DEBUG_BUILD) && DEBUG_BUILD
 # define CH_CFG_USE_REGISTRY            TRUE
 #endif
-
-#define PORT_IDLE_THREAD_STACK_SIZE    64
-#define PORT_INT_REQUIRED_STACK        512
 
 #include <zubax_chibios/sys/chconf_tail.h>
