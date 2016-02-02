@@ -168,5 +168,6 @@ void pwm_input_init(void)
 	};
 
 	icuStart(&ICUD5, &icucfg);
+	icuStartCapture(&ICUD5);
 	icuEnableNotifications(&ICUD5);
 }
