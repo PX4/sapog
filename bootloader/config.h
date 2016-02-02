@@ -433,7 +433,7 @@ inline static void board_indicate(uiindication_t indication)
 
 inline static uint8_t board_should_wait_for_getnodeinfo(void)
 {
-    return 1u;
+    return 0u;
 }
 
 #undef EXTERN
