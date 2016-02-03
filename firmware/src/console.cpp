@@ -55,8 +55,7 @@ static void cmd_cfg(BaseSequentialStream *, int argc, char *argv[])
 
 static void cmd_reboot(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	::usleep(10000);  // Flush serial
-	board::reboot();
+	os::requestReboot();
 }
 
 static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])

@@ -42,7 +42,7 @@
 #include <board/board.hpp>
 #include <board/led.hpp>
 #include <console.hpp>
-#include <pwm_input.h>
+#include <pwm_input.hpp>
 #include <motor/motor.h>
 #include <uavcan_node/uavcan_node.hpp>
 

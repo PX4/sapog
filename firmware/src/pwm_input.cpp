@@ -32,12 +32,14 @@
  *
  ****************************************************************************/
 
-#include "pwm_input.h"
+// TODO: rewrite in C++
+
+#include "pwm_input.hpp"
 #include <ch.h>
 #include <hal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <zubax_chibios/config/config.h>
+#include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
 #include <assert.h>
 
@@ -51,7 +53,7 @@ static const float START_MAX_DUTY_CYCLE = 0.20;
 static const unsigned COMMAND_TTL_MS = 100;
 
 
-static EVENTSOURCE_DECL(_update_event);
+chibios_rt::EvtSource _update_event;
 
 static volatile unsigned _last_pulse_width_usec;
 
@@ -68,7 +70,7 @@ static void icu_pulse_width_callback(ICUDriver* icup)
 		_last_pulse_width_usec = new_width;
 
 		chSysLockFromISR();
-		chEvtBroadcastFlagsI(&_update_event, ALL_EVENTS);
+		chEvtBroadcastFlagsI(&_update_event.ev_source, ALL_EVENTS);      // TODO: use C++ API
 		chSysUnlockFromISR();
 	}
 }
@@ -88,15 +90,15 @@ static void thread(void* arg)
 	(void)arg;
 
 	event_listener_t listener;
-	chEvtRegisterMask(&_update_event, &listener, ALL_EVENTS);
+	chEvtRegisterMask(&_update_event.ev_source, &listener, ALL_EVENTS);  // TODO: use C++ API
 
 	const unsigned min_pulse_width_usec = configGet("pwm_min_usec");
 	const unsigned max_pulse_width_usec = configGet("pwm_max_usec");
 
-	for (;;) {
+	while (!os::isRebootRequested()) {
 		if (chEvtWaitAnyTimeout(ALL_EVENTS, US2ST(65536)) == 0) {
 			if (_last_pulse_width_usec > 0) {
-				printf("PWMIN: Timeout\n");
+				os::lowsyslog("PWMIN: Timeout\n");
 				// We don't stop the motor here - it will be stopped automatically when TTL has expired
 			}
 			_last_pulse_width_usec = 0;
@@ -128,7 +130,6 @@ static void thread(void* arg)
 		} else {
 			; // Nothing to do
 		}
-		//printf("%u\n", (unsigned)(dc * 100));
 
 		/*
 		 * Pass the new command into the motor controller
@@ -140,7 +141,7 @@ static void thread(void* arg)
 		}
 	}
 
-	abort();
+	os::lowsyslog("PWM: Going down\n");
 }
 
 void pwm_input_init(void)
