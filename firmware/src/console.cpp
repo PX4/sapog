@@ -53,7 +53,7 @@ static void cmd_cfg(BaseSequentialStream *, int argc, char *argv[])
 	os::config::executeCLICommand(argc, argv);
 }
 
-static void cmd_reset(BaseSequentialStream *chp, int argc, char *argv[])
+static void cmd_reboot(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	::usleep(10000);  // Flush serial
 	board::reboot();
@@ -179,7 +179,7 @@ static void cmd_m(BaseSequentialStream *chp, int argc, char *argv[])
 static const ShellCommand _commands[] =
 {
 	COMMAND(cfg)
-	COMMAND(reset)
+	COMMAND(reboot)
 	COMMAND(beep)
 	COMMAND(stat)
 	COMMAND(test)
