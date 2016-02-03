@@ -36,6 +36,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <zubax_chibios/config/config.h>
 #include <motor/motor.h>
 #include <assert.h>
@@ -82,7 +83,7 @@ static void icu_period_callback(ICUDriver* icup)
 	 */
 }
 
-static msg_t thread(void* arg)
+static void thread(void* arg)
 {
 	(void)arg;
 
@@ -140,7 +141,6 @@ static msg_t thread(void* arg)
 	}
 
 	abort();
-	return 0;
 }
 
 void pwm_input_init(void)

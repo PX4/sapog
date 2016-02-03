@@ -40,6 +40,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <assert.h>
+#include <stdio.h>
 
 // To prevent occasional use of a wrong timer
 #undef TIM1

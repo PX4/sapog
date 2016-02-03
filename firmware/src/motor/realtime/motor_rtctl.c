@@ -40,6 +40,7 @@
 #include "irq.h"
 #include "forced_rotation_detection.h"
 #include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>

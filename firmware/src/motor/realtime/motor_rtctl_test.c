@@ -41,6 +41,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 
 static const int INITIAL_DELAY_MS = 300;

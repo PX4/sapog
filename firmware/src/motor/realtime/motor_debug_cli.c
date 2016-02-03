@@ -36,6 +36,7 @@
 #include "adc.h"
 #include "pwm.h"
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static enum motor_pwm_phase_manip arg_to_pwm_manip(const char* arg)

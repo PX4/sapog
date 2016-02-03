@@ -38,6 +38,7 @@
 #include "irq.h"
 #include <ch.h>
 #include <hal.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <assert.h>
 #include <math.h>

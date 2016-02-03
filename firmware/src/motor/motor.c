@@ -38,6 +38,7 @@
 #include <math.h>
 #include <ch.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
 #include <zubax_chibios/config/config.h>
@@ -411,7 +412,7 @@ static void update_setpoint_ttl(int dt_ms)
 	}
 }
 
-static msg_t control_thread(void* arg)
+static void control_thread(void* arg)
 {
 	(void)arg;
 	chRegSetThreadName("motor");
@@ -476,7 +477,6 @@ static msg_t control_thread(void* arg)
 	}
 
 	abort();
-	return 0;
 }
 
 int motor_init(void)

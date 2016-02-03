@@ -102,3 +102,13 @@
 #define VAL_GPIOECRL            0x88888888
 #define VAL_GPIOECRH            0x88888888
 #define VAL_GPIOEODR            0x00000000
+
+#if !defined(_FROM_ASM_)
+#ifdef __cplusplus
+extern "C" {
+#endif
+    void boardInit(void);
+#ifdef __cplusplus
+}
+#endif
+#endif /* _FROM_ASM_ */
