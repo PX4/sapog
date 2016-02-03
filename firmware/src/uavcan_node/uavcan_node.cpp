@@ -45,6 +45,7 @@
 #include <uavcan/protocol/enumeration/Begin.hpp>
 #include <uavcan/protocol/enumeration/Indication.hpp>
 #include <uavcan/protocol/dynamic_node_id_client.hpp>
+#include <uavcan/protocol/file/BeginFirmwareUpdate.hpp>
 #include <uavcan_stm32/bxcan.hpp>
 #include <unistd.h>
 #include <motor/motor.h>
@@ -173,6 +174,22 @@ class ParamManager: public uavcan::IParamManager
 	}
 } param_manager;
 
+static void schedule_reboot()
+{
+	struct RebootTimer : uavcan::TimerBase
+	{
+		RebootTimer(uavcan::INode& node) : uavcan::TimerBase(node) { }
+
+		void handleTimerEvent(const uavcan::TimerEvent&) override
+		{
+			NVIC_SystemReset();
+		}
+	} static timer(get_node());
+	if (!timer.isRunning()) {
+		timer.startOneShotWithDelay(uavcan::MonotonicDuration::fromMSec(10));
+	}
+}
+
 /*
  * Restart handler
  */
@@ -181,13 +198,40 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
 	bool handleRestartRequest(uavcan::NodeID request_source) override
 	{
 		os::lowsyslog("UAVCAN: Restarting by request from %i\n", int(request_source.get()));
-		::usleep(10000);
-		// TODO: pass params to the bootloader
-		NVIC_SystemReset();
+		schedule_reboot();
 		return true;
 	}
 } restart_request_handler;
 
+/*
+ * Firmware update handler
+ */
+typedef uavcan::ServiceServer<uavcan::protocol::file::BeginFirmwareUpdate,
+                void (*)(const uavcan::ReceivedDataStructure<uavcan::protocol::file::BeginFirmwareUpdate::Request>&,
+                	 uavcan::protocol::file::BeginFirmwareUpdate::Response&)> BeginFirmwareUpdateServer;
+
+BeginFirmwareUpdateServer& get_begin_firmware_update_server()
+{
+	static BeginFirmwareUpdateServer srv(get_node());
+	return srv;
+}
+
+void handle_begin_firmware_update_request(
+        const uavcan::ReceivedDataStructure<uavcan::protocol::file::BeginFirmwareUpdate::Request>& request,
+        uavcan::protocol::file::BeginFirmwareUpdate::Response& response)
+{
+	static bool in_progress = false;
+
+	::os::lowsyslog("UAVCAN: BeginFirmwareUpdate request from %d\n", int(request.getSrcNodeID().get()));
+
+	if (in_progress) {
+		response.error = response.ERROR_IN_PROGRESS;
+	} else {
+		in_progress = true;
+		pass_parameters_to_bootloader(active_can_bus_bit_rate, get_node().getNodeID());
+		schedule_reboot();
+	}
+}
 
 /*
  * Enumeration handler
@@ -404,6 +448,12 @@ class : public chibios_rt::BaseStaticThread<4000>
 		if (res < 0) {
 			board::die(res);
 		}
+
+	        res = get_begin_firmware_update_server().start(&handle_begin_firmware_update_request);
+	        if (res < 0)
+	        {
+			board::die(res);
+	        }
 
 		enumeration_handler_.construct<uavcan::INode&>(get_node());
 		res = enumeration_handler_->start();
