@@ -53,7 +53,7 @@ CPPSRC = $(wildcard $(SAPOG_SRC_DIR)/*.cpp)   \
          $(wildcard $(SAPOG_SRC_DIR)/*/*.cpp)
 
 UINCDIR = src           \
-          src/sys
+          src/os_config
 
 UDEFS = -DFW_VERSION_MAJOR=$(FW_VERSION_MAJOR)           \
         -DFW_VERSION_MINOR=$(FW_VERSION_MINOR)           \

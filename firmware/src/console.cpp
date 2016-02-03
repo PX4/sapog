@@ -40,7 +40,8 @@
 #include <ch.h>
 #include <hal.h>
 #include <shell.h>
-#include <zubax_chibios/os.hpp>
+#include <unistd.h>
+#include <board/board.hpp>
 #include <motor/motor.h>
 #include "console.hpp"
 
@@ -54,8 +55,8 @@ static void cmd_cfg(BaseSequentialStream *, int argc, char *argv[])
 
 static void cmd_reset(BaseSequentialStream *chp, int argc, char *argv[])
 {
-	chThdSleep(MS2ST(100)); // Flush the serial buffers
-	NVIC_SystemReset();
+	::usleep(10000);  // Flush serial
+	board::reboot();
 }
 
 static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])

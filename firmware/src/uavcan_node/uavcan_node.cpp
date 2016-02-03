@@ -37,7 +37,7 @@
 #include "indication_controller.hpp"
 #include <algorithm>
 #include <ch.hpp>
-#include <led.hpp>
+#include <board/board.hpp>
 #include <zubax_chibios/os.hpp>
 #include <zubax_chibios/config/config.h>	// TODO: remove dependency on the implementation details
 #include <uavcan/protocol/param_server.hpp>
@@ -89,12 +89,14 @@ void configure_node()
 	/*
 	 * Hardware version
 	 */
+	const auto hw_major_minor = board::detect_hardware_version();
+
 	uavcan::protocol::HardwareVersion hwver;
 
-	hwver.major = board_get_hardware_revision();
+	hwver.major = hw_major_minor.major;
+	hwver.minor = hw_major_minor.minor;
 
-	std::uint8_t uid[BOARD_UNIQUE_ID_SIZE] = {};
-	board_read_unique_id(uid);
+	const auto uid = board::read_unique_id();
 	std::copy(std::begin(uid), std::end(uid), std::begin(hwver.unique_id));
 
 	node.setHardwareVersion(hwver);
@@ -170,7 +172,7 @@ class ParamManager: public uavcan::IParamManager
 	}
 
 	void readParamDefaultMaxMin(const Name& name, Value& out_default,
-								NumericValue& out_max, NumericValue& out_min) const override
+		NumericValue& out_max, NumericValue& out_min) const override
 	{
 		ConfigParam descr;
 		const int res = configGetDescr(name.c_str(), &descr);
@@ -233,7 +235,7 @@ class EnumerationHandler : public uavcan::TimerBase
 	uavcan::ServiceServer<uavcan::protocol::enumeration::Begin, CallbackBinder> srv_;
 	uavcan::Publisher<uavcan::protocol::enumeration::Indication> pub_;
 	uavcan::MonotonicTime confirmation_deadline_;
-	mutable led::Overlay led_ctl;
+	mutable board::LEDOverlay led_ctl;
 
 	void finish(bool reverse)
 	{
@@ -250,7 +252,7 @@ class EnumerationHandler : public uavcan::TimerBase
 
 	void handleTimerEvent(const uavcan::TimerEvent& event) override
 	{
-		led_ctl.blink(led::Color::CYAN);
+		led_ctl.blink(board::LEDColor::CYAN);
 
 		if (event.real_time >= confirmation_deadline_) {
 			os::lowsyslog("UAVCAN: Enumeration request expired\n");

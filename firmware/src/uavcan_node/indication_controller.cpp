@@ -37,7 +37,7 @@
 #include <uavcan/equipment/indication/BeepCommand.hpp>
 #include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
-#include <led.hpp>
+#include <board/board.hpp>
 
 namespace uavcan_node
 {
@@ -51,7 +51,7 @@ os::config::Param<unsigned> param_light_index("light_index", 0,    0,    255);
 
 void cb_light_command(const uavcan::ReceivedDataStructure<uavcan::equipment::indication::LightsCommand>& msg)
 {
-	static led::Overlay led_ctl;
+	static board::LEDOverlay led_ctl;
 
 	for (auto& cmd : msg.commands)
 	{

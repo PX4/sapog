@@ -39,8 +39,8 @@
 #include <cmath>
 #include <cstdint>
 #include <unistd.h>
-#include <zubax_chibios/os.hpp>
-#include <led.hpp>
+#include <board/board.hpp>
+#include <board/led.hpp>
 #include <console.hpp>
 #include <pwm_input.h>
 #include <motor/motor.h>
@@ -63,49 +63,18 @@ namespace
 
 static constexpr unsigned WATCHDOG_TIMEOUT = 10000;
 
-led::Overlay led_ctl;
-
-__attribute__((noreturn))
-void die(int status)
-{
-	::usleep(100000);
-	os::lowsyslog("Init failed (%i)\n", status);
-	// Really there is nothing left to do; just sit there and beep sadly:
-	while (1) {
-		motor_beep(100, 400);
-		uavcan_node::set_node_status_critical();
-		led::emergency_override(led::Color::RED);
-		sleep(3);
-	}
-}
+board::LEDOverlay led_ctl;
 
 os::watchdog::Timer init()
 {
-	// Watchdog
-	os::watchdog::init();
-	os::watchdog::Timer wdt;
-	wdt.startMSec(WATCHDOG_TIMEOUT);
+	auto wdt = board::init(WATCHDOG_TIMEOUT);
 
-	// Config
-	const int config_init_res = os::config::init();
-	if (config_init_res < 0)
-	{
-		die(config_init_res);
-	}
-
-	// Banner
-	os::lowsyslog(NODE_NAME " %d.%d.%08x / %d %s\n",
-		  FW_VERSION_MAJOR, FW_VERSION_MINOR, GIT_HASH, config_init_res,
-		  os::watchdog::wasLastResetTriggeredByWatchdog() ? "WDTRESET" : "OK");
-
-	// Indication
-	led::init();
-	led_ctl.set(led::Color::PALE_WHITE);
+	led_ctl.set(board::LEDColor::PALE_WHITE);
 
 	// Motor control (must be initialized earlier than communicaton interfaces)
 	int res = motor_init();
 	if (res < 0) {
-		die(res);
+		board::die(res);
 	}
 
 	// PWM input
@@ -114,18 +83,22 @@ os::watchdog::Timer init()
 	// UAVCAN node
 	res = uavcan_node::init();
 	if (res < 0) {
-		die(res);
+		board::die(res);
 	}
 
 	// Self test
 	res = motor_test_hardware();
 	if (res != 0) {
-		die(res);
+		board::die(res);
 	}
 
 	if (motor_test_motor()) {
 		os::lowsyslog("Motor is not connected or damaged\n");
 	}
+
+	// Initializing console after delay to ensure that CLI is flushed
+	usleep(300000);
+	console_init();
 
 	return wdt;
 }
@@ -145,27 +118,20 @@ namespace os
 void applicationHaltHook()
 {
 	motor_emergency();
-	led::emergency_override(led::Color::RED);
+	board::led_emergency_override(board::LEDColor::RED);
 }
 
 }
 
 int main()
 {
-	halInit();
-	chSysInit();
-	sdStart(&STDOUT_SD, NULL);
-
 	auto wdt = init();
 
-	console_init();
+	chThdSetPriority(LOWPRIO);
 
-	usleep(300000);
 	do_startup_beep();
 
 	motor_confirm_initialization();
-
-	chThdSetPriority(LOWPRIO);
 
 	uavcan_node::set_node_status_ok();
 
@@ -176,10 +142,10 @@ int main()
 		wdt.reset();
 
 		if (motor_is_blocked()) {
-			led_ctl.set(led::Color::YELLOW);
+			led_ctl.set(board::LEDColor::YELLOW);
 			uavcan_node::set_node_status_critical();
 		} else {
-			led_ctl.set(led::Color::DARK_GREEN);
+			led_ctl.set(board::LEDColor::DARK_GREEN);
 			uavcan_node::set_node_status_ok();
 		}
 		::usleep(10 * 1000);

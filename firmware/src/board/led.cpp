@@ -67,13 +67,13 @@
 #  define TIMX_INPUT_CLOCK      STM32_TIMCLK1
 #endif
 
-namespace led
+namespace board
 {
 
 /*
  * Static functions
  */
-void init(void)
+void init_led()
 {
 	chSysDisable();
 
@@ -116,18 +116,18 @@ static void set_hex_impl(std::uint32_t hex_rgb)
 	TIMX->CCR3 = pwm_green;
 }
 
-void emergency_override(Color color)
+void led_emergency_override(LEDColor color)
 {
 	set_hex_impl(unsigned(color));
 }
 
 /*
- * Overlay
+ * LEDOverlay
  */
-Overlay* Overlay::layers[MAX_LAYERS] = {};
-chibios_rt::Mutex Overlay::mutex;
+LEDOverlay* LEDOverlay::layers[MAX_LAYERS] = {};
+chibios_rt::Mutex LEDOverlay::mutex;
 
-void Overlay::set_hex_rgb(std::uint32_t hex_rgb)
+void LEDOverlay::set_hex_rgb(std::uint32_t hex_rgb)
 {
 	os::MutexLocker mlock(mutex);
 
@@ -167,7 +167,7 @@ void Overlay::set_hex_rgb(std::uint32_t hex_rgb)
 	}
 }
 
-void Overlay::unset()
+void LEDOverlay::unset()
 {
 	os::MutexLocker mlock(mutex);
 
@@ -181,7 +181,7 @@ void Overlay::unset()
 	}
 
 	// Defragmenting the list
-	Overlay* new_layers[MAX_LAYERS] = {};
+	LEDOverlay* new_layers[MAX_LAYERS] = {};
 	for (int src = 0, dst = 0; src < MAX_LAYERS; src++) {
 		if (layers[src] != nullptr) {
 			new_layers[dst++] = layers[src];

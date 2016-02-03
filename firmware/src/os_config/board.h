@@ -102,24 +102,3 @@
 #define VAL_GPIOECRL            0x88888888
 #define VAL_GPIOECRH            0x88888888
 #define VAL_GPIOEODR            0x00000000
-
-#if !defined(_FROM_ASM_)
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/// Called from ChibiOS init
-void boardInit(void);
-
-// TODO: move and use uint8
-unsigned char board_get_hardware_revision(void);
-
-#define BOARD_UNIQUE_ID_SIZE    12
-
-// TODO: move and use uint8
-void board_read_unique_id(unsigned char out_uid[BOARD_UNIQUE_ID_SIZE]);
-
-#ifdef __cplusplus
-}
-#endif
-#endif /* _FROM_ASM_ */

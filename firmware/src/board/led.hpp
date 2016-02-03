@@ -37,12 +37,12 @@
 #include <ch.hpp>
 #include <cstdint>
 
-namespace led
+namespace board
 {
 /**
  * Basic color codes
  */
-enum class Color : unsigned
+enum class LEDColor : unsigned
 {
 	OFF    = 0x000000,
 	WHITE  = 0xFFFFFF,
@@ -63,37 +63,32 @@ enum class Color : unsigned
 };
 
 /**
- * Must be called once before LED can be used.
- */
-void init(void);
-
-/**
  * This function can be called from any context.
  * It sets LED to a specified state overriding all existing layers.
  * Accepts @ref Color.
  */
-void emergency_override(Color color);
+void led_emergency_override(LEDColor color);
 
 /**
  * This class allows to control the same LED from many sources in a stacked manner.
  * The instance of this class initialized last would be able to control the LED state, while
  * other instances (initialized earlier) would be shadowed until the top one is removed.
  */
-class Overlay
+class LEDOverlay
 {
 	static constexpr int MAX_LAYERS = 4;
 
-	static Overlay* layers[MAX_LAYERS];
+	static LEDOverlay* layers[MAX_LAYERS];
 	static chibios_rt::Mutex mutex;
 
 	std::uint32_t color = 0;
 
-	Overlay& operator=(const Overlay&) = delete;
-	Overlay(const Overlay&) = delete;
+	LEDOverlay& operator=(const LEDOverlay&) = delete;
+	LEDOverlay(const LEDOverlay&) = delete;
 
 public:
-	Overlay() { }
-	~Overlay() { unset(); }
+	LEDOverlay() { }
+	~LEDOverlay() { unset(); }
 
 	/**
 	 * Accepts standard RGB hex, e.g. 0xFFFFFF for white.
@@ -105,13 +100,13 @@ public:
 	 * Accepts @ref Color.
 	 * This function is thread-safe.
 	 */
-	void set(Color new_color) { set_hex_rgb(unsigned(new_color)); }
+	void set(LEDColor new_color) { set_hex_rgb(unsigned(new_color)); }
 
 	/**
 	 * Accepts @ref Color.
 	 * Blinks the specified color.
 	 */
-	void blink(Color new_color) { set_hex_rgb((color > 0) ? 0 : unsigned(new_color)); }
+	void blink(LEDColor new_color) { set_hex_rgb((color > 0) ? 0 : unsigned(new_color)); }
 
 	/**
 	 * Returns the current color code.
