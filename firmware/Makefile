@@ -103,7 +103,7 @@ RELEASE_OPT = -O2 -fomit-frame-pointer
 DEBUG_OPT = -O2 -g3
 
 # More warnings are enabled in the included makefile
-CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow
+CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow -Werror
 CPPWARN = $(CWARN)
 
 HW_VERSION_MAJOR_MINOR := $(HW_VERSION).0
