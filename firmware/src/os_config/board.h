@@ -45,16 +45,23 @@
 #define GPIO_PORT_SERIAL_RX     GPIOB
 #define GPIO_PIN_SERIAL_RX      7
 
+// I2C
+#define GPIO_PORT_I2C_SCL       GPIOB
+#define GPIO_PIN_I2C_SCL        8
+
+#define GPIO_PORT_I2C_SDA       GPIOB
+#define GPIO_PIN_I2C_SDA        9
+
 // Testpoints
 #define GPIO_PORT_TEST_A        GPIOB
 #define GPIO_PIN_TEST_A         15
-// TODO: ADC testpoint is temporarily allocated on the I2C SCL pin
-#define GPIO_PORT_TEST_ADC      GPIOB
-#define GPIO_PIN_TEST_ADC       8
-// TODO: Motor timer testpoint is temporarily allocated on the I2C SDA pin
-#define GPIO_PORT_TEST_MTIM     GPIOB
-#define GPIO_PIN_TEST_MTIM      9
-// There's no pin for that
+
+#define GPIO_PORT_TEST_ADC      GPIOC
+#define GPIO_PIN_TEST_ADC       11
+
+#define GPIO_PORT_TEST_MTIM     GPIOC
+#define GPIO_PIN_TEST_MTIM      12
+
 #define GPIO_PORT_TEST_MZC      GPIOA
 #define GPIO_PIN_TEST_MZC       15
 
@@ -86,13 +93,12 @@
 #define VAL_GPIOACRH            0x888b8bbb      // 15..8
 #define VAL_GPIOAODR            0x00000000
 
-// TODO: remove testpad outputs from I2C pins
 #define VAL_GPIOBCRL            0x8b8888bb
-#define VAL_GPIOBCRH            0x38b88833
+#define VAL_GPIOBCRH            0x38b88866
 #define VAL_GPIOBODR            0x00000000
 
 #define VAL_GPIOCCRL            0xbb884444
-#define VAL_GPIOCCRH            0x8888888b
+#define VAL_GPIOCCRH            0x8881188b
 #define VAL_GPIOCODR            0x00000000
 
 #define VAL_GPIODCRL            0x88888888
