@@ -35,7 +35,7 @@
 #include "led.hpp"
 #include <hal.h>
 #include <assert.h>
-#include <stm32f10x.h>
+#include <zubax_chibios/os.hpp>
 #include <algorithm>
 
 #undef TIM1
@@ -67,13 +67,13 @@
 #  define TIMX_INPUT_CLOCK      STM32_TIMCLK1
 #endif
 
-namespace led
+namespace board
 {
 
 /*
  * Static functions
  */
-void init(void)
+void init_led()
 {
 	chSysDisable();
 
@@ -116,20 +116,20 @@ static void set_hex_impl(std::uint32_t hex_rgb)
 	TIMX->CCR3 = pwm_green;
 }
 
-void emergency_override(Color color)
+void led_emergency_override(LEDColor color)
 {
 	set_hex_impl(unsigned(color));
 }
 
 /*
- * Overlay
+ * LEDOverlay
  */
-Overlay* Overlay::layers[MAX_LAYERS] = {};
-chibios_rt::Mutex Overlay::mutex;
+LEDOverlay* LEDOverlay::layers[MAX_LAYERS] = {};
+chibios_rt::Mutex LEDOverlay::mutex;
 
-void Overlay::set_hex_rgb(std::uint32_t hex_rgb)
+void LEDOverlay::set_hex_rgb(std::uint32_t hex_rgb)
 {
-	mutex.lock();
+	os::MutexLocker mlock(mutex);
 
 	color = hex_rgb;
 
@@ -148,7 +148,7 @@ void Overlay::set_hex_rgb(std::uint32_t hex_rgb)
 			if (layers[i] == nullptr) {
 				position = i;
 				layers[i] = this;
-				::lowsyslog("LED: 0x%08x registered at pos %d\n",
+				os::lowsyslog("LED: 0x%08x registered at pos %d\n",
 				            reinterpret_cast<unsigned>(this), position);
 				break;
 			}
@@ -157,34 +157,31 @@ void Overlay::set_hex_rgb(std::uint32_t hex_rgb)
 
 	// Failed to register - ignore the command
 	if (position < 0) {
-		::lowsyslog("LED: 0x%08x failed to register\n", reinterpret_cast<unsigned>(this));
-		goto leave;
+		os::lowsyslog("LED: 0x%08x failed to register\n", reinterpret_cast<unsigned>(this));
+		return;
 	}
 
 	// Checking if we're at the top
 	if ((position >= (MAX_LAYERS - 1)) || (layers[position + 1] == nullptr)) {
 		set_hex_impl(color);
 	}
-
-leave:
-	chibios_rt::BaseThread::unlockMutex();
 }
 
-void Overlay::unset()
+void LEDOverlay::unset()
 {
-	mutex.lock();
+	os::MutexLocker mlock(mutex);
 
 	// Removing ourselves from the list
 	for (int i = 0; i < MAX_LAYERS; i++) {
 		if (layers[i] == this) {
 			layers[i] = nullptr;
-			::lowsyslog("LED: 0x%08x unregistered from pos %d\n", reinterpret_cast<unsigned>(this), i);
+			os::lowsyslog("LED: 0x%08x unregistered from pos %d\n", reinterpret_cast<unsigned>(this), i);
 			break;
 		}
 	}
 
 	// Defragmenting the list
-	Overlay* new_layers[MAX_LAYERS] = {};
+	LEDOverlay* new_layers[MAX_LAYERS] = {};
 	for (int src = 0, dst = 0; src < MAX_LAYERS; src++) {
 		if (layers[src] != nullptr) {
 			new_layers[dst++] = layers[src];
@@ -195,13 +192,11 @@ void Overlay::unset()
 	// Activating the last item
 	for (int i = (MAX_LAYERS - 1); i >= 0; i--) {
 		if (layers[i] != nullptr) {
-			::lowsyslog("LED: 0x%08x reactivated at pos %d\n", reinterpret_cast<unsigned>(layers[i]), i);
+			os::lowsyslog("LED: 0x%08x reactivated at pos %d\n", reinterpret_cast<unsigned>(layers[i]), i);
 			set_hex_impl(layers[i]->color);
 			break;
 		}
 	}
-
-	chibios_rt::BaseThread::unlockMutex();
 }
 
 }

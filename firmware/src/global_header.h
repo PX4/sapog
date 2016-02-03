@@ -34,14 +34,10 @@
 
 #pragma once
 
-#if __cplusplus
-extern "C" {
-#endif
-
+namespace os
+{
 void lowsyslog(const char* format, ...);
-
-#define UAVCAN_STM32_LOG(fmt, ...)  lowsyslog("UAVCAN Driver: " fmt "\n", ##__VA_ARGS__)
-
-#if __cplusplus
 }
-#endif
+
+#define UAVCAN_STM32_LOG(fmt, ...)  ::os::lowsyslog("UAVCAN Driver: " fmt "\n", ##__VA_ARGS__)
+

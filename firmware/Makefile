@@ -1,5 +1,5 @@
 #
-#   Copyright (C) 2013 PX4 Development Team. All rights reserved.
+#   Copyright (C) 2013-2016 PX4 Development Team. All rights reserved.
 #   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
 #
 # Redistribution and use in source and binary forms, with or without
@@ -30,14 +30,16 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-PROJECT = sapog
+PROJECT = io.px4.sapog
 
-UDEFS = -DFW_VERSION_MAJOR=0 -DFW_VERSION_MINOR=1
+HW_VERSION = 1
+FW_VERSION_MAJOR = 1
+FW_VERSION_MINOR = 0
 
 export SAPOG_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 export SAPOG_SRC_DIR = $(abspath $(SAPOG_BASE)/src)
 
-PYTHON   := python
+PYTHON := python
 
 #
 # Sources
@@ -51,23 +53,27 @@ CPPSRC = $(wildcard $(SAPOG_SRC_DIR)/*.cpp)   \
          $(wildcard $(SAPOG_SRC_DIR)/*/*.cpp)
 
 UINCDIR = src           \
-          src/sys       \
-          spl/inc
+          src/os_config
+
+UDEFS = -DFW_VERSION_MAJOR=$(FW_VERSION_MAJOR)           \
+        -DFW_VERSION_MINOR=$(FW_VERSION_MINOR)           \
+        -DHW_VERSION=$(HW_VERSION)                       \
+        -DNODE_NAME=\"$(PROJECT)\"
 
 #
 # UAVCAN library
 #
 
-UDEFS += -DUAVCAN_STM32_TIMER_NUMBER=7    \
-         -DUAVCAN_STM32_NUM_IFACES=1      \
-         -DUAVCAN_MEM_POOL_BLOCK_SIZE=56  \
+UDEFS += -DUAVCAN_STM32_TIMER_NUMBER=7                   \
+         -DUAVCAN_STM32_NUM_IFACES=2                     \
+         -DUAVCAN_CPP_VERSION=UAVCAN_CPP11               \
          -DUAVCAN_STM32_CHIBIOS=1
 
-include uavcan/libuavcan/include.mk
+include libuavcan/libuavcan/include.mk
 CPPSRC += $(LIBUAVCAN_SRC)
 UINCDIR += $(LIBUAVCAN_INC)
 
-include uavcan/libuavcan_drivers/stm32/driver/include.mk
+include libuavcan/libuavcan_drivers/stm32/driver/include.mk
 CPPSRC += $(LIBUAVCAN_STM32_SRC)
 UINCDIR += $(LIBUAVCAN_STM32_INC)
 
@@ -75,100 +81,62 @@ $(info $(shell $(LIBUAVCAN_DSDLC) $(UAVCAN_DSDL_DIR)))
 UINCDIR += dsdlc_generated
 
 #
-# OS configuration
-#
-
-UDEFS += -DCORTEX_ENABLE_WFI_IDLE=1 -DSTDOUT_SD=SD1 -DSTDIN_SD=STDOUT_SD -DCHPRINTF_USE_FLOAT=1 -DSHELL_MAX_ARGUMENTS=5
-
-USE_LINK_GC = yes
-USE_THUMB = yes
-USE_VERBOSE_COMPILE ?= no
-USE_FWLIB = no
-
-CHIBIOS = chibios
-include $(CHIBIOS)/os/hal/platforms/STM32F1xx/platform_f105_f107.mk
-include $(CHIBIOS)/os/hal/hal.mk
-include $(CHIBIOS)/os/ports/GCC/ARMCMx/STM32F1xx/port.mk
-include $(CHIBIOS)/os/kernel/kernel.mk
-include $(CHIBIOS)/os/various/cpp_wrappers/kernel.mk
-
-LDSCRIPT= STM32F107xC.ld
-
-VARIOUSSRC = $(CHIBIOS)/os/various/syscalls.c    \
-             $(CHIBIOS)/os/various/chprintf.c    \
-             $(CHIBIOS)/os/various/shell.c       \
-             $(CHIBIOS)/os/various/memstreams.c
-
-CSRC += $(PORTSRC) $(KERNSRC) $(HALSRC) $(PLATFORMSRC) $(VARIOUSSRC)
-
-CPPSRC += $(CHCPPSRC)
-
-ASMSRC = $(PORTASM)
-
-INCDIR = $(PORTINC) $(KERNINC) $(HALINC) $(PLATFORMINC) $(CHCPPINC) $(CHIBIOS)/os/various
-
-#
 # Git commit hash
 #
 
 GIT_HASH := $(shell git rev-parse --short HEAD)
-ifneq ($(words $(GIT_HASH)),1)
-    GIT_HASH := "?"
-endif
 UDEFS += -DGIT_HASH=0x$(GIT_HASH)
 
 #
-# Build configuration
+# OS
 #
 
-USE_OPT = -falign-functions=16 -U__STRICT_ANSI__ -fno-exceptions -fno-unwind-tables -fno-stack-protector
-USE_OPT += -nodefaultlibs -lc -lgcc -lm
-USE_OPT += -include src/global_header.h
+SERIAL_CLI_PORT_NUMBER = 1
 
-USE_COPT = -std=c99
-USE_CPPOPT = -std=c++11 -fno-rtti -fno-threadsafe-statics
+BOOTLOADER_SIZE = 16384
 
-RELEASE ?= 0
-ifneq ($(RELEASE),0)
-    DDEFS += -DRELEASE_BUILD -DNDEBUG
-    USE_OPT += -Os -fomit-frame-pointer
-else
-    DDEFS += -DDEBUG_BUILD
-    USE_OPT += -Og -g3
-endif
+DDEFS += -DCORTEX_VTOR_INIT=$(BOOTLOADER_SIZE)
 
-#
-# Compiler options
-#
+LDSCRIPT= linker.ld
 
-MCU  = cortex-m3
+RELEASE_OPT = -O2 -fomit-frame-pointer
+DEBUG_OPT = -O2 -g3
 
-TRGT = arm-none-eabi-
-CC   = $(TRGT)gcc
-CPPC = $(TRGT)g++
-LD   = $(TRGT)g++
-CP   = $(TRGT)objcopy
-AS   = $(TRGT)gcc -x assembler-with-cpp
-OD   = $(TRGT)objdump
-SZ   = $(TRGT)size
-HEX  = $(CP) -O ihex
-BIN  = $(CP) -O binary
+# More warnings are enabled in the included makefile
+CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow
+CPPWARN = $(CWARN)
 
-# ARM-specific options here
-AOPT =
+HW_VERSION_MAJOR_MINOR := $(HW_VERSION).0
+FW_VERSION_MAJOR_MINOR_VCS_HASH := $(FW_VERSION_MAJOR).$(FW_VERSION_MINOR).$(GIT_HASH)
+COMPOUND_IMAGE_FILE := $(PROJECT)-$(HW_VERSION_MAJOR_MINOR)-$(FW_VERSION_MAJOR_MINOR_VCS_HASH).compound.bin
+BOOTLOADER_DIR := $(abspath $(SAPOG_BASE)/../bootloader)
+BOOTLOADER_IMAGE := $(BOOTLOADER_DIR)/build/bootloader.bin
 
-# THUMB-specific options here
-TOPT = -mthumb -DTHUMB
+# This rule hook is defined in the ChibiOS build system
+POST_MAKE_ALL_RULE_HOOK: build/$(PROJECT).bin build/$(PROJECT).elf
+	# Building the bootloader
+	+cd $(BOOTLOADER_DIR) && make
+	
+	# Removing previous build outputs that could use a different git hash
+	rm -rf build/*.uavcan.bin build/*.compound.bin
+	
+	# Generating compound image with embedded bootloader
+	cd build && dd if=/dev/zero bs=$(BOOTLOADER_SIZE) count=1 | tr "\000" "\377" >padded_bootloader.tmp.bin
+	cd build && dd if=$(BOOTLOADER_IMAGE) of=padded_bootloader.tmp.bin conv=notrunc
+	cd build && cat padded_bootloader.tmp.bin $(PROJECT).bin >$(COMPOUND_IMAGE_FILE)
+	
+	# Generating the signed image for the bootloader
+	cd build && ../zubax_chibios/tools/make_boot_descriptor.py $(PROJECT).bin $(PROJECT) $(HW_VERSION_MAJOR_MINOR) \
+	                                                           --also-patch-descriptor-in=$(PROJECT).elf           \
+	                                                           --also-patch-descriptor-in=$(COMPOUND_IMAGE_FILE)
+	
+	# Injecting the bootloader into the final ELF
+	cd build && $(TOOLCHAIN_PREFIX)-objcopy --add-section bootloader=$(BOOTLOADER_IMAGE)   \
+	                                        --set-section-flags bootloader=load,alloc      \
+	                                        --change-section-address bootloader=0x08000000 \
+	                                        $(PROJECT).elf compound.elf
+	
+	# Removing temporary files
+	cd build && rm -f $(PROJECT).bin $(PROJECT).elf *.hex *.tmp.bin
 
-WARN = -Wall -Wextra -Werror -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes
-CWARN = $(WARN) -Wstrict-prototypes
-CPPWARN = $(WARN)
-
-# asm statement fix
-DDEFS += -Dasm=__asm
-
-include $(CHIBIOS)/os/ports/GCC/ARMCMx/rules.mk
-
-%.image: %.bin
-	$(PYTHON) ../tools/make_can_boot_descriptor.py --verbose -g $< build/io.px4.sapog-1.0.00000000.uavcan.bin
-
+include zubax_chibios/rules_stm32f105_107.mk

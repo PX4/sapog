@@ -34,37 +34,30 @@
 
 #pragma once
 
-#define CH_FREQUENCY                    1000
+#include "mcuconf.h"
 
-#define CH_USE_HEAP                     FALSE
-#define CH_USE_DYNAMIC                  FALSE
-#define CH_USE_MAILBOXES                FALSE
-#define CH_USE_MESSAGES                 TRUE
-#define CH_USE_CONDVARS                 FALSE
+#define HAL_USE_TM                  TRUE
+#define HAL_USE_PAL                 TRUE
+#define HAL_USE_ADC                 FALSE
+#define HAL_USE_CAN                 FALSE
+#define HAL_USE_DAC                 FALSE
+#define HAL_USE_EXT                 FALSE
+#define HAL_USE_GPT                 FALSE
+#define HAL_USE_I2C                 FALSE
+#define HAL_USE_I2S                 FALSE
+#define HAL_USE_ICU                 TRUE
+#define HAL_USE_MAC                 FALSE
+#define HAL_USE_MMC_SPI             FALSE
+#define HAL_USE_PWM                 FALSE
+#define HAL_USE_RTC                 FALSE
+#define HAL_USE_SDC                 FALSE
+#define HAL_USE_SERIAL              TRUE
+#define HAL_USE_SERIAL_USB          FALSE
+#define HAL_USE_SPI                 FALSE
+#define HAL_USE_UART                FALSE
+#define HAL_USE_USB                 FALSE
 
-void system_halt_hook(void);
-#define SYSTEM_HALT_HOOK                system_halt_hook
+#define SERIAL_DEFAULT_BITRATE      115200
+#define SERIAL_BUFFERS_SIZE         128
 
-void system_tick_hook(void);
-#define SYSTEM_TICK_EVENT_HOOK          system_tick_hook
-
-#if DEBUG_BUILD
-#   define CH_OPTIMIZE_SPEED               FALSE
-#   define CH_DBG_SYSTEM_STATE_CHECK       TRUE
-#   define CH_DBG_ENABLE_CHECKS            TRUE
-#   define CH_DBG_ENABLE_ASSERTS           TRUE
-#   define CH_DBG_ENABLE_STACK_CHECK       TRUE
-#   define CH_DBG_FILL_THREADS             TRUE
-#   define CH_DBG_THREADS_PROFILING        TRUE
-#elif RELEASE_BUILD
-#   define CH_DBG_THREADS_PROFILING        FALSE
-#else
-#   error "Invalid configuration: Either DEBUG_BUILD or RELEASE_BUILD must be true"
-#endif
-
-#define PORT_IDLE_THREAD_STACK_SIZE    64
-#define PORT_INT_REQUIRED_STACK        512
-
-#define CORTEX_VTOR_INIT 0x2000
-
-#include "../../chibios/os/kernel/templates/chconf.h"
+#include <zubax_chibios/sys/halconf_tail.h>

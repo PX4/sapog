@@ -36,13 +36,12 @@
 #include "internal.h"
 #include "pwm.h"
 #include "timer.h"
+#include "irq.h"
 #include <ch.h>
 #include <hal.h>
-#include <sys.h>
 #include <assert.h>
 #include <unistd.h>
-#include <stm32f10x.h>
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 
 
 #define ADC_REF_VOLTAGE          3.3f
@@ -75,7 +74,7 @@ static struct motor_adc_sample _sample;
 
 
 __attribute__((optimize(3)))
-CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
+CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 {
 	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 
@@ -110,12 +109,12 @@ CH_FAST_IRQ_HANDLER(ADC1_2_IRQHandler)
 static void adc_calibrate(ADC_TypeDef* const adc)
 {
 	// RSTCAL
-	assert_always(!(adc->CR2 & ADC_CR2_RSTCAL));
+	ASSERT_ALWAYS(!(adc->CR2 & ADC_CR2_RSTCAL));
 	adc->CR2 |= ADC_CR2_RSTCAL;
 	while (adc->CR2 & ADC_CR2_RSTCAL) { }
 
 	// CAL
-	assert_always(!(adc->CR2 & ADC_CR2_CAL));
+	ASSERT_ALWAYS(!(adc->CR2 & ADC_CR2_CAL));
 	adc->CR2 |= ADC_CR2_CAL;
 	while (adc->CR2 & ADC_CR2_CAL) { }
 }
@@ -195,7 +194,7 @@ static void enable(void)
 
 int motor_adc_init(void)
 {
-	_shunt_resistance = config_get("mot_i_shunt_mr") / 1000.0f;
+	_shunt_resistance = configGet("mot_i_shunt_mr") / 1000.0f;
 
 	chSysDisable();
 

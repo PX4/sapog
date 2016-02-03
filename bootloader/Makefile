@@ -172,7 +172,7 @@ UAVCAN_CXXFLAGS = $(MCU_CC_FLAGS) -c $(OPTIM_FLAGS) $(ARCH_CC_FLAGS) -fno-rtti -
 # Makefile execution
 ###############################################################################
 
-all: firmware/$(BL).bin
+all: build/$(BL).bin
 
 clean:
 	rm -f $(BL_OBJECTS) \
@@ -180,7 +180,7 @@ clean:
 		  $(PROJECT_OBJECTS) \
 		  $(addprefix $(PROJECT_BUILD)arch/, $(SYS_OBJECTS)) \
 		  $(UAVCAN_OBJECTS)
-	rm -f "firmware/*.bin" "firmware/*.elf"
+	rm -rf build
 
 $(BL_BUILD)arch/%.o: $(ARCH_SRC)%.S
 	@mkdir -p $(@D)
@@ -206,11 +206,11 @@ $(PROJECT_BUILD)arch/%.o: $(ARCH_SRC)%.c
 	@mkdir -p $(@D)
 	$(CC)  $(CFLAGS) $(CC_SYMBOLS) -std=gnu99 $(SYS_INC_PATHS) -o $@ $<
 
-firmware/$(BL).elf: $(BL_OBJECTS) $(addprefix $(BL_BUILD)arch/, $(SYS_OBJECTS) up_exit.o)
+build/$(BL).elf: $(BL_OBJECTS) $(addprefix $(BL_BUILD)arch/, $(SYS_OBJECTS) up_exit.o)
 	@mkdir -p $(@D)
 	$(LD) $(BL_LD_FLAGS) -T$(BL_LINKER_SCRIPT) $(BL_LIBRARY_PATHS) -o $@ $^ $(BL_LIBRARIES) $(SYS_LIBRARIES)
 
-firmware/$(BL).bin: firmware/$(BL).elf
+build/$(BL).bin: build/$(BL).elf
 	@mkdir -p $(@D)
 	$(SIZE) $<
 	$(OBJCOPY) -O binary $< $@

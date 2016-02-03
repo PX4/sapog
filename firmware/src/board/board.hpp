@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2014 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2016 PX4 Development Team. All rights reserved.
  *   Author: Pavel Kirienko <pavel.kirienko@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,16 +34,30 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <zubax_chibios/os.hpp>
+#include <cstdint>
+#include <array>
+#include <board/led.hpp>
 
-void watchdog_init(void);
+namespace board
+{
 
-int watchdog_create(int timeout_ms);
+os::watchdog::Timer init(unsigned watchdog_timeout_ms);
 
-void watchdog_reset(int id);
+__attribute__((noreturn))
+void die(int error);
 
-#ifdef __cplusplus
+void reboot();
+
+typedef std::array<std::uint8_t, 12> UniqueID;
+UniqueID read_unique_id();
+
+struct HardwareVersion
+{
+    std::uint8_t major;
+    std::uint8_t minor;
+};
+
+HardwareVersion detect_hardware_version();
+
 }
-#endif

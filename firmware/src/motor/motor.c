@@ -37,10 +37,11 @@
 #include "realtime/api.h"
 #include <math.h>
 #include <ch.h>
-#include <sys.h>
-#include <watchdog.h>
+#include <stdio.h>
 #include <unistd.h>
-#include <config/config.h>
+#include <assert.h>
+#include <zubax_chibios/config/config.h>
+#include <zubax_chibios/watchdog/watchdog.h>
 
 #define IDLE_CONTROL_PERIOD_MSEC  10
 #define WATCHDOG_TIMEOUT_MSEC     10000
@@ -55,9 +56,9 @@ static unsigned comm_period_to_rpm(uint32_t comm_period);
 
 
 static int _watchdog_id;
-static Mutex _mutex;
+static MUTEX_DECL(_mutex);
 static EVENTSOURCE_DECL(_setpoint_update_event);
-static WORKING_AREA(_wa_control_thread, 1024);
+static THD_WORKING_AREA(_wa_control_thread, 1024);
 
 /*
  * TODO: Current implementation is a mess.
@@ -125,24 +126,24 @@ CONFIG_PARAM_INT("mot_stop_thres",       7,      1,       100)
 
 static void configure(void)
 {
-	_params.dc_min_voltage = config_get("mot_v_max");
-	_params.dc_step_max    = config_get("mot_dc_accel");
-	_params.dc_slope       = config_get("mot_dc_slope");
+	_params.dc_min_voltage = configGet("mot_v_max");
+	_params.dc_step_max    = configGet("mot_dc_accel");
+	_params.dc_slope       = configGet("mot_dc_slope");
 
-	_params.poles = config_get("mot_num_poles");
-	_params.reverse = config_get("ctl_dir");
+	_params.poles = configGet("mot_num_poles");
+	_params.reverse = configGet("ctl_dir");
 
 	_params.comm_period_limit = motor_rtctl_get_min_comm_period_hnsec();
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
-	_params.rpm_min = config_get("mot_rpm_min");
+	_params.rpm_min = configGet("mot_rpm_min");
 
-	_params.current_limit = config_get("mot_i_max");
-	_params.current_limit_p = config_get("mot_i_max_p");
+	_params.current_limit = configGet("mot_i_max");
+	_params.current_limit_p = configGet("mot_i_max_p");
 
-	_params.voltage_current_lowpass_tau = 1.0f / config_get("mot_lpf_freq");
-	_params.num_unexpected_stops_to_latch = config_get("mot_stop_thres");
+	_params.voltage_current_lowpass_tau = 1.0f / configGet("mot_lpf_freq");
+	_params.num_unexpected_stops_to_latch = configGet("mot_stop_thres");
 
-	lowsyslog("Motor: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
+	printf("Motor: RPM range: [%u, %u]; poles: %i\n", _params.rpm_min, _params.rpm_max, _params.poles);
 }
 
 static void poll_beep(void)
@@ -215,7 +216,7 @@ static void handle_unexpected_stop(void)
 	stop(false);
 
 	// Usually unexpected stop means that the control is fucked up, so it's good to have some insight
-	lowsyslog("Motor: Unexpected stop [%i of %i], below is some debug info\n",
+	printf("Motor: Unexpected stop [%i of %i], below is some debug info\n",
 		_state.num_unexpected_stops, _params.num_unexpected_stops_to_latch);
 	motor_rtctl_print_debug_info();
 
@@ -249,7 +250,7 @@ static void update_control_non_running(void)
 		const int elapsed_ms = (motor_rtctl_timestamp_hnsec() - timestamp) / HNSEC_PER_MSEC;
 		_state.setpoint_ttl_ms += elapsed_ms;
 
-		lowsyslog("Motor: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
+		printf("Motor: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
 
 		if (_state.rtctl_state == MOTOR_RTCTL_STATE_IDLE) {
 			handle_unexpected_stop();
@@ -406,7 +407,7 @@ static void update_setpoint_ttl(int dt_ms)
 	_state.setpoint_ttl_ms -= dt_ms;
 	if (_state.setpoint_ttl_ms <= 0) {
 		stop(true);
-		lowsyslog("Motor: Setpoint TTL expired, stop\n");
+		printf("Motor: Setpoint TTL expired, stop\n");
 	}
 }
 
@@ -415,7 +416,7 @@ static msg_t control_thread(void* arg)
 	(void)arg;
 	chRegSetThreadName("motor");
 
-	EventListener listener;
+	event_listener_t listener;
 	chEvtRegisterMask(&_setpoint_update_event, &listener, ALL_EVENTS);
 
 	uint64_t timestamp_hnsec = motor_rtctl_timestamp_hnsec();
@@ -442,9 +443,9 @@ static msg_t control_thread(void* arg)
 		 */
 		const tprio_t desired_thread_priority = (comm_period > 0) ? HIGHPRIO : NORMALPRIO;
 
-		if (desired_thread_priority != chThdGetPriority()) {
+		if (desired_thread_priority != chThdGetPriorityX()) {
 			const tprio_t old = chThdSetPriority(desired_thread_priority);
-			lowsyslog("Motor: Priority changed: %i --> %i\n", (int)old, (int)desired_thread_priority);
+			printf("Motor: Priority changed: %i --> %i\n", (int)old, (int)desired_thread_priority);
 		}
 
 		/*
@@ -469,18 +470,18 @@ static msg_t control_thread(void* arg)
 
 		poll_beep();
 
-		chMtxUnlock();
+		chMtxUnlock(&_mutex);
 
-		watchdog_reset(_watchdog_id);
+		watchdogReset(_watchdog_id);
 	}
 
-	assert_always(0);
+	abort();
 	return 0;
 }
 
 int motor_init(void)
 {
-	_watchdog_id = watchdog_create(WATCHDOG_TIMEOUT_MSEC);
+	_watchdog_id = watchdogCreate(WATCHDOG_TIMEOUT_MSEC);
 	if (_watchdog_id < 0) {
 		return _watchdog_id;
 	}
@@ -490,14 +491,11 @@ int motor_init(void)
 		return ret;
 	}
 
-	chMtxInit(&_mutex);
-	chEvtInit(&_setpoint_update_event);
-
 	configure();
 
 	init_filters();
 	if (_state.input_voltage < MIN_VALID_INPUT_VOLTAGE || _state.input_voltage > MAX_VALID_INPUT_VOLTAGE) {
-		lowsyslog("Motor: Invalid input voltage: %f\n", _state.input_voltage);
+		printf("Motor: Invalid input voltage: %f\n", _state.input_voltage);
 		return -1;
 	}
 
@@ -508,8 +506,9 @@ int motor_init(void)
 
 	motor_rtctl_stop();
 
-	assert_always(chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread),
-	                                HIGHPRIO, control_thread, NULL));
+	if (!chThdCreateStatic(_wa_control_thread, sizeof(_wa_control_thread), HIGHPRIO, control_thread, NULL)) {
+		abort();
+	}
 	return 0;
 }
 
@@ -517,7 +516,7 @@ void motor_stop(void)
 {
 	chMtxLock(&_mutex);
 	stop(true);
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 }
 
 void motor_set_duty_cycle(float dc, int ttl_ms)
@@ -535,7 +534,7 @@ void motor_set_duty_cycle(float dc, int ttl_ms)
 		_state.num_unexpected_stops = 0;
 	}
 
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 
 	// Wake the control thread to process the new setpoint immediately
 	chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS);
@@ -557,7 +556,7 @@ void motor_set_rpm(unsigned rpm, int ttl_ms)
 		_state.num_unexpected_stops = 0;
 	}
 
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 
 	// Wake the control thread to process the new setpoint immediately
 	chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS);
@@ -567,7 +566,7 @@ float motor_get_duty_cycle(void)
 {
 	chMtxLock(&_mutex);
 	float ret = _state.dc_actual;
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return ret;
 }
 
@@ -576,7 +575,7 @@ unsigned motor_get_rpm(void)
 	chMtxLock(&_mutex);
 	uint32_t cp = motor_rtctl_get_comm_period_hnsec();
 	unsigned rpm = (cp > 0) ? comm_period_to_rpm(cp) : 0;
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return rpm;
 }
 
@@ -584,7 +583,7 @@ enum motor_control_mode motor_get_control_mode(void)
 {
 	chMtxLock(&_mutex);
 	enum motor_control_mode ret = _state.mode;
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return ret;
 }
 
@@ -592,7 +591,7 @@ bool motor_is_running(void)
 {
 	chMtxLock(&_mutex);
 	bool ret = motor_rtctl_get_state() == MOTOR_RTCTL_STATE_RUNNING;
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return ret;
 }
 
@@ -600,7 +599,7 @@ bool motor_is_idle(void)
 {
 	chMtxLock(&_mutex);
 	bool ret = motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE;
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return ret;
 }
 
@@ -608,7 +607,7 @@ bool motor_is_blocked(void)
 {
 	chMtxLock(&_mutex);
 	bool ret = _state.num_unexpected_stops >= _params.num_unexpected_stops_to_latch;
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return ret;
 }
 
@@ -616,7 +615,7 @@ int motor_get_limit_mask(void)
 {
 	chMtxLock(&_mutex);
 	int ret = _state.limit_mask;
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return ret;
 }
 
@@ -630,14 +629,14 @@ void motor_get_input_voltage_current(float* out_voltage, float* out_current)
 	if (out_current) {
 		*out_current = _state.input_current;
 	}
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 }
 
 void motor_confirm_initialization(void)
 {
 	chMtxLock(&_mutex);
 	motor_rtctl_confirm_initialization();
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 }
 
 uint64_t motor_get_zc_failures_since_start(void)
@@ -667,7 +666,7 @@ enum motor_forced_rotation_direction motor_get_forced_rotation_direction(void)
 	}
 	}
 
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return ret;
 }
 
@@ -680,7 +679,7 @@ int motor_test_hardware(void)
 		res = motor_rtctl_test_hardware();
 	}
 
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return res;
 }
 
@@ -688,7 +687,7 @@ int motor_test_motor(void)
 {
 	chMtxLock(&_mutex);
 	const int res = motor_rtctl_test_motor();
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 	return res;
 }
 
@@ -699,10 +698,10 @@ void motor_beep(int frequency, int duration_msec)
 	if (motor_rtctl_get_state() == MOTOR_RTCTL_STATE_IDLE) {
 		_state.beep_frequency = frequency;
 		_state.beep_duration_msec = duration_msec;
-		chMtxUnlock();
+		chMtxUnlock(&_mutex);
 		chEvtBroadcastFlags(&_setpoint_update_event, ALL_EVENTS); // Wake the control thread
 	} else {
-		chMtxUnlock();
+		chMtxUnlock(&_mutex);
 	}
 }
 
@@ -710,7 +709,7 @@ void motor_print_debug_info(void)
 {
 	chMtxLock(&_mutex);
 	motor_rtctl_print_debug_info();
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 }
 
 void motor_emergency(void)
@@ -734,7 +733,7 @@ static unsigned comm_period_to_rpm(uint32_t comm_period_hnsec)
 void motor_execute_cli_command(int argc, const char* argv[])
 {
 	if (motor_is_running()) {
-		lowsyslog("Unable to execute CLI command now\n");
+		printf("Unable to execute CLI command now\n");
 		return;
 	}
 
@@ -744,5 +743,5 @@ void motor_execute_cli_command(int argc, const char* argv[])
 	} else {
 		assert(0);
 	}
-	chMtxUnlock();
+	chMtxUnlock(&_mutex);
 }

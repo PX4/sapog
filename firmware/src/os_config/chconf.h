@@ -32,62 +32,23 @@
  *
  ****************************************************************************/
 
-#include <ch.h>
-#include <hal.h>
-#include <string.h>
+#pragma once
 
-// Clock config validation
-#if STM32_PREDIV1_VALUE != 2
-# error STM32_PREDIV1_VALUE
+/*
+ * ChibiOS supports tickless mode (and it's enabled by default), but it requires a dedicated hardware timer.
+ * We don't have any free hardware timers, so we use classic ticked mode.
+ */
+#define CH_CFG_ST_TIMEDELTA		0
+#define CH_CFG_ST_FREQUENCY             1000
+
+#define CH_CFG_USE_SEMAPHORES           TRUE
+#define CH_DBG_FILL_THREADS             TRUE
+
+#define PORT_IDLE_THREAD_STACK_SIZE     64
+#define PORT_INT_REQUIRED_STACK         512
+
+#if defined(DEBUG_BUILD) && DEBUG_BUILD
+# define CH_CFG_USE_REGISTRY            TRUE
 #endif
-#if STM32_SYSCLK != 72000000
-# error STM32_SYSCLK
-#endif
-#if STM32_PCLK2 != 72000000
-# error STM32_PCLK2
-#endif
 
-const PALConfig pal_default_config = {
-	{ VAL_GPIOAODR, VAL_GPIOACRL, VAL_GPIOACRH },
-	{ VAL_GPIOBODR, VAL_GPIOBCRL, VAL_GPIOBCRH },
-	{ VAL_GPIOCODR, VAL_GPIOCCRL, VAL_GPIOCCRH },
-	{ VAL_GPIODODR, VAL_GPIODCRL, VAL_GPIODCRH },
-	{ VAL_GPIOEODR, VAL_GPIOECRL, VAL_GPIOECRH }
-};
-
-void __early_init(void)
-{
-	// Enable LSI; the other clocks are already running
-	RCC->CSR |= RCC_CSR_LSION;
- 	while ((RCC->CSR & RCC_CSR_LSIRDY) == 0);
-}
-
-void boardInit(void)
-{
-	uint32_t mapr = AFIO->MAPR;
-	mapr &= ~AFIO_MAPR_SWJ_CFG; // these bits are write-only
-
-	// Enable SWJ only, JTAG is not needed at all:
-	mapr |= AFIO_MAPR_SWJ_CFG_JTAGDISABLE;
-
-	// TIM1 - motor control
-	mapr |= AFIO_MAPR_TIM1_REMAP_0;
-
-	// Serial CLI
-	mapr |= AFIO_MAPR_USART1_REMAP;
-
-	// TIM3 - RGB LED PWM
-	mapr |= AFIO_MAPR_TIM3_REMAP_FULLREMAP;
-
-	AFIO->MAPR = mapr;
-}
-
-uint8_t board_get_hardware_revision(void)
-{
-	return (uint8_t)(GPIOC->IDR & 0x0F);
-}
-
-void board_read_unique_id(uint8_t out_uid[BOARD_UNIQUE_ID_SIZE])
-{
-	memcpy(out_uid, (const void*)0x1FFFF7E8, BOARD_UNIQUE_ID_SIZE);
-}
+#include <zubax_chibios/sys/chconf_tail.h>

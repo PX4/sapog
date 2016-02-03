@@ -37,14 +37,14 @@
 #include "adc.h"
 #include "pwm.h"
 #include "timer.h"
+#include "irq.h"
 #include "forced_rotation_detection.h"
-#include <sys.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 
 
 #define STEP_SWITCHING_DELAY_HNSEC (1 * HNSEC_PER_USEC)
@@ -205,21 +205,21 @@ CONFIG_PARAM_FLOAT("motor_dc_testpad_threshold",       0.3,   0.0,   1.0)
 
 static void configure(void)
 {
-	_params.timing_advance_deg64        = config_get("motor_timing_advance_deg") * 64 / 60;
-	_params.motor_bemf_window_len_denom = config_get("motor_bemf_window_len_denom");
-	_params.bemf_valid_range_pct128     = config_get("motor_bemf_valid_range_pct") * 128 / 100;
-	_params.zc_failures_max  = config_get("motor_zc_failures_to_stop");
-	_params.zc_detects_min   = config_get("motor_zc_detects_to_start");
-	_params.comm_period_max  = config_get("motor_comm_period_max_usec") * HNSEC_PER_USEC;
-	_params.comm_blank_hnsec = config_get("motor_comm_blank_usec") * HNSEC_PER_USEC;
+	_params.timing_advance_deg64        = configGet("motor_timing_advance_deg") * 64 / 60;
+	_params.motor_bemf_window_len_denom = configGet("motor_bemf_window_len_denom");
+	_params.bemf_valid_range_pct128     = configGet("motor_bemf_valid_range_pct") * 128 / 100;
+	_params.zc_failures_max  = configGet("motor_zc_failures_to_stop");
+	_params.zc_detects_min   = configGet("motor_zc_detects_to_start");
+	_params.comm_period_max  = configGet("motor_comm_period_max_usec") * HNSEC_PER_USEC;
+	_params.comm_blank_hnsec = configGet("motor_comm_blank_usec") * HNSEC_PER_USEC;
 
-	_params.spinup_timeout              = config_get("motor_spinup_timeout_ms") * HNSEC_PER_MSEC;
-	_params.spinup_start_comm_period    = config_get("motor_spinup_start_comm_period_usec") * HNSEC_PER_USEC;
-	_params.spinup_end_comm_period      = config_get("motor_spinup_end_comm_period_usec") * HNSEC_PER_USEC;
-	_params.spinup_num_good_comms       = config_get("motor_spinup_num_good_comms");
-	_params.spinup_duty_cycle_increment = config_get("motor_spinup_duty_cycle_inc");
+	_params.spinup_timeout              = configGet("motor_spinup_timeout_ms") * HNSEC_PER_MSEC;
+	_params.spinup_start_comm_period    = configGet("motor_spinup_start_comm_period_usec") * HNSEC_PER_USEC;
+	_params.spinup_end_comm_period      = configGet("motor_spinup_end_comm_period_usec") * HNSEC_PER_USEC;
+	_params.spinup_num_good_comms       = configGet("motor_spinup_num_good_comms");
+	_params.spinup_duty_cycle_increment = configGet("motor_spinup_duty_cycle_inc");
 
-	_params.dc_testpad_threshold = config_get("motor_dc_testpad_threshold");
+	_params.dc_testpad_threshold = configGet("motor_dc_testpad_threshold");
 
 	/*
 	 * Validation
@@ -234,7 +234,7 @@ static void configure(void)
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
-	lowsyslog("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i\n",
+	printf("Motor: RTCTL config: Max comm period: %u usec, BEMF window denom: %i\n",
 		(unsigned)(_params.comm_period_max / HNSEC_PER_USEC),
 		_params.motor_bemf_window_len_denom);
 }
@@ -763,7 +763,7 @@ static uint64_t spinup_wait_zc(const uint64_t step_deadline)
 
 static bool do_bemf_spinup(const float max_duty_cycle)
 {
-	assert(chThdGetPriority() == HIGHPRIO);  // Mandatory
+	assert(chThdGetPriorityX() == HIGHPRIO);  // Mandatory
 
 	// Make sure we're not going to underflow during time calculations
 	while (motor_timer_hnsec() < _params.spinup_start_comm_period) {
@@ -880,9 +880,9 @@ void motor_rtctl_start(float duty_cycle, bool reverse)
 		_state.zc_detection_result = ZC_DETECTED;
 		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
 		motor_timer_set_relative(_state.comm_period / 3);
-		lowsyslog("Motor: Spinup OK, comm period: %u usec\n", (unsigned)(_state.comm_period / HNSEC_PER_USEC));
+		printf("Motor: Spinup OK, comm period: %u usec\n", (unsigned)(_state.comm_period / HNSEC_PER_USEC));
 	} else {
-		lowsyslog("Motor: Spinup failed\n");
+		printf("Motor: Spinup failed\n");
 		motor_rtctl_stop();
 	}
 
@@ -1023,8 +1023,8 @@ void motor_rtctl_print_debug_info(void)
 {
 	static const int ALIGNMENT = 25;
 
-#define PRINT_INT(name, value) lowsyslog("  %-*s %li\n", ALIGNMENT, (name), (long)(value))
-#define PRINT_FLT(name, value) lowsyslog("  %-*s %f\n", ALIGNMENT, (name), (float)(value))
+#define PRINT_INT(name, value) printf("  %-*s %li\n", ALIGNMENT, (name), (long)(value))
+#define PRINT_FLT(name, value) printf("  %-*s %f\n", ALIGNMENT, (name), (float)(value))
 
 	/*
 	 * Instant state
@@ -1033,7 +1033,7 @@ void motor_rtctl_print_debug_info(void)
 	const struct control_state state_copy = _state;
 	irq_primask_enable();
 
-	lowsyslog("Motor RTCTL state\n");
+	printf("Motor RTCTL state\n");
 	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
 	PRINT_INT("flags",           state_copy.flags);
 	PRINT_INT("neutral voltage", state_copy.neutral_voltage);
@@ -1048,7 +1048,7 @@ void motor_rtctl_print_debug_info(void)
 	const struct diag_info diag_copy = _diag;
 	irq_primask_enable();
 
-	lowsyslog("Motor RTCTL diag\n");
+	printf("Motor RTCTL diag\n");
 	PRINT_INT("zc failures",       diag_copy.zc_failures_since_start);
 	PRINT_INT("desaturations",     diag_copy.desaturations);
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
@@ -1063,22 +1063,22 @@ void motor_rtctl_print_debug_info(void)
 	 */
 #if DEBUG_BUILD
 	if (_diag.zc_solution_num_samples > 0) {
-		lowsyslog("Motor ZC solution data\n");
+		printf("Motor ZC solution data\n");
 
-		lowsyslog("  zc samples   ");
+		printf("  zc samples   ");
 		for (int i = 0; i < _diag.zc_solution_num_samples; i++) {
-			lowsyslog("%-5i ", diag_copy.zc_solution_samples[i]);
+			printf("%-5i ", diag_copy.zc_solution_samples[i]);
 		}
-		lowsyslog("\n");
+		printf("\n");
 
-		lowsyslog("  zc fitted    ");
+		printf("  zc fitted    ");
 		for (int i = 0; i < _diag.zc_solution_num_samples; i++) {
 			const int x = _params.adc_sampling_period * i;
 			const int y = (diag_copy.zc_solution_slope * x + diag_copy.zc_solution_yintercept) /
 				LEAST_SQUARES_MULT;
-			lowsyslog("%-5i ", y);
+			printf("%-5i ", y);
 		}
-		lowsyslog("\n");
+		printf("\n");
 	}
 #endif
 

@@ -33,8 +33,9 @@
  ****************************************************************************/
 
 #include "rpmctl.h"
-#include <config/config.h>
+#include <zubax_chibios/config/config.h>
 #include <math.h>
+#include <assert.h>
 
 
 static struct state
@@ -58,9 +59,9 @@ CONFIG_PARAM_FLOAT("rpmctl_i",  0.003,    0.0,     10.0)
 
 int rpmctl_init(void)
 {
-	_params.p = config_get("rpmctl_p");
-	_params.d = config_get("rpmctl_d");
-	_params.i = config_get("rpmctl_i");
+	_params.p = configGet("rpmctl_p");
+	_params.d = configGet("rpmctl_d");
+	_params.i = configGet("rpmctl_i");
 	return 0;
 }
 

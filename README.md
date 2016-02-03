@@ -17,7 +17,7 @@ Please refer to the documentation page at <https://pixhawk.org/firmware/sapog>.
 
 Prerequisites:
 
-* GCC ARM 4.7+
+* GCC ARM 4.9
 * Python 2.7 or Python 3.2+
 
 #### Firmware

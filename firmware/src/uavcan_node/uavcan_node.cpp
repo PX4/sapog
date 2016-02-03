@@ -37,23 +37,22 @@
 #include "indication_controller.hpp"
 #include <algorithm>
 #include <ch.hpp>
-#include <led.hpp>
-#include <sys/sys.h>
-#include <config/config.h>
+#include <board/board.hpp>
+#include <zubax_chibios/os.hpp>
+#include <zubax_chibios/config/config.h>	// TODO: remove dependency on the implementation details
 #include <uavcan/protocol/param_server.hpp>
 #include <uavcan/protocol/enumeration/Begin.hpp>
 #include <uavcan/protocol/enumeration/Indication.hpp>
 #include <uavcan_stm32/bxcan.hpp>
 #include <unistd.h>
 #include <motor/motor.h>
-#include <watchdog.h>
 
 namespace uavcan_node
 {
 namespace
 {
 
-typedef uavcan::Node<UAVCAN_MEM_POOL_BLOCK_SIZE * 128> Node;
+typedef uavcan::Node<uavcan::MemPoolBlockSize * 128> Node;
 
 uavcan_stm32::CanInitHelper<> can;
 
@@ -72,7 +71,7 @@ void configure_node()
 	Node& node = get_node();
 
 	node.setNodeID(node_id);
-	node.setName("io.px4.sapog");
+	node.setName(NODE_NAME);
 
 	/*
 	 * Software version
@@ -90,12 +89,14 @@ void configure_node()
 	/*
 	 * Hardware version
 	 */
+	const auto hw_major_minor = board::detect_hardware_version();
+
 	uavcan::protocol::HardwareVersion hwver;
 
-	hwver.major = board_get_hardware_revision();
+	hwver.major = hw_major_minor.major;
+	hwver.minor = hw_major_minor.minor;
 
-	std::uint8_t uid[BOARD_UNIQUE_ID_SIZE] = {};
-	board_read_unique_id(uid);
+	const auto uid = board::read_unique_id();
 	std::copy(std::begin(uid), std::end(uid), std::begin(hwver.unique_id));
 
 	node.setHardwareVersion(hwver);
@@ -112,7 +113,7 @@ uavcan::ParamServer& get_param_server()
  */
 class ParamManager: public uavcan::IParamManager
 {
-	void convert(float native_value, config_data_type native_type, uavcan::protocol::param::Value& out_value) const
+	void convert(float native_value, ConfigDataType native_type, uavcan::protocol::param::Value& out_value) const
 	{
 		if (native_type == CONFIG_TYPE_BOOL) {
 			out_value.to<uavcan::protocol::param::Value::Tag::boolean_value>() = bool(native_value != 0);
@@ -125,7 +126,8 @@ class ParamManager: public uavcan::IParamManager
 		}
 	}
 
-	void convertNumeric(float native_value, config_data_type native_type, uavcan::protocol::param::NumericValue& out_value) const
+	void convertNumeric(float native_value, ConfigDataType native_type,
+		uavcan::protocol::param::NumericValue& out_value) const
 	{
 		if (native_type == CONFIG_TYPE_INT) {
 			out_value.to<uavcan::protocol::param::NumericValue::Tag::integer_value>() = native_value;
@@ -138,7 +140,7 @@ class ParamManager: public uavcan::IParamManager
 
 	void getParamNameByIndex(Index index, Name& out_name) const override
 	{
-		const char* name = config_name_by_index(index);
+		const char* name = configNameByIndex(index);
 		if (name != nullptr) {
 			out_name = name;
 		}
@@ -157,23 +159,23 @@ class ParamManager: public uavcan::IParamManager
 			native_value = v.to<uavcan::protocol::param::Value::Tag::real_value>();
 		}
 
-		(void)config_set(name.c_str(), native_value);
+		(void)configSet(name.c_str(), native_value);
 	}
 
 	void readParamValue(const Name& name, Value& out_value) const override
 	{
-		config_param descr;
-		const int res = config_get_descr(name.c_str(), &descr);
+		ConfigParam descr;
+		const int res = configGetDescr(name.c_str(), &descr);
 		if (res >= 0) {
-			convert(config_get(name.c_str()), descr.type, out_value);
+			convert(configGet(name.c_str()), descr.type, out_value);
 		}
 	}
 
 	void readParamDefaultMaxMin(const Name& name, Value& out_default,
-								NumericValue& out_max, NumericValue& out_min) const override
+		NumericValue& out_max, NumericValue& out_min) const override
 	{
-		config_param descr;
-		const int res = config_get_descr(name.c_str(), &descr);
+		ConfigParam descr;
+		const int res = configGetDescr(name.c_str(), &descr);
 		if (res >= 0) {
 			convert(descr.default_, descr.type, out_default);
 			convertNumeric(descr.max, descr.type, out_max);
@@ -185,7 +187,7 @@ class ParamManager: public uavcan::IParamManager
 	{
 		// We can't perform flash IO when the motor controller is active
 		if (motor_is_idle()) {
-			return config_save();
+			return configSave();
 		} else {
 			return -1;
 		}
@@ -195,7 +197,7 @@ class ParamManager: public uavcan::IParamManager
 	{
 		// We can't perform flash IO when the motor controller is active
 		if (motor_is_idle()) {
-			return config_erase();
+			return configErase();
 		} else {
 			return -1;
 		}
@@ -209,7 +211,7 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
 {
 	bool handleRestartRequest(uavcan::NodeID request_source) override
 	{
-		::lowsyslog("UAVCAN: Restarting by request from %i\n", int(request_source.get()));
+		os::lowsyslog("UAVCAN: Restarting by request from %i\n", int(request_source.get()));
 		NVIC_SystemReset();
 		// TODO: delayed restart, add around 100 ms to transmit the response
 		return true; // Will never be executed BTW
@@ -225,35 +227,35 @@ class EnumerationHandler : public uavcan::TimerBase
 	static constexpr int CONFIRMATION_CHECK_INTERVAL_MSEC = 50;
 
 	typedef uavcan::MethodBinder<EnumerationHandler*,
-								 void (EnumerationHandler::*)
-								 (const uavcan::ReceivedDataStructure<uavcan::protocol::enumeration::Begin::Request>&,
-								  uavcan::protocol::enumeration::Begin::Response&)>
+			void (EnumerationHandler::*)
+			(const uavcan::ReceivedDataStructure<uavcan::protocol::enumeration::Begin::Request>&,
+			uavcan::protocol::enumeration::Begin::Response&)>
 			CallbackBinder;
 
 	uavcan::ServiceServer<uavcan::protocol::enumeration::Begin, CallbackBinder> srv_;
 	uavcan::Publisher<uavcan::protocol::enumeration::Indication> pub_;
 	uavcan::MonotonicTime confirmation_deadline_;
-	mutable led::Overlay led_ctl;
+	mutable board::LEDOverlay led_ctl;
 
 	void finish(bool reverse)
 	{
-		::lowsyslog("UAVCAN: Enumeration confirmed: motor reverse: %d\n", (int)reverse);
+		os::lowsyslog("UAVCAN: Enumeration confirmed: motor reverse: %d\n", (int)reverse);
 
 		uavcan::protocol::enumeration::Indication msg;
 		msg.parameter_name = "esc_index";
 		pub_.broadcast(msg);
 
-		(void)config_set("ctl_dir", reverse ? 1 : 0);
+		(void)configSet("ctl_dir", reverse ? 1 : 0);
 
 		motor_stop();  // Shouldn't be running anyway
 	}
 
 	void handleTimerEvent(const uavcan::TimerEvent& event) override
 	{
-		led_ctl.blink(led::Color::CYAN);
+		led_ctl.blink(board::LEDColor::CYAN);
 
 		if (event.real_time >= confirmation_deadline_) {
-			::lowsyslog("UAVCAN: Enumeration request expired\n");
+			os::lowsyslog("UAVCAN: Enumeration request expired\n");
 			this->stop();
 			led_ctl.unset();
 		} else {
@@ -269,17 +271,17 @@ class EnumerationHandler : public uavcan::TimerBase
 	void handleBegin(const uavcan::ReceivedDataStructure<uavcan::protocol::enumeration::Begin::Request>& req,
 					 uavcan::protocol::enumeration::Begin::Response& resp)
 	{
-		::lowsyslog("UAVCAN: Enumeration request from %d, parameter: %s, timeout: %d sec\n",
+		os::lowsyslog("UAVCAN: Enumeration request from %d, parameter: %s, timeout: %d sec\n",
 			(int)req.getSrcNodeID().get(), (const char*)req.parameter_name.c_str(), (int)req.timeout_sec);
 
 		if (req.parameter_name != "esc_index") {
-			::lowsyslog("UAVCAN: Enumeration failure - INVALID PARAM NAME\n");
+			os::lowsyslog("UAVCAN: Enumeration failure - INVALID PARAM NAME\n");
 			resp.error = uavcan::protocol::enumeration::Begin::Response::ERROR_INVALID_PARAMETER;
 			return;
 		}
 
 		if (!motor_is_idle()) {
-			::lowsyslog("UAVCAN: Enumeration failure - MOTOR CONTROLLER IS NOT IDLE\n");
+			os::lowsyslog("UAVCAN: Enumeration failure - MOTOR CONTROLLER IS NOT IDLE\n");
 			resp.error = uavcan::protocol::enumeration::Begin::Response::ERROR_INVALID_MODE;
 			return;
 		}
@@ -311,11 +313,11 @@ public:
 class : public chibios_rt::BaseStaticThread<4000>
 {
 	uavcan::LazyConstructor<EnumerationHandler> enumeration_handler_;
-	int watchdog_id_ = -1;
+	os::watchdog::Timer wdt_;
 
 	void init()
 	{
-		watchdog_id_ = watchdog_create(10000);
+		wdt_.startMSec(10000);
 
 		configure_node();
 
@@ -327,7 +329,7 @@ class : public chibios_rt::BaseStaticThread<4000>
 			if (uavcan_start_res >= 0) {
 				break;
 			}
-			::lowsyslog("UAVCAN: Node init failure: %i, will retry\n", uavcan_start_res);
+			os::lowsyslog("UAVCAN: Node init failure: %i, will retry\n", uavcan_start_res);
 			::sleep(3);
 		}
 		assert(get_node().isStarted());
@@ -337,27 +339,27 @@ class : public chibios_rt::BaseStaticThread<4000>
 		}
 
 		while (init_esc_controller(get_node()) < 0) {
-			::lowsyslog("UAVCAN: ESC controller init failed\n");
+			os::lowsyslog("UAVCAN: ESC controller init failed\n");
 			::sleep(1);
 		}
 
 		while (init_indication_controller(get_node()) < 0) {
-			::lowsyslog("UAVCAN: Indication controller init failed\n");
+			os::lowsyslog("UAVCAN: Indication controller init failed\n");
 			::sleep(1);
 		}
 
-		::lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
+		os::lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
 
 		enumeration_handler_.construct<uavcan::INode&>(get_node());
 		while (enumeration_handler_->start() < 0) {
-			::lowsyslog("UAVCAN: Enumeration handler start failed\n");
+			os::lowsyslog("UAVCAN: Enumeration handler start failed\n");
 			::sleep(1);
 		}
-		::lowsyslog("UAVCAN: Enumeration handler started\n");
+		os::lowsyslog("UAVCAN: Enumeration handler started\n");
 	}
 
 public:
-	msg_t main() override
+	void main() override
 	{
 		init();
 
@@ -367,12 +369,11 @@ public:
 
 			const int spin_res = get_node().spin(uavcan::MonotonicDuration::fromMSec(100));
 			if (spin_res < 0) {
-				::lowsyslog("UAVCAN: Spin failure: %i\n", spin_res);
+				os::lowsyslog("UAVCAN: Spin failure: %i\n", spin_res);
 			}
 
-			watchdog_reset(watchdog_id_);
+			wdt_.reset();
 		}
-		return msg_t();
 	}
 } node_thread;
 
@@ -452,7 +453,7 @@ int init()
 
 		(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
 	} else {
-		::lowsyslog("UAVCAN: bootloader read failed; not starting node\n");
+		os::lowsyslog("UAVCAN: bootloader read failed; not starting node\n");
 		::sleep(1);
 	}
 

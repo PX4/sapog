@@ -35,7 +35,8 @@
 #include "pwm_input.h"
 #include <ch.h>
 #include <hal.h>
-#include <config/config.h>
+#include <stdio.h>
+#include <zubax_chibios/config/config.h>
 #include <motor/motor.h>
 #include <assert.h>
 
@@ -60,14 +61,14 @@ CONFIG_PARAM_INT("pwm_max_usec",  2000, 1800, 2200)
 
 static void icu_pulse_width_callback(ICUDriver* icup)
 {
-	const unsigned new_width = icuGetWidth(icup);
+	const unsigned new_width = icuGetWidthX(icup);
 
 	if ((new_width >= MIN_VALID_PULSE_WIDTH_USEC) && (new_width <= MAX_VALID_PULSE_WIDTH_USEC)) {
 		_last_pulse_width_usec = new_width;
 
-		chSysLockFromIsr();
+		chSysLockFromISR();
 		chEvtBroadcastFlagsI(&_update_event, ALL_EVENTS);
-		chSysUnlockFromIsr();
+		chSysUnlockFromISR();
 	}
 }
 
@@ -85,16 +86,16 @@ static msg_t thread(void* arg)
 {
 	(void)arg;
 
-	EventListener listener;
+	event_listener_t listener;
 	chEvtRegisterMask(&_update_event, &listener, ALL_EVENTS);
 
-	const unsigned min_pulse_width_usec = config_get("pwm_min_usec");
-	const unsigned max_pulse_width_usec = config_get("pwm_max_usec");
+	const unsigned min_pulse_width_usec = configGet("pwm_min_usec");
+	const unsigned max_pulse_width_usec = configGet("pwm_max_usec");
 
 	for (;;) {
 		if (chEvtWaitAnyTimeout(ALL_EVENTS, US2ST(65536)) == 0) {
 			if (_last_pulse_width_usec > 0) {
-				lowsyslog("PWMIN: Timeout\n");
+				printf("PWMIN: Timeout\n");
 				// We don't stop the motor here - it will be stopped automatically when TTL has expired
 			}
 			_last_pulse_width_usec = 0;
@@ -126,7 +127,7 @@ static msg_t thread(void* arg)
 		} else {
 			; // Nothing to do
 		}
-		//lowsyslog("%u\n", (unsigned)(dc * 100));
+		//printf("%u\n", (unsigned)(dc * 100));
 
 		/*
 		 * Pass the new command into the motor controller
@@ -138,7 +139,7 @@ static msg_t thread(void* arg)
 		}
 	}
 
-	assert_always(0);
+	abort();
 	return 0;
 }
 
@@ -147,14 +148,14 @@ void pwm_input_init(void)
 	assert(STOP_DUTY_CYCLE < START_MIN_DUTY_CYCLE);
 	assert(START_MIN_DUTY_CYCLE < START_MAX_DUTY_CYCLE);
 
-	if (!config_get("pwm_enable")) {
+	if (!configGet("pwm_enable")) {
 		return;
 	}
 
-	chEvtInit(&_update_event);
-
-	static WORKING_AREA(_wa_thread, 1024);
-	assert_always(chThdCreateStatic(_wa_thread, sizeof(_wa_thread), NORMALPRIO, thread, NULL));
+	static THD_WORKING_AREA(_wa_thread, 1024);
+	if (!chThdCreateStatic(_wa_thread, sizeof(_wa_thread), NORMALPRIO, thread, NULL)) {
+		abort();
+	}
 
 	static ICUConfig icucfg = {
 		ICU_INPUT_ACTIVE_HIGH,
@@ -167,5 +168,6 @@ void pwm_input_init(void)
 	};
 
 	icuStart(&ICUD5, &icucfg);
-	icuEnable(&ICUD5);
+	icuStartCapture(&ICUD5);
+	icuEnableNotifications(&ICUD5);
 }
