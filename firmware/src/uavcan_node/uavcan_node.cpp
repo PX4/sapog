@@ -71,7 +71,7 @@ void configure_node()
 	Node& node = get_node();
 
 	node.setNodeID(node_id);
-	node.setName("io.px4.sapog");
+	node.setName(NODE_NAME);
 
 	/*
 	 * Software version

@@ -94,7 +94,7 @@ os::watchdog::Timer init()
 	}
 
 	// Banner
-	os::lowsyslog("PX4 Sapog %d.%d.%08x / %d %s\n",
+	os::lowsyslog(NODE_NAME " %d.%d.%08x / %d %s\n",
 		  FW_VERSION_MAJOR, FW_VERSION_MINOR, GIT_HASH, config_init_res,
 		  os::watchdog::wasLastResetTriggeredByWatchdog() ? "WDTRESET" : "OK");
 

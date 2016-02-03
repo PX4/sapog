@@ -57,7 +57,8 @@ UINCDIR = src           \
 
 UDEFS = -DFW_VERSION_MAJOR=$(FW_VERSION_MAJOR)           \
         -DFW_VERSION_MINOR=$(FW_VERSION_MINOR)           \
-        -DHW_VERSION=$(HW_VERSION)
+        -DHW_VERSION=$(HW_VERSION)                       \
+        -DNODE_NAME=\"$(PROJECT)\"
 
 #
 # UAVCAN library
