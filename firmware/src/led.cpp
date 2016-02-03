@@ -75,8 +75,6 @@ namespace led
  */
 void init(void)
 {
-	// Initialization is skipped because TIM3 is initialized by the OS
-#if 0
 	chSysDisable();
 
 	// Power-on and reset
@@ -104,7 +102,6 @@ void init(void)
 	// Start
 	TIMX->EGR = TIM_EGR_UG | TIM_EGR_COMG;
 	TIMX->CR1 |= TIM_CR1_CEN;
-#endif
 }
 
 static void set_hex_impl(std::uint32_t hex_rgb)

@@ -34,10 +34,12 @@
 
 #pragma once
 
-// There is no 32-bit timers on STM32F105
-#define STM32_ST_USE_TIMER              3
-#define CH_CFG_ST_RESOLUTION            16
-#define CH_CFG_ST_FREQUENCY             2000
+/*
+ * ChibiOS supports tickless mode (and it's enabled by default), but it requires a dedicated hardware timer.
+ * We don't have any free hardware timers, so we use classic ticked mode.
+ */
+#define CH_CFG_ST_TIMEDELTA		0
+#define CH_CFG_ST_FREQUENCY             1000
 
 #define CH_CFG_USE_SEMAPHORES           TRUE
 #define CH_DBG_FILL_THREADS             TRUE

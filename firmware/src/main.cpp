@@ -182,7 +182,7 @@ int main()
 			led_ctl.set(led::Color::DARK_GREEN);
 			uavcan_node::set_node_status_ok();
 		}
-		::usleep(100 * 1000);
+		::usleep(10 * 1000);
 	}
 
 	return 0;
