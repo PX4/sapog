@@ -35,6 +35,7 @@
 #include "uavcan_node.hpp"
 #include "esc_controller.hpp"
 #include "indication_controller.hpp"
+#include "bootloader_interface.hpp"
 #include <algorithm>
 #include <ch.hpp>
 #include <board/board.hpp>
@@ -43,6 +44,7 @@
 #include <uavcan/protocol/param_server.hpp>
 #include <uavcan/protocol/enumeration/Begin.hpp>
 #include <uavcan/protocol/enumeration/Indication.hpp>
+#include <uavcan/protocol/dynamic_node_id_client.hpp>
 #include <uavcan_stm32/bxcan.hpp>
 #include <unistd.h>
 #include <motor/motor.h>
@@ -56,50 +58,17 @@ typedef uavcan::Node<uavcan::MemPoolBlockSize * 128> Node;
 
 uavcan_stm32::CanInitHelper<> can;
 
+os::config::Param<unsigned> param_node_id("uavcan_node_id",   0,      0,       125);
+
 auto node_status_mode = uavcan::protocol::NodeStatus::MODE_OPERATIONAL;
 auto node_status_health = uavcan::protocol::NodeStatus::HEALTH_OK;
-uint8_t node_id = 0;
+
+std::uint32_t active_can_bus_bit_rate = 0;
 
 Node& get_node()
 {
 	static Node node(can.driver, uavcan_stm32::SystemClock::instance());
 	return node;
-}
-
-void configure_node()
-{
-	Node& node = get_node();
-
-	node.setNodeID(node_id);
-	node.setName(NODE_NAME);
-
-	/*
-	 * Software version
-	 */
-	uavcan::protocol::SoftwareVersion swver;
-
-	swver.major = FW_VERSION_MAJOR;
-	swver.minor = FW_VERSION_MINOR;
-
-	swver.vcs_commit = GIT_HASH;
-	swver.optional_field_flags |= swver.OPTIONAL_FIELD_FLAG_VCS_COMMIT;
-
-	node.setSoftwareVersion(swver);
-
-	/*
-	 * Hardware version
-	 */
-	const auto hw_major_minor = board::detect_hardware_version();
-
-	uavcan::protocol::HardwareVersion hwver;
-
-	hwver.major = hw_major_minor.major;
-	hwver.minor = hw_major_minor.minor;
-
-	const auto uid = board::read_unique_id();
-	std::copy(std::begin(uid), std::end(uid), std::begin(hwver.unique_id));
-
-	node.setHardwareVersion(hwver);
 }
 
 uavcan::ParamServer& get_param_server()
@@ -212,9 +181,10 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
 	bool handleRestartRequest(uavcan::NodeID request_source) override
 	{
 		os::lowsyslog("UAVCAN: Restarting by request from %i\n", int(request_source.get()));
+		::usleep(10000);
+		// TODO: pass params to the bootloader
 		NVIC_SystemReset();
-		// TODO: delayed restart, add around 100 ms to transmit the response
-		return true; // Will never be executed BTW
+		return true;
 	}
 } restart_request_handler;
 
@@ -315,64 +285,156 @@ class : public chibios_rt::BaseStaticThread<4000>
 	uavcan::LazyConstructor<EnumerationHandler> enumeration_handler_;
 	os::watchdog::Timer wdt_;
 
-	void init()
+	void init_can()
 	{
-		wdt_.startMSec(10000);
+		int res = 0;
+		do {
+			wdt_.reset();
+			::sleep(1);
 
-		configure_node();
+			std::uint32_t bitrate = get_inherited_can_bus_bit_rate();
+			const bool autodetect = bitrate == 0;
 
-		get_node().setRestartRequestHandler(&restart_request_handler);
+			res = can.init([]() {::usleep(can.getRecommendedListeningDelay().toUSec());}, bitrate);
 
-		// Starting the UAVCAN node
+			if (res >= 0) {
+				::os::lowsyslog("CAN inited at %u bps\n", unsigned(bitrate));
+				active_can_bus_bit_rate = bitrate;
+			} else if (autodetect && (res == -uavcan_stm32::ErrBitRateNotDetected)) {
+				; // Nothing to do
+			} else {
+				::os::lowsyslog("Could not init CAN; status: %d, autodetect: %d, bitrate: %u\n",
+				        res, int(autodetect), unsigned(bitrate));
+			}
+		} while (res < 0);
+
+		assert(active_can_bus_bit_rate > 0);
+	}
+
+	void init_node()
+	{
+		get_node().setName(NODE_NAME);
+
+		/*
+		 * Software version
+		 */
+		get_node().setSoftwareVersion(get_uavcan_software_version());
+
+		/*
+		 * Hardware version
+		 */
+		const auto hw_major_minor = board::detect_hardware_version();
+
+		uavcan::protocol::HardwareVersion hwver;
+
+		hwver.major = hw_major_minor.major;
+		hwver.minor = hw_major_minor.minor;
+
+		const auto uid = board::read_unique_id();
+		std::copy(std::begin(uid), std::end(uid), std::begin(hwver.unique_id));
+
+		get_node().setHardwareVersion(hwver);
+
+		/*
+		 * Starting the node
+		 */
 		while (true) {
 			const int uavcan_start_res = get_node().start();
 			if (uavcan_start_res >= 0) {
 				break;
 			}
 			os::lowsyslog("UAVCAN: Node init failure: %i, will retry\n", uavcan_start_res);
-			::sleep(3);
+			::sleep(1);
 		}
 		assert(get_node().isStarted());
 
-		while (get_param_server().start(&param_manager) < 0) {
-			; // That's impossible to fail
+		/*
+		 * Configuring node ID
+		 */
+	        if (param_node_id.get() > 0 || get_inherited_node_id().isUnicast())
+	        {
+	            get_node().setNodeID((param_node_id.get() > 0) ?
+	        		    static_cast<std::uint8_t>(param_node_id.get()) : get_inherited_node_id());
+
+	            os::lowsyslog("UAVCAN: Using static node ID %d\n", int(get_node().getNodeID().get()));
+	        }
+	        else
+	        {
+	            uavcan::DynamicNodeIDClient dnid_client(get_node());
+
+	            {
+	                const int res = dnid_client.start(
+	                	get_node().getNodeStatusProvider().getHardwareVersion().unique_id);
+	                if (res < 0)
+	                {
+				board::die(res);
+	                }
+	            }
+
+	            os::lowsyslog("UAVCAN: Waiting for dynamic node ID allocation...\n");
+
+	            while (!dnid_client.isAllocationComplete())
+	            {
+	                get_node().spin(uavcan::MonotonicDuration::fromMSec(100));
+			wdt_.reset();
+	            }
+
+	            os::lowsyslog("UAVCAN: Dynamic node ID %d allocated by %d\n",
+	                      int(dnid_client.getAllocatedNodeID().get()), int(dnid_client.getAllocatorNodeID().get()));
+
+	            get_node().setNodeID(dnid_client.getAllocatedNodeID());
+	        }
+
+		/*
+		 * Initializing the logic
+		 */
+		get_node().setRestartRequestHandler(&restart_request_handler);
+
+		int res = get_param_server().start(&param_manager);
+		if (res < 0) {
+			board::die(res);
 		}
 
-		while (init_esc_controller(get_node()) < 0) {
-			os::lowsyslog("UAVCAN: ESC controller init failed\n");
-			::sleep(1);
+		res = init_esc_controller(get_node());
+		if (res < 0) {
+			board::die(res);
 		}
 
-		while (init_indication_controller(get_node()) < 0) {
-			os::lowsyslog("UAVCAN: Indication controller init failed\n");
-			::sleep(1);
+		res = init_indication_controller(get_node());
+		if (res < 0) {
+			board::die(res);
+		}
+
+		enumeration_handler_.construct<uavcan::INode&>(get_node());
+		res = enumeration_handler_->start();
+		if (res < 0) {
+			board::die(res);
 		}
 
 		os::lowsyslog("UAVCAN: Node started, ID %i\n", int(get_node().getNodeID().get()));
-
-		enumeration_handler_.construct<uavcan::INode&>(get_node());
-		while (enumeration_handler_->start() < 0) {
-			os::lowsyslog("UAVCAN: Enumeration handler start failed\n");
-			::sleep(1);
-		}
-		os::lowsyslog("UAVCAN: Enumeration handler started\n");
 	}
 
 public:
 	void main() override
 	{
-		init();
+		wdt_.startMSec(10000);
+
+		init_can();
+
+		wdt_.reset();
+
+		init_node();
 
 		while (true) {
+			wdt_.reset();
+
 			get_node().getNodeStatusProvider().setHealth(node_status_health);
 			get_node().getNodeStatusProvider().setMode(node_status_mode);
 
 			const int spin_res = get_node().spin(uavcan::MonotonicDuration::fromMSec(100));
 			if (spin_res < 0) {
-				os::lowsyslog("UAVCAN: Spin failure: %i\n", spin_res);
+				os::lowsyslog("UAVCAN: Spin failure: %d\n", spin_res);
 			}
-
-			wdt_.reset();
 		}
 	}
 } node_thread;
@@ -394,69 +456,13 @@ void set_node_status_critical()
 	node_status_health = uavcan::protocol::NodeStatus::HEALTH_CRITICAL;
 }
 
-struct bootloader_app_shared_t {
-	union {
-		uint64_t ull;
-		uint32_t ul[2];
-	} crc;
-	uint32_t signature;
-	uint32_t bus_speed;
-	uint32_t node_id;
-} __attribute__ ((packed));
-
-static uint64_t bootloader_calculate_signature(
-	const bootloader_app_shared_t *pshared
-) {
-	uavcan::DataTypeSignatureCRC crc;
-	crc.add((uint8_t*)(&pshared->signature), sizeof(uint32_t) * 3u);
-	return crc.get();
-}
-
-
-/*  CAN_FiRx where (i=0..27|13, x=1, 2)
- *                      STM32_CAN1_FIR(i,x)
- * Using i = 2 does not requier there block
- * to be enabled nor FINIT in CAN_FMR to be set.
- * todo:Validate this claim on F2, F3
- */
-
-#define crc_HiLOC       (uavcan_stm32::bxcan::Can[0]->FilterRegister[2].FR1)
-#define crc_LoLOC       (uavcan_stm32::bxcan::Can[0]->FilterRegister[2].FR2)
-#define signature_LOC   (uavcan_stm32::bxcan::Can[0]->FilterRegister[3].FR1)
-#define bus_speed_LOC   (uavcan_stm32::bxcan::Can[0]->FilterRegister[3].FR2)
-#define node_id_LOC     (uavcan_stm32::bxcan::Can[0]->FilterRegister[4].FR1)
-#define CRC_H 1
-#define CRC_L 0
-
-
-static bool bootloader_read(bootloader_app_shared_t *shared) {
-	shared->signature = signature_LOC;
-	shared->bus_speed = bus_speed_LOC;
-	shared->node_id = node_id_LOC;
-	shared->crc.ul[CRC_L] = crc_LoLOC;
-	shared->crc.ul[CRC_H] = crc_HiLOC;
-
-	if (shared->crc.ull == bootloader_calculate_signature(shared)) {
-		return true;
-	} else {
-		return false;
-	}
-}
+extern void init_bootloader_interface();
 
 int init()
 {
-	struct bootloader_app_shared_t bl_shared;
+	init_bootloader_interface();
 
-	if (bootloader_read(&bl_shared)) {
-		node_id = uint8_t(bl_shared.node_id);
-		can.init(bl_shared.bus_speed);
-
-		(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
-	} else {
-		os::lowsyslog("UAVCAN: bootloader read failed; not starting node\n");
-		::sleep(1);
-	}
-
+	(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
 
 	return 0;
 }
