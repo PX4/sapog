@@ -174,22 +174,6 @@ class ParamManager: public uavcan::IParamManager
 	}
 } param_manager;
 
-static void schedule_reboot()
-{
-	struct RebootTimer : uavcan::TimerBase
-	{
-		RebootTimer(uavcan::INode& node) : uavcan::TimerBase(node) { }
-
-		void handleTimerEvent(const uavcan::TimerEvent&) override
-		{
-			NVIC_SystemReset();
-		}
-	} static timer(get_node());
-	if (!timer.isRunning()) {
-		timer.startOneShotWithDelay(uavcan::MonotonicDuration::fromMSec(10));
-	}
-}
-
 /*
  * Restart handler
  */
@@ -198,7 +182,7 @@ class RestartRequestHandler: public uavcan::IRestartRequestHandler
 	bool handleRestartRequest(uavcan::NodeID request_source) override
 	{
 		os::lowsyslog("UAVCAN: Restarting by request from %i\n", int(request_source.get()));
-		schedule_reboot();
+		os::requestReboot();
 		return true;
 	}
 } restart_request_handler;
@@ -229,7 +213,7 @@ void handle_begin_firmware_update_request(
 	} else {
 		in_progress = true;
 		pass_parameters_to_bootloader(active_can_bus_bit_rate, get_node().getNodeID());
-		schedule_reboot();
+		os::requestReboot();
 	}
 }
 
@@ -475,7 +459,7 @@ public:
 
 		init_node();
 
-		while (true) {
+		while (!os::isRebootRequested()) {
 			wdt_.reset();
 
 			get_node().getNodeStatusProvider().setHealth(node_status_health);
@@ -486,6 +470,9 @@ public:
 				os::lowsyslog("UAVCAN: Spin failure: %d\n", spin_res);
 			}
 		}
+
+		os::lowsyslog("UAVCAN: Going down\n");
+		(void)get_node().spin(uavcan::MonotonicDuration::fromMSec(10));
 	}
 } node_thread;
 

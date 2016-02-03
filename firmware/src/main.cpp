@@ -127,7 +127,7 @@ int main()
 	/*
 	 * Here we run some high-level self diagnostics, indicating the system health via UAVCAN and LED.
 	 */
-	while (1) {
+	while (!os::isRebootRequested()) {
 		wdt.reset();
 
 		if (motor_is_blocked()) {
@@ -139,6 +139,10 @@ int main()
 		}
 		::usleep(10 * 1000);
 	}
+
+	::usleep(100 * 1000);
+	motor_stop();
+	board::reboot();
 
 	return 0;
 }
