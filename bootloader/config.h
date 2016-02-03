@@ -158,7 +158,7 @@
 #define OPT_PREFERRED_NODE_ID ANY_NODE_ID
 
 //todo:wrap OPT_x in in ifdefs for command line definitions
-#define OPT_TBOOT_MS            2000
+#define OPT_TBOOT_MS            5000
 #define OPT_NODE_STATUS_RATE_MS 800
 #define OPT_NODE_INFO_RATE_MS   10
 #define OPT_BL_NUMBER_TIMERS    7
@@ -166,7 +166,7 @@
 #define OPT_RESTART_TIMEOUT_MS 20000u
 
 /* Reserved for the Booloader */
-#define OPT_BOOTLOADER_SIZE_IN_K (1024*8)
+#define OPT_BOOTLOADER_SIZE_IN_K (1024*16)
 
 /* Reserved for the application out of the total
  * system flash minus the BOOTLOADER_SIZE_IN_K
