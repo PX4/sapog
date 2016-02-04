@@ -38,6 +38,7 @@
 #include <uavcan/equipment/esc/Status.hpp>
 #include <zubax_chibios/os.hpp>
 #include <motor/motor.h>
+#include <temperature_sensor.hpp>
 
 namespace uavcan_node
 {
@@ -62,7 +63,8 @@ void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::
 		return;
 	}
 
-	const float scaled_dc = msg.cmd[self_index] / float(uavcan::equipment::esc::RawCommand::FieldTypes::cmd::RawValueType::max());
+	const float scaled_dc =
+		msg.cmd[self_index] / float(uavcan::equipment::esc::RawCommand::FieldTypes::cmd::RawValueType::max());
 
 	const bool idle = motor_is_idle();
 	const bool accept = (!idle) || (idle && (scaled_dc <= max_dc_to_start));
@@ -97,9 +99,13 @@ void cb_10Hz(const uavcan::TimerEvent& event)
 	msg.esc_index = self_index;
 	msg.rpm = motor_get_rpm();
 	motor_get_input_voltage_current(&msg.voltage, &msg.current);
-	msg.temperature = std::numeric_limits<float>::quiet_NaN();
 	msg.power_rating_pct = static_cast<unsigned>(motor_get_duty_cycle() * 100 + 0.5F);
 	msg.error_count = motor_get_zc_failures_since_start();
+
+	msg.temperature = float(temperature_sensor::get_temperature_K());
+	if (msg.temperature < 0) {
+		msg.temperature = std::numeric_limits<float>::quiet_NaN();
+	}
 
 	if (motor_is_idle()) {
 		// Lower the publish rate to 1Hz if the motor is not running

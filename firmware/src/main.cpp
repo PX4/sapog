@@ -43,6 +43,7 @@
 #include <board/led.hpp>
 #include <console.hpp>
 #include <pwm_input.hpp>
+#include <temperature_sensor.hpp>
 #include <motor/motor.h>
 #include <uavcan_node/uavcan_node.hpp>
 
@@ -60,8 +61,15 @@ os::watchdog::Timer init()
 
 	led_ctl.set(board::LEDColor::PALE_WHITE);
 
+	// Temperature sensor
+	int res = temperature_sensor::init();
+	if (res < 0) {
+		os::lowsyslog("Failed to init temperature sensor\n");
+		board::die(res);
+	}
+
 	// Motor control (must be initialized earlier than communicaton interfaces)
-	int res = motor_init();
+	res = motor_init();
 	if (res < 0) {
 		board::die(res);
 	}
@@ -126,11 +134,13 @@ int main()
 
 	/*
 	 * Here we run some high-level self diagnostics, indicating the system health via UAVCAN and LED.
+	 * TODO: Refactor.
+	 * TODO: Report status flags via vendor-specific status field.
 	 */
 	while (!os::isRebootRequested()) {
 		wdt.reset();
 
-		if (motor_is_blocked()) {
+		if (motor_is_blocked() || !temperature_sensor::is_ok()) {
 			led_ctl.set(board::LEDColor::YELLOW);
 			uavcan_node::set_node_status_critical();
 		} else {
