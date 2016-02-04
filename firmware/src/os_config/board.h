@@ -95,7 +95,7 @@
 
 #define VAL_GPIOBCRL            0x8b8888bb
 #define VAL_GPIOBCRH            0x38b88866
-#define VAL_GPIOBODR            0x00000000
+#define VAL_GPIOBODR            ((1 << GPIO_PIN_I2C_SCL) | (1 << GPIO_PIN_I2C_SDA))
 
 #define VAL_GPIOCCRL            0xbb884444
 #define VAL_GPIOCCRH            0x8881188b

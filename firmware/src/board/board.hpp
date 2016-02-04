@@ -44,6 +44,25 @@ namespace board
 
 os::watchdog::Timer init(unsigned watchdog_timeout_ms);
 
+/**
+ * Performs an I2C transaction.
+ * This function is thread safe.
+ */
+int i2c_exchange(std::uint8_t address,
+                 const void* tx_data, const std::uint16_t tx_size,
+                       void* rx_data, const std::uint16_t rx_size);
+
+/**
+ * Safer wrapper over @ref i2c_exchange().
+ */
+template<unsigned TxSize, unsigned RxSize>
+inline int i2c_exchange(std::uint8_t address,
+                        const std::array<uint8_t, TxSize>& tx,
+                              std::array<uint8_t, RxSize>& rx)
+{
+	return i2c_exchange(address, tx.data(), TxSize, rx.data(), RxSize);
+}
+
 __attribute__((noreturn))
 void die(int error);
 

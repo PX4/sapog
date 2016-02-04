@@ -35,6 +35,7 @@
 #include <board/board.hpp>
 #include <cstring>
 #include <unistd.h>
+#include <zubax_chibios/util/software_i2c.hpp>
 
 // Clock config validation
 #if STM32_PREDIV1_VALUE != 2
@@ -94,6 +95,18 @@ os::watchdog::Timer init(unsigned watchdog_timeout_ms)
 		os::watchdog::wasLastResetTriggeredByWatchdog() ? "WDTRESET" : "OK");
 
 	return wdt;
+}
+
+int i2c_exchange(std::uint8_t address,
+                 const void* tx_data, const std::uint16_t tx_size,
+                       void* rx_data, const std::uint16_t rx_size)
+{
+	static chibios_rt::Mutex mutex;
+	os::MutexLocker mlock(mutex);
+	return -int(os::software_i2c::Master(GPIO_PORT_I2C_SCL, GPIO_PIN_I2C_SCL,
+	                                     GPIO_PORT_I2C_SDA, GPIO_PIN_I2C_SDA)\
+		.exchange(address, tx_data, tx_size,
+		                   rx_data, rx_size));
 }
 
 void die(int error)
