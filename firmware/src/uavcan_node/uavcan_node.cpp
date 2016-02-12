@@ -361,6 +361,14 @@ class : public chibios_rt::BaseStaticThread<4000>
 		const auto uid = board::read_unique_id();
 		std::copy(std::begin(uid), std::end(uid), std::begin(hwver.unique_id));
 
+		{
+			board::DeviceSignature signature;
+			if (board::try_read_device_signature(signature)) {
+				std::copy(std::begin(signature), std::end(signature),
+					std::back_inserter(hwver.certificate_of_authenticity));
+			}
+		}
+
 		get_node().setHardwareVersion(hwver);
 
 		/*

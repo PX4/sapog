@@ -43,7 +43,7 @@
 
 MEMORY
 {
-    flash (rx) : ORIGIN = 0x08000000, LENGTH = 16K
+    flash (rx) : ORIGIN = 0x08000000, LENGTH = 16128  /* Reserved 256 bytes for signature after the bootloader */
     sram (rwx) : ORIGIN = 0x20000000, LENGTH = 16K
 }
 

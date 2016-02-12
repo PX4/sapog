@@ -79,4 +79,8 @@ struct HardwareVersion
 
 HardwareVersion detect_hardware_version();
 
+typedef std::array<std::uint8_t, 128> DeviceSignature;
+bool try_read_device_signature(DeviceSignature& out_sign);
+bool try_write_device_signature(const DeviceSignature& sign);
+
 }

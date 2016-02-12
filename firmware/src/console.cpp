@@ -43,6 +43,7 @@
 #include <unistd.h>
 #include <board/board.hpp>
 #include <motor/motor.h>
+#include <zubax_chibios/util/base64.hpp>
 #include "console.hpp"
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -174,6 +175,53 @@ static void cmd_m(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_execute_cli_command(argc, (const char**)argv);
 }
 
+static void cmd_zubax_id(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	if (argc == 0) {
+		// Product identification
+		printf("product_id   : '%s'\n", NODE_NAME);
+		printf("product_name : 'PX4 Sapog'\n");
+
+		// SW version
+		printf("sw_version   : '%u.%u'\n", FW_VERSION_MAJOR, FW_VERSION_MINOR);
+		printf("sw_vcs_commit: %u\n", unsigned(GIT_HASH));
+		printf("sw_build_date: %s\n", __DATE__);
+
+		// HW version
+		const auto hw_version = board::detect_hardware_version();
+		printf("hw_version   : '%u.%u'\n", hw_version.major, hw_version.minor);
+
+		// Unique ID and signature
+		char base64_buf[os::base64::predictEncodedDataLength(std::tuple_size<board::DeviceSignature>::value) + 1];
+		std::array<std::uint8_t, 16> uid_128;
+		std::fill(std::begin(uid_128), std::end(uid_128), 0);
+		{
+			const auto uid = board::read_unique_id();
+			std::copy(std::begin(uid), std::end(uid), std::begin(uid_128));
+		}
+		printf("hw_unique_id : '%s'\n", os::base64::encode(uid_128, base64_buf));
+		board::DeviceSignature signature;
+		if (board::try_read_device_signature(signature)) {
+			printf("hw_signature : '%s'\n", os::base64::encode(signature, base64_buf));
+		}
+	} else if (argc == 1) {
+		const char* const encoded = argv[0];
+		board::DeviceSignature sign;
+
+		if (!os::base64::decode(sign, encoded)) {
+			std::puts("Error: Invalid base64");
+			return;
+		}
+
+		if (!board::try_write_device_signature(sign)) {
+			std::puts("Error: Write failed");
+			return;
+		}
+	} else {
+		std::puts("Error: Invalid usage. Format: zubax_id [base64 signature]");
+	}
+}
+
 #define COMMAND(cmd)    {#cmd, cmd_##cmd},
 static const ShellCommand _commands[] =
 {
@@ -186,6 +234,7 @@ static const ShellCommand _commands[] =
 	COMMAND(rpm)
 	COMMAND(md)
 	COMMAND(m)
+	COMMAND(zubax_id)
 	{NULL, NULL}
 };
 

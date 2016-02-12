@@ -26,7 +26,7 @@ __process_stack_size__  = 0x0400;
 
 MEMORY
 {
-    flash : org = 0x08004000, len = 239k  /* 8/16K for bootloader, 1K for configs */
+    flash : org = 0x08004000, len = 239k  /* 16K for bootloader, 1K for configs */
     ram   : org = 0x20000000, len = 64k
 }
 
@@ -36,6 +36,8 @@ __ram_size__           = LENGTH(ram);
 __ram_end__            = __ram_start__ + __ram_size__;
 
 ENTRY(Reset_Handler)
+
+PROVIDE(DeviceSignatureStorage = ORIGIN(flash) - 256);
 
 SECTIONS
 {
