@@ -96,8 +96,11 @@ void init_led()
 	TIMX->CCMR2 =
 		TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 
-	// No inversion, all enabled
-	TIMX->CCER = TIM_CCER_CC3E | TIM_CCER_CC2E | TIM_CCER_CC1E;
+	// All enabled, all inverted.
+	// TODO: Pixhawk ESC v1.4b reqiuires non-inverted outputs; make it optional depending on the HW version?
+	TIMX->CCER =
+		TIM_CCER_CC3E | TIM_CCER_CC2E | TIM_CCER_CC1E |
+		TIM_CCER_CC3P | TIM_CCER_CC2P | TIM_CCER_CC1P;
 
 	// Start
 	TIMX->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -112,8 +115,8 @@ static void set_hex_impl(std::uint32_t hex_rgb)
 	const unsigned pwm_blue  = ((hex_rgb & 0x0000FFU) >> 0)  * 257U;
 
 	TIMX->CCR1 = pwm_red;
-	TIMX->CCR2 = pwm_blue;
-	TIMX->CCR3 = pwm_green;
+	TIMX->CCR2 = pwm_green;    // On Pixhawk ESC v1.4b this is BLUE
+	TIMX->CCR3 = pwm_blue;     // On Pixhawk ESC v1.4b this is GREEN
 }
 
 void led_emergency_override(LEDColor color)
