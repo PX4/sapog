@@ -130,7 +130,7 @@ POST_MAKE_ALL_RULE_HOOK: build/$(PROJECT).bin build/$(PROJECT).elf
 	                                                           --also-patch-descriptor-in=$(PROJECT).elf           \
 	                                                           --also-patch-descriptor-in=$(COMPOUND_IMAGE_FILE)
 	
-	# Injecting the bootloader into the final ELF
+	# Injecting the bootloader into the final ELF; note that we're using unpadded bootloader to preserve signature
 	cd build && $(TOOLCHAIN_PREFIX)-objcopy --add-section bootloader=$(BOOTLOADER_IMAGE)   \
 	                                        --set-section-flags bootloader=load,alloc      \
 	                                        --change-section-address bootloader=0x08000000 \
