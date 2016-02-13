@@ -92,10 +92,11 @@ void motor_rtctl_confirm_initialization(void);
 
 /**
  * Start the motor.
- * @param [in] duty_cycle  PWM duty cycle that will be applied once the motor has started, (0; 1]
- * @param [in] reverse     Spin direction
+ * @param [in] duty_cycle           PWM duty cycle that will be applied once the motor has started, (0; 1]
+ * @param [in] reverse              Spin direction
+ * @param [in] num_prior_attempts   Number of attempts performed before this one, used to switch spinup settings
  */
-void motor_rtctl_start(float duty_cycle, bool reverse);
+void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attempts);
 
 /**
  * Engage freewheeling.

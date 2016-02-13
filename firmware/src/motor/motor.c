@@ -244,7 +244,7 @@ static void update_control_non_running(void)
 		const uint64_t timestamp = motor_rtctl_timestamp_hnsec();
 
 		_state.dc_actual = spinup_dc;
-		motor_rtctl_start(spinup_dc, _params.reverse);
+		motor_rtctl_start(spinup_dc, _params.reverse, _state.num_unexpected_stops);
 		_state.rtctl_state = motor_rtctl_get_state();
 
 		// This HACK prevents the setpoint TTL expiration in case of protracted startup

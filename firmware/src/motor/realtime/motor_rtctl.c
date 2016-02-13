@@ -195,7 +195,7 @@ CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
 CONFIG_PARAM_INT("motor_zc_detects_to_start",          40,    6,     1000)
 CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
 // Spinup settings
-CONFIG_PARAM_INT("motor_spinup_timeout_ms",            1000,  100,   2000)
+CONFIG_PARAM_INT("motor_spinup_timeout_ms",            600,   100,   2000)
 CONFIG_PARAM_INT("motor_spinup_start_comm_period_usec",50000, 10000, 200000)
 CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  2000,  1000,  10000)
 CONFIG_PARAM_INT("motor_spinup_num_good_comms",        60,    6,     1000)
@@ -762,9 +762,17 @@ static uint64_t spinup_wait_zc(const uint64_t step_deadline)
 	return zc_timestamp;
 }
 
-static bool do_bemf_spinup(const float max_duty_cycle)
+static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_attempts)
 {
 	assert(chThdGetPriorityX() == HIGHPRIO);  // Mandatory
+
+	static const unsigned POWER_MULT_MAX = 5;
+	unsigned power_multiplier = num_prior_attempts + 1;
+	if (power_multiplier > POWER_MULT_MAX) {
+		power_multiplier = POWER_MULT_MAX;
+	}
+	assert(power_multiplier >= 1);
+	assert(power_multiplier <= POWER_MULT_MAX);
 
 	// Make sure we're not going to underflow during time calculations
 	while (motor_timer_hnsec() < _params.spinup_start_comm_period) {
@@ -794,8 +802,8 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 
 		// Compute the next duty cycle
 		dc += _params.spinup_duty_cycle_increment;
-		if (dc > max_duty_cycle) {
-			dc = max_duty_cycle;
+		if (dc > max_duty_cycle * power_multiplier) {
+			dc = max_duty_cycle * power_multiplier;
 		}
 		_state.pwm_val = motor_pwm_compute_pwm_val(dc);
 
@@ -834,7 +842,7 @@ static bool do_bemf_spinup(const float max_duty_cycle)
 	return _state.comm_period < _params.comm_period_max;
 }
 
-void motor_rtctl_start(float duty_cycle, bool reverse)
+void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attempts)
 {
 	motor_rtctl_stop();                    // Just in case
 
@@ -870,7 +878,7 @@ void motor_rtctl_start(float duty_cycle, bool reverse)
 
 	motor_pwm_prepare_to_start();
 
-	const bool started = do_bemf_spinup(duty_cycle);
+	const bool started = do_bemf_spinup(duty_cycle, num_prior_attempts);
 
 	/*
 	 * Engage the normal mode if started
