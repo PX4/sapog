@@ -179,8 +179,6 @@ static struct precomputed_params       /// Parameters are read only
 	float spinup_duty_cycle_increment;
 
 	uint32_t adc_sampling_period;
-
-	float dc_testpad_threshold;
 } _params;
 
 static bool _initialization_confirmed = false;
@@ -200,8 +198,6 @@ CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
 CONFIG_PARAM_INT("mot_spup_en_cp",      2000,  1000,  10000)
 CONFIG_PARAM_INT("mot_spup_gcomms",     60,    6,     1000)
 CONFIG_PARAM_FLOAT("mot_spup_dc_inc",   0.025, 0.001, 0.1)
-// Debug
-CONFIG_PARAM_FLOAT("mot_dc_tp_thres",   0.3,   0.0,   1.0)
 
 
 static void configure(void)
@@ -219,8 +215,6 @@ static void configure(void)
 	_params.spinup_end_comm_period      = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
 	_params.spinup_num_good_comms       = configGet("mot_spup_gcomms");
 	_params.spinup_duty_cycle_increment = configGet("mot_spup_dc_inc");
-
-	_params.dc_testpad_threshold = configGet("mot_dc_tp_thres");
 
 	/*
 	 * Validation
@@ -915,14 +909,6 @@ void motor_rtctl_set_duty_cycle(float duty_cycle)
 {
 	// We don't need a critical section to write an integer
 	_state.pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
-
-#if DEBUG_BUILD
-	if (duty_cycle > _params.dc_testpad_threshold) {
-		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-	} else {
-		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-	}
-#endif
 }
 
 enum motor_rtctl_state motor_rtctl_get_state(void)
