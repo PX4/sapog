@@ -109,25 +109,25 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("mot_v_max",         1.1,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("mot_dc_accel",            0.1,    0.001,   0.5)
-CONFIG_PARAM_FLOAT("mot_dc_slope",               5.0,    0.1,     20.0)
+CONFIG_PARAM_FLOAT("mot_v_min",    1.1,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("mot_dc_accel", 0.1,    0.001,   0.5)
+CONFIG_PARAM_FLOAT("mot_dc_slope", 5.0,    0.1,     20.0)
 
-CONFIG_PARAM_INT("mot_num_poles",                14,     2,       100)
-CONFIG_PARAM_INT("ctl_dir",                 0, 0, 1)
+CONFIG_PARAM_INT("mot_num_poles",  14,     2,       100)
+CONFIG_PARAM_INT("ctl_dir",        0,      0,       1)
 
-CONFIG_PARAM_INT("mot_rpm_min",                  1000,   50,      5000)
+CONFIG_PARAM_INT("mot_rpm_min",    1000,   50,      5000)
 
-CONFIG_PARAM_FLOAT("mot_i_max",          20.0,   1.0,     60.0)
-CONFIG_PARAM_FLOAT("mot_i_max_p",        0.2,    0.01,    2.0)
+CONFIG_PARAM_FLOAT("mot_i_max",    20.0,   1.0,     60.0)
+CONFIG_PARAM_FLOAT("mot_i_max_p",  0.2,    0.01,    2.0)
 
 CONFIG_PARAM_FLOAT("mot_lpf_freq", 20.0,   1.0,     200.0)
-CONFIG_PARAM_INT("mot_stop_thres",       7,      1,       100)
+CONFIG_PARAM_INT("mot_stop_thres", 7,      1,       100)
 
 
 static void configure(void)
 {
-	_params.dc_min_voltage = configGet("mot_v_max");
+	_params.dc_min_voltage = configGet("mot_v_min");
 	_params.dc_step_max    = configGet("mot_dc_accel");
 	_params.dc_slope       = configGet("mot_dc_slope");
 

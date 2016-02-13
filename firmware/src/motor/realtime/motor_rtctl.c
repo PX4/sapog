@@ -187,40 +187,40 @@ static bool _initialization_confirmed = false;
 
 
 // Most important parameters
-CONFIG_PARAM_INT("motor_timing_advance_deg",           15,    0,     15)
-CONFIG_PARAM_INT("motor_comm_blank_usec",              40,    30,    100)
-CONFIG_PARAM_INT("motor_bemf_window_len_denom",        4,     3,     8)
-CONFIG_PARAM_INT("motor_bemf_valid_range_pct",         70,    10,    100)
-CONFIG_PARAM_INT("motor_zc_failures_to_stop",          40,    6,     300)
-CONFIG_PARAM_INT("motor_zc_detects_to_start",          40,    6,     1000)
-CONFIG_PARAM_INT("motor_comm_period_max_usec",         12000, 1000,  50000)
+CONFIG_PARAM_INT("mot_tim_adv",         15,    0,     15)
+CONFIG_PARAM_INT("mot_blank_usec",      40,    30,    100)
+CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
+CONFIG_PARAM_INT("mot_bemf_range",      70,    10,    100)
+CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
+CONFIG_PARAM_INT("mot_zc_dets_min",     40,    6,     1000)
+CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
 // Spinup settings
-CONFIG_PARAM_INT("motor_spinup_timeout_ms",            600,   100,   2000)
-CONFIG_PARAM_INT("motor_spinup_start_comm_period_usec",50000, 10000, 200000)
-CONFIG_PARAM_INT("motor_spinup_end_comm_period_usec",  2000,  1000,  10000)
-CONFIG_PARAM_INT("motor_spinup_num_good_comms",        60,    6,     1000)
-CONFIG_PARAM_FLOAT("motor_spinup_duty_cycle_inc",      0.025, 0.001, 0.1)
+CONFIG_PARAM_INT("mot_spup_to_ms",      600,   100,   2000)
+CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
+CONFIG_PARAM_INT("mot_spup_en_cp",      2000,  1000,  10000)
+CONFIG_PARAM_INT("mot_spup_gcomms",     60,    6,     1000)
+CONFIG_PARAM_FLOAT("mot_spup_dc_inc",   0.025, 0.001, 0.1)
 // Debug
-CONFIG_PARAM_FLOAT("motor_dc_testpad_threshold",       0.3,   0.0,   1.0)
+CONFIG_PARAM_FLOAT("mot_dc_tp_thres",   0.3,   0.0,   1.0)
 
 
 static void configure(void)
 {
-	_params.timing_advance_deg64        = configGet("motor_timing_advance_deg") * 64 / 60;
-	_params.motor_bemf_window_len_denom = configGet("motor_bemf_window_len_denom");
-	_params.bemf_valid_range_pct128     = configGet("motor_bemf_valid_range_pct") * 128 / 100;
-	_params.zc_failures_max  = configGet("motor_zc_failures_to_stop");
-	_params.zc_detects_min   = configGet("motor_zc_detects_to_start");
-	_params.comm_period_max  = configGet("motor_comm_period_max_usec") * HNSEC_PER_USEC;
-	_params.comm_blank_hnsec = configGet("motor_comm_blank_usec") * HNSEC_PER_USEC;
+	_params.timing_advance_deg64        = configGet("mot_tim_adv") * 64 / 60;
+	_params.motor_bemf_window_len_denom = configGet("mot_bemf_win_den");
+	_params.bemf_valid_range_pct128     = configGet("mot_bemf_range") * 128 / 100;
+	_params.zc_failures_max  = configGet("mot_zc_fails_max");
+	_params.zc_detects_min   = configGet("mot_zc_dets_min");
+	_params.comm_period_max  = configGet("mot_comm_per_max") * HNSEC_PER_USEC;
+	_params.comm_blank_hnsec = configGet("mot_blank_usec") * HNSEC_PER_USEC;
 
-	_params.spinup_timeout              = configGet("motor_spinup_timeout_ms") * HNSEC_PER_MSEC;
-	_params.spinup_start_comm_period    = configGet("motor_spinup_start_comm_period_usec") * HNSEC_PER_USEC;
-	_params.spinup_end_comm_period      = configGet("motor_spinup_end_comm_period_usec") * HNSEC_PER_USEC;
-	_params.spinup_num_good_comms       = configGet("motor_spinup_num_good_comms");
-	_params.spinup_duty_cycle_increment = configGet("motor_spinup_duty_cycle_inc");
+	_params.spinup_timeout              = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
+	_params.spinup_start_comm_period    = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
+	_params.spinup_end_comm_period      = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
+	_params.spinup_num_good_comms       = configGet("mot_spup_gcomms");
+	_params.spinup_duty_cycle_increment = configGet("mot_spup_dc_inc");
 
-	_params.dc_testpad_threshold = configGet("motor_dc_testpad_threshold");
+	_params.dc_testpad_threshold = configGet("mot_dc_tp_thres");
 
 	/*
 	 * Validation

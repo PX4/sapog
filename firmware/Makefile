@@ -60,6 +60,9 @@ UDEFS = -DFW_VERSION_MAJOR=$(FW_VERSION_MAJOR)           \
         -DHW_VERSION=$(HW_VERSION)                       \
         -DNODE_NAME=\"$(PROJECT)\"
 
+# MAVLink v1 compliance
+UDEFS += -DCONFIG_PARAM_MAX_NAME_LENGTH=16
+
 #
 # UAVCAN library
 #
