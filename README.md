@@ -1,7 +1,7 @@
 PX4 Sapog
 =========
 
-Please refer to the documentation page at <https://pixhawk.org/firmware/sapog>.
+Please refer to the documentation page at <https://docs.zubax.com/sapog>.
 
 ### Hardware timer usage
 
