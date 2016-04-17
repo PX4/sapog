@@ -32,6 +32,8 @@ Execute `./blackmagic_flash.sh [portname]` from the `tools` directory to flash t
 
 #### [UAVCAN](http://uavcan.org/) testing tool
 
+**[Consider using the UAVCAN GUI Tool instead](https://github.com/UAVCAN/gui_tool).**
+
 This step is optional. Works only for Linux.
 
 Make sure the libuavcan is installed in the system. If not yet:
@@ -53,3 +55,9 @@ cd build
 cmake ..
 make
 ```
+
+## Available Hardware
+
+Known compatible hardware designs are listed below.
+
+- [Zubax Orel 20](https://docs.zubax.com/zubax_orel_20)
