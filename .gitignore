@@ -19,6 +19,7 @@ build
 .project
 .cproject
 .idea
+.pydevproject
 
 # Generated
 dsdlc_generated
