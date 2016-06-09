@@ -40,6 +40,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <shell.h>
+#include <chprintf.h>
 #include <unistd.h>
 #include <board/board.hpp>
 #include <motor/motor.h>
@@ -203,6 +204,12 @@ static void cmd_zubax_id(BaseSequentialStream *chp, int argc, char *argv[])
 		board::DeviceSignature signature;
 		if (board::try_read_device_signature(signature)) {
 			printf("hw_signature : '%s'\n", os::base64::encode(signature, base64_buf));
+
+			std::memset(&base64_buf[0], 0, sizeof(base64_buf));
+			for (unsigned i = 0; i < 16; i++) {
+				chsnprintf(&base64_buf[i * 2], 3, "%02x", uid_128[i]);
+			}
+			printf("hw_info_url  : http://device.zubax.com/deviceinfo?uid=%s\n", &base64_buf[0]);
 		}
 	} else if (argc == 1) {
 		const char* const encoded = argv[0];
