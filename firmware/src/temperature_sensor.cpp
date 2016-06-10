@@ -82,7 +82,7 @@ class : public chibios_rt::BaseStaticThread<128>
 
 			const std::int16_t new_temp = try_read();
 			if (new_temp >= 0) {
-				temperature = (temperature + new_temp + 1) / 2;
+				temperature = std::int16_t((std::int32_t(temperature) * 7 + new_temp + 7) / 8);
 				functional = true;
 			} else {
 				functional = false;
