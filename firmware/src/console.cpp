@@ -209,7 +209,7 @@ static void cmd_zubax_id(BaseSequentialStream *chp, int argc, char *argv[])
 			for (unsigned i = 0; i < 16; i++) {
 				chsnprintf(&base64_buf[i * 2], 3, "%02x", uid_128[i]);
 			}
-			printf("hw_info_url  : http://device.zubax.com/deviceinfo?uid=%s\n", &base64_buf[0]);
+			printf("hw_info_url  : http://device.zubax.com/device_info?uid=%s\n", &base64_buf[0]);
 		}
 	} else if (argc == 1) {
 		const char* const encoded = argv[0];
