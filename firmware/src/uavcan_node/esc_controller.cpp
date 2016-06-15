@@ -51,9 +51,9 @@ unsigned self_index;
 unsigned command_ttl_ms;
 float max_dc_to_start;
 
-os::config::Param<unsigned> param_esc_index("esc_index", 0,    0,    15);
-os::config::Param<unsigned> param_cmd_ttl_ms("cmd_ttl_ms", 200,  100,  5000);
-os::config::Param<float> param_cmd_start_dc("cmd_start_dc", 0.1,  0.01, 1.0);
+os::config::Param<unsigned> param_esc_index("esc_index",           0,      0,    15);
+os::config::Param<unsigned> param_cmd_ttl_ms("cmd_ttl_ms",       200,    100,  5000);
+os::config::Param<float> param_cmd_start_dc("cmd_start_dc",     0.25,   0.01,   1.0);
 
 
 void cb_raw_command(const uavcan::ReceivedDataStructure<uavcan::equipment::esc::RawCommand>& msg)
