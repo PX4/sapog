@@ -127,12 +127,12 @@ static void enable(void)
 	DMA1_Channel1->CNDTR = sizeof(_adc1_2_dma_buffer) / 4;
 	DMA1_Channel1->CPAR = (uint32_t)&ADC1->DR;
 	DMA1_Channel1->CCR =
-		DMA_CCR1_PL_0 | DMA_CCR1_PL_1 |  // Max priority
-		DMA_CCR1_MSIZE_1 |               // 32 bit
-		DMA_CCR1_PSIZE_1 |               // 32 bit
-		DMA_CCR1_MINC |
-		DMA_CCR1_CIRC |
-		DMA_CCR1_EN;
+		DMA_CCR_PL_0 | DMA_CCR_PL_1 |   // Max priority
+		DMA_CCR_MSIZE_1 |               // 32 bit
+		DMA_CCR_PSIZE_1 |               // 32 bit
+		DMA_CCR_MINC |
+		DMA_CCR_CIRC |
+		DMA_CCR_EN;
 
 	// ADC enable, reset
 	const uint32_t enr_mask = RCC_APB2ENR_ADC1EN | RCC_APB2ENR_ADC2EN;

@@ -127,7 +127,7 @@ SECTIONS
 
     . = ALIGN(4);
     _etext = .;
-    _textdata = _etext;
+    _textdata_start = _etext;
 
     .mstack :
     {
@@ -151,12 +151,12 @@ SECTIONS
     .data : ALIGN(4)
     {
         . = ALIGN(4);
-        PROVIDE(_data = .);
+        PROVIDE(_data_start = .);
         *(.data)
         *(.data.*)
         *(.ramtext)
         . = ALIGN(4);
-        PROVIDE(_edata = .);
+        PROVIDE(_data_end = .);
     } > ram AT > flash
 
     .bss : ALIGN(4)

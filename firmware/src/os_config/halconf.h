@@ -56,6 +56,7 @@
 #define HAL_USE_SPI                 FALSE
 #define HAL_USE_UART                FALSE
 #define HAL_USE_USB                 FALSE
+#define HAL_USE_WDG                 FALSE
 
 #define SERIAL_DEFAULT_BITRATE      115200
 #define SERIAL_BUFFERS_SIZE         256
