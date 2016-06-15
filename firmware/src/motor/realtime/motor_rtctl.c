@@ -176,6 +176,7 @@ static struct precomputed_params       /// Parameters are read only
 	uint32_t spinup_start_comm_period;
 	uint32_t spinup_end_comm_period;
 	unsigned spinup_num_good_comms;
+	unsigned spinup_comm_period_lowpass;
 	float spinup_duty_cycle_increment;
 
 	uint32_t adc_sampling_period;
@@ -197,7 +198,8 @@ CONFIG_PARAM_INT("mot_spup_to_ms",      600,   100,   2000)
 CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
 CONFIG_PARAM_INT("mot_spup_en_cp",      2000,  1000,  10000)
 CONFIG_PARAM_INT("mot_spup_gcomms",     60,    6,     1000)
-CONFIG_PARAM_FLOAT("mot_spup_dc_inc",   0.025, 0.001, 0.1)
+CONFIG_PARAM_INT("mot_spup_cp_flt",     3,     1,     15)
+CONFIG_PARAM_FLOAT("mot_spup_dc_inc",   0.015, 0.001, 0.1)
 
 
 static void configure(void)
@@ -214,6 +216,7 @@ static void configure(void)
 	_params.spinup_start_comm_period    = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
 	_params.spinup_end_comm_period      = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
 	_params.spinup_num_good_comms       = configGet("mot_spup_gcomms");
+	_params.spinup_comm_period_lowpass  = configGet("mot_spup_cp_flt");
 	_params.spinup_duty_cycle_increment = configGet("mot_spup_dc_inc");
 
 	/*
@@ -807,7 +810,8 @@ static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_
 			// Update comm period
 			const uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
 			_state.prev_zc_timestamp = zc_timestamp;
-			_state.comm_period = (_state.comm_period + new_comm_period) / 2;
+			_state.comm_period =
+				LOWPASS(_state.comm_period, new_comm_period, _params.spinup_comm_period_lowpass);
 			step_deadline = zc_timestamp + _state.comm_period / 2;
 
 			// Check the termination condition
