@@ -106,8 +106,9 @@ DDEFS += -DCORTEX_VTOR_INIT=$(BOOTLOADER_SIZE)            \
 
 LDSCRIPT= linker.ld
 
-RELEASE_OPT = -O2 -fomit-frame-pointer
-DEBUG_OPT = -O2 -g3 -DDISABLE_WATCHDOG=1
+USE_LTO = yes
+RELEASE_OPT = -O3 -fomit-frame-pointer
+DEBUG_OPT = -O3 -g3 -DDISABLE_WATCHDOG=1
 
 # More warnings are enabled in the included makefile
 CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow -Werror
