@@ -166,6 +166,50 @@ static void cmd_rpm(BaseSequentialStream *chp, int argc, char *argv[])
 	motor_set_rpm((unsigned)value, TTL_MS);
 }
 
+static void cmd_startstop(BaseSequentialStream *chp, int argc, char *argv[])
+{
+	static const int TTL_MS = 5000;
+
+	if (argc == 0) {
+		motor_stop();
+		puts("Usage:\n"
+			"  startstop <number of cycles> [duty cycle = 0.1]");
+		return;
+	}
+
+	motor_stop();
+
+	const int num_cycles = (int)atoff(argv[0]);
+	const float dc = (argc > 1) ? atoff(argv[1]) : 0.1;
+
+	int current_cycle = 0;
+
+	for (; current_cycle < num_cycles; current_cycle++) {
+		printf("Cycle %d of %d, dc %f...\n", current_cycle + 1, num_cycles, dc);
+
+		// Waiting for the motor to spin down
+		sleep(3);
+		if (!motor_is_idle()) {
+			puts("NOT STOPPED");
+			break;
+		}
+
+		// Starting with the specified duty cycle
+		motor_set_duty_cycle(dc, TTL_MS);
+
+		// Checking if started and stopping
+		sleep(3);
+		if (!motor_is_running()) {
+			puts("NOT RUNNING");
+			break;
+		}
+
+		motor_stop();
+	}
+
+	printf("Finished %d cycles of %d\n", current_cycle, num_cycles);
+}
+
 static void cmd_md(BaseSequentialStream *chp, int argc, char *argv[])
 {
 	motor_print_debug_info();
@@ -239,6 +283,7 @@ static const ShellCommand _commands[] =
 	COMMAND(test)
 	COMMAND(dc)
 	COMMAND(rpm)
+	COMMAND(startstop)
 	COMMAND(md)
 	COMMAND(m)
 	COMMAND(zubax_id)
