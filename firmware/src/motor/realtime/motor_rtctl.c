@@ -764,7 +764,7 @@ static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_
 	assert(chThdGetPriorityX() == HIGHPRIO);  // Mandatory
 
 	static const unsigned POWER_MULT_MAX = 5;
-	unsigned power_multiplier = num_prior_attempts + 1;
+	unsigned power_multiplier = (num_prior_attempts / 3) + 1;   // So much hardcode!
 	if (power_multiplier > POWER_MULT_MAX) {
 		power_multiplier = POWER_MULT_MAX;
 	}
