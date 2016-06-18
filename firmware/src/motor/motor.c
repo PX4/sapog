@@ -109,7 +109,7 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("mot_v_min",    1.1,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("mot_v_min",    1.9,    0.5,     10.0)
 CONFIG_PARAM_FLOAT("mot_dc_accel", 0.1,    0.001,   0.5)
 CONFIG_PARAM_FLOAT("mot_dc_slope", 2.0,    0.1,     20.0)
 
