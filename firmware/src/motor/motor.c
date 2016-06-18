@@ -91,6 +91,7 @@ static struct state
 static struct params
 {
 	float dc_min_voltage;
+	float dc_spinup_voltage;
 	float dc_step_max;
 	float dc_slope;
 
@@ -110,6 +111,7 @@ static struct params
 
 
 CONFIG_PARAM_FLOAT("mot_v_min",    1.9,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("mot_v_spinup", 3.0,    0.5,     20.0)
 CONFIG_PARAM_FLOAT("mot_dc_accel", 0.1,    0.001,   0.5)
 CONFIG_PARAM_FLOAT("mot_dc_slope", 2.0,    0.1,     20.0)
 
@@ -127,7 +129,8 @@ CONFIG_PARAM_INT("mot_stop_thres", 7,      1,       100)
 
 static void configure(void)
 {
-	_params.dc_min_voltage = configGet("mot_v_min");
+	_params.dc_min_voltage    = configGet("mot_v_min");
+	_params.dc_spinup_voltage = configGet("mot_v_spinup");
 	_params.dc_step_max    = configGet("mot_dc_accel");
 	_params.dc_slope       = configGet("mot_dc_slope");
 
@@ -234,7 +237,7 @@ static void update_control_non_running(void)
 	}
 
 	// Start if necessary
-	const float spinup_dc = _params.dc_min_voltage / _state.input_voltage;
+	const float spinup_dc = _params.dc_spinup_voltage / _state.input_voltage;
 
 	const bool need_start =
 		(_state.mode == MOTOR_CONTROL_MODE_OPENLOOP && (_state.dc_openloop_setpoint > 0)) ||
