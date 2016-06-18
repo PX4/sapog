@@ -198,7 +198,7 @@ CONFIG_PARAM_INT("mot_spup_to_ms",      1000,  100,   2000)
 CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
 CONFIG_PARAM_INT("mot_spup_en_cp",      2000,  1000,  10000)
 CONFIG_PARAM_INT("mot_spup_gcomms",     200,   6,     1000)
-CONFIG_PARAM_INT("mot_spup_cp_flt",     3,     1,     15)
+CONFIG_PARAM_INT("mot_spup_cp_flt",     2,     1,     15)
 CONFIG_PARAM_FLOAT("mot_spup_dc_inc",   0.01,  0.001, 0.1)
 
 
@@ -815,7 +815,7 @@ static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_
 			_state.prev_zc_timestamp = zc_timestamp;
 			_state.comm_period =
 				LOWPASS(_state.comm_period, new_comm_period, _params.spinup_comm_period_lowpass);
-			step_deadline = zc_timestamp + _state.comm_period / 3;  // 10 degrees advance
+			step_deadline = zc_timestamp + _state.comm_period / 2;
 
 			// Check the termination condition
 			const bool enough_good_comms = num_good_comms > _params.spinup_num_good_comms;
