@@ -119,6 +119,7 @@ static struct diag_info                /// This data is never used by the contro
 	uint32_t bemf_samples_out_of_range;
 	uint32_t bemf_samples_premature_zc;
 	uint32_t desaturations;
+	uint32_t late_commutations;
 
 	/// Last ZC solution
 	int64_t zc_solution_slope;
@@ -451,7 +452,12 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	const uint32_t advance =
 		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64());
 
-	motor_timer_set_absolute(zc_timestamp + advance - STEP_SWITCHING_DELAY_HNSEC);
+	const int64_t delta = motor_timer_set_absolute(zc_timestamp + advance - STEP_SWITCHING_DELAY_HNSEC);
+	if (delta <= 0) {
+		// The commutation event is already in the past; record an error.
+		_diag.late_commutations++;
+	}
+
 	motor_adc_disable_from_isr();
 }
 
@@ -1109,6 +1115,7 @@ void motor_rtctl_print_debug_info(void)
 	printf("Motor RTCTL diag\n");
 	PRINT_INT("zc failures",       diag_copy.zc_failures_since_start);
 	PRINT_INT("desaturations",     diag_copy.desaturations);
+	PRINT_INT("late commutations", diag_copy.late_commutations);
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
 	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
 	PRINT_INT("bemf extra past zc",diag_copy.extra_bemf_samples_past_zc);
