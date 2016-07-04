@@ -115,6 +115,7 @@ static struct diag_info                /// This data is never used by the contro
 	uint32_t zc_failures_since_start;
 	uint32_t zc_solution_failures;
 	uint32_t zc_solution_extrapolation_discarded;
+	uint32_t extra_bemf_samples_past_zc;
 	uint32_t bemf_samples_out_of_range;
 	uint32_t bemf_samples_premature_zc;
 	uint32_t desaturations;
@@ -650,6 +651,11 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	if (past_zc) {
 		_state.zc_bemf_samples_acquired_past_zc++;
+
+		if (_state.zc_bemf_samples_acquired_past_zc > _state.zc_bemf_samples_optimal_past_zc) {
+			// This may indicate that we're trying to cramp too many samples in the commutation period!
+			_diag.extra_bemf_samples_past_zc++;
+		}
 	}
 
 	/*
@@ -1105,6 +1111,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("desaturations",     diag_copy.desaturations);
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
 	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
+	PRINT_INT("bemf extra past zc",diag_copy.extra_bemf_samples_past_zc);
 	PRINT_INT("zc sol failures",   diag_copy.zc_solution_failures);
 	PRINT_INT("zc sol extrpl disc",diag_copy.zc_solution_extrapolation_discarded);
 	PRINT_INT("zc sol num samples",diag_copy.zc_solution_num_samples);
