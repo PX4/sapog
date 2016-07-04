@@ -114,6 +114,7 @@ static struct diag_info                /// This data is never used by the contro
 	/// Increment-only counters
 	uint32_t zc_failures_since_start;
 	uint32_t zc_solution_failures;
+	uint32_t zc_solution_extrapolation_discarded;
 	uint32_t bemf_samples_out_of_range;
 	uint32_t bemf_samples_premature_zc;
 	uint32_t desaturations;
@@ -186,9 +187,9 @@ static bool _initialization_confirmed = false;
 
 
 // Most important parameters
-CONFIG_PARAM_INT("mot_tim_adv",         15,    0,     15)
+CONFIG_PARAM_INT("mot_tim_adv",         15,    0,     30)
 CONFIG_PARAM_INT("mot_blank_usec",      40,    30,    100)
-CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
+CONFIG_PARAM_INT("mot_bemf_win_den",    3,     3,     8)
 CONFIG_PARAM_INT("mot_bemf_range",      70,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
 CONFIG_PARAM_INT("mot_zc_dets_min",     40,    6,     1000)
@@ -320,7 +321,18 @@ static void prepare_zc_detector_for_next_step(void)
 	if (_state.zc_bemf_samples_optimal > MAX_BEMF_SAMPLES) {
 		_state.zc_bemf_samples_optimal = MAX_BEMF_SAMPLES;
 	}
-	_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal / 2;
+
+	/*
+	 * Number of samples past ZC should reduce proportional to the advance angle.
+	 */
+	if (_params.timing_advance_deg64 <= 16) {
+		// On low advance angles, use the straightforward 50/50 sample distribution
+		_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal / 2;
+	} else {
+		// On high advance angles, reduce the number of samples post ZC proportionally
+		_state.zc_bemf_samples_optimal_past_zc =
+			_state.zc_bemf_samples_optimal * (32 - _params.timing_advance_deg64) / 64;
+	}
 }
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
@@ -391,8 +403,9 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	assert(zc_timestamp > _state.prev_zc_timestamp);   // Sanity check
 	assert(zc_timestamp < _state.prev_zc_timestamp * 10);
 
-	if (zc_timestamp < _state.prev_zc_timestamp)
+	if (zc_timestamp < _state.prev_zc_timestamp) {
 		zc_timestamp = _state.prev_zc_timestamp;
+	}
 	uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
 	_state.prev_zc_timestamp = zc_timestamp;
 
@@ -537,9 +550,18 @@ static uint64_t solve_zc_approximation(void)
 	 * Solution validation
 	 * Implement an outlier detector? Check the solution covariance?
 	 */
-	const bool valid =
-		(abs(x) <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2)) &&
-		(zc_timestamp > _state.prev_zc_timestamp);
+	bool valid = zc_timestamp > _state.prev_zc_timestamp;
+
+	if (valid) {
+		if (_state.zc_bemf_samples_acquired_past_zc > 0) {
+			// In normal mode, expect the solution close to the first sample
+			valid = abs(x) <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2);
+		} else {
+			// In extrapolation mode, expect the solution strictly ahead of the first sample
+			valid = (x >= 0) &&
+			        (x <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 10));
+		}
+	}
 
 	if (!valid) {
 		_diag.zc_solution_failures++;
@@ -607,47 +629,56 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	/*
 	 * Here the BEMF sample is considered to be valid, and can be added to the solution.
-	 * Input voltage/current updates are synced with ZC - this way the noise can be reduced.
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
 
 	if (past_zc) {
-		update_input_voltage_current(sample);
+		_state.zc_bemf_samples_acquired_past_zc++;
 	}
 
 	/*
-	 * Is there enough samples collected?
+	 * Deciding if we have enough data to resolve the ZC timestamp.
 	 */
-	bool enough_samples = false;
-	if (past_zc) {
-		_state.zc_bemf_samples_acquired_past_zc++;
-
-		enough_samples =
-			(_state.zc_bemf_samples_acquired_past_zc >= _state.zc_bemf_samples_optimal_past_zc) &&
-			(_state.zc_bemf_samples_acquired > 1);
-
-		if (step->floating == 0) {
-			TESTPAD_ZC_SET();
-		}
-	}
-
-	if (!enough_samples) {
+	if ((_state.zc_bemf_samples_acquired_past_zc < _state.zc_bemf_samples_optimal_past_zc) ||
+	    (_state.zc_bemf_samples_acquired < _state.zc_bemf_samples_optimal)) {
 		return;
 	}
 
+	if (step->floating == 0) {
+		TESTPAD_ZC_SET();
+	}
+
+	// Sampling voltage/current as far from the last commutation event as possible
+	update_input_voltage_current(sample);
+
 	/*
-	 * Find the exact ZC position using the collected samples
+	 * Find the exact ZC timestamp using the collected samples
 	 */
 	const uint64_t zc_timestamp = solve_zc_approximation();
 
 	TESTPAD_ZC_CLEAR();
 
 	if (zc_timestamp == 0) {
-		// Sorry Mario
-		motor_pwm_set_freewheeling();
-		_state.zc_detection_result = ZC_FAILED;
+		// Abort only if there's no chance to get more data
+		if (_state.zc_bemf_samples_acquired >= _state.zc_bemf_samples_optimal) {
+			// Sorry Mario
+			motor_pwm_set_freewheeling();
+			_state.zc_detection_result = ZC_FAILED;
+		}
+		// Otherwise just exit and try again with the next sample
 		return;
 	}
+
+	if (zc_timestamp > (sample->timestamp + _params.adc_sampling_period * 2)) {
+		/*
+		 * We will have at least one more ADC sample before the projected ZC, let's procrastinate one more
+		 * cycle. Note that we also add some extra time to ensure that there will be enough time to process
+		 * the next sample and arm the step switching timer afterwards.
+		 */
+		_diag.zc_solution_extrapolation_discarded++;
+		return;
+	}
+
 	handle_detected_zc(zc_timestamp);
 }
 
@@ -1059,6 +1090,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
 	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
 	PRINT_INT("zc sol failures",   diag_copy.zc_solution_failures);
+	PRINT_INT("zc sol extrpl disc",diag_copy.zc_solution_extrapolation_discarded);
 	PRINT_INT("zc sol num samples",diag_copy.zc_solution_num_samples);
 	PRINT_FLT("zc sol slope",      diag_copy.zc_solution_slope / (float)LEAST_SQUARES_MULT);
 	PRINT_FLT("zc sol yintercept", diag_copy.zc_solution_yintercept / (float)LEAST_SQUARES_MULT);
