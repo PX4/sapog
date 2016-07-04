@@ -189,7 +189,7 @@ static bool _initialization_confirmed = false;
 
 // Most important parameters
 CONFIG_PARAM_INT("mot_tim_adv",         15,    0,     30)
-CONFIG_PARAM_INT("mot_blank_usec",      40,    30,    100)
+CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
 CONFIG_PARAM_INT("mot_bemf_win_den",    3,     3,     8)
 CONFIG_PARAM_INT("mot_bemf_range",      70,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
