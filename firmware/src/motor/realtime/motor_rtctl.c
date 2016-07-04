@@ -295,6 +295,21 @@ static void register_bad_step(bool* need_to_stop)
 	}
 }
 
+static inline int get_effective_timing_advance_deg64(void)
+{
+	static const int SAFE_LIMIT = 16;
+
+	if (_params.timing_advance_deg64 <= SAFE_LIMIT) {
+		return _params.timing_advance_deg64;
+	}
+
+	if (_state.flags & (FLAG_SPINUP | FLAG_SYNC_RECOVERY)) {
+		return SAFE_LIMIT;
+	}
+
+	return _params.timing_advance_deg64;
+}
+
 static void fake_missed_zc_detection(uint64_t timestamp_hnsec)
 {
 	const uint32_t leeway = _state.comm_period / 2 +
@@ -308,13 +323,14 @@ static void prepare_zc_detector_for_next_step(void)
 	_state.zc_bemf_samples_acquired = 0;
 	_state.zc_bemf_samples_acquired_past_zc = 0;
 
+	const int advance = get_effective_timing_advance_deg64();
+
 	/*
 	 * Actual length of the BEMF sampling window depends on the advance angle.
 	 * E.g. advance 15 deg makes the sampling window twice shorter after ZC,
 	 * thus the denom increases by the same amount.
 	 */
-	const int denom = _params.motor_bemf_window_len_denom +
-		_params.motor_bemf_window_len_denom * _params.timing_advance_deg64 / 16;
+	const int denom = _params.motor_bemf_window_len_denom + _params.motor_bemf_window_len_denom * advance / 16;
 
 	_state.zc_bemf_samples_optimal = (_state.comm_period / _params.adc_sampling_period) / denom + 2;
 
@@ -325,13 +341,13 @@ static void prepare_zc_detector_for_next_step(void)
 	/*
 	 * Number of samples past ZC should reduce proportional to the advance angle.
 	 */
-	if (_params.timing_advance_deg64 <= 16) {
+	if (advance <= 16) {
 		// On low advance angles, use the straightforward 50/50 sample distribution
 		_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal / 2;
 	} else {
 		// On high advance angles, reduce the number of samples post ZC proportionally
 		_state.zc_bemf_samples_optimal_past_zc =
-			_state.zc_bemf_samples_optimal * (32 - _params.timing_advance_deg64) / 64;
+			_state.zc_bemf_samples_optimal * (32 - advance) / 64;
 	}
 }
 
@@ -432,7 +448,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	_state.zc_detection_result = ZC_DETECTED;
 
 	const uint32_t advance =
-		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, _params.timing_advance_deg64);
+		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64());
 
 	motor_timer_set_absolute(zc_timestamp + advance - STEP_SWITCHING_DELAY_HNSEC);
 	motor_adc_disable_from_isr();
