@@ -343,14 +343,7 @@ static void prepare_zc_detector_for_next_step(void)
 	/*
 	 * Number of samples past ZC should reduce proportional to the advance angle.
 	 */
-	if (advance <= 16) {
-		// On low advance angles, use the straightforward 50/50 sample distribution
-		_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal / 2;
-	} else {
-		// On high advance angles, reduce the number of samples post ZC proportionally
-		_state.zc_bemf_samples_optimal_past_zc =
-			_state.zc_bemf_samples_optimal * (32 - advance) / 64;
-	}
+	_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal * (32 - advance) / 64;
 }
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
@@ -432,7 +425,8 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		 */
 		engage_current_comm_step();
 	} else {
-		zc_timestamp = ((_state.prev_zc_timestamp + _state.comm_period) + zc_timestamp + 2ULL) / 2ULL;
+		const uint64_t predicted_zc_ts = _state.prev_zc_timestamp + _state.comm_period;
+		zc_timestamp = (predicted_zc_ts * 3 + zc_timestamp + 4ULL) / 4ULL;
 	}
 
 	_state.comm_period = zc_timestamp - _state.prev_zc_timestamp;
@@ -1091,6 +1085,8 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("input voltage",   state_copy.input_voltage);
 	PRINT_INT("input current",   state_copy.input_current);
 	PRINT_INT("pwm val",         state_copy.pwm_val);
+	PRINT_INT("bemf opt",        state_copy.zc_bemf_samples_optimal);
+	PRINT_INT("bemf opt past zc",state_copy.zc_bemf_samples_optimal_past_zc);
 
 	/*
 	 * Diagnostics
