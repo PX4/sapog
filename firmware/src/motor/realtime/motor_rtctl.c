@@ -421,16 +421,6 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	assert(zc_timestamp > _state.prev_zc_timestamp);   // Sanity check
 	assert(zc_timestamp < _state.prev_zc_timestamp * 10);
 
-	if (zc_timestamp < _state.prev_zc_timestamp) {
-		zc_timestamp = _state.prev_zc_timestamp;
-	}
-	uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
-	_state.prev_zc_timestamp = zc_timestamp;
-
-	if (new_comm_period > _params.comm_period_max) {
-	        new_comm_period = _params.comm_period_max;
-	}
-
 	if (_state.flags & FLAG_SYNC_RECOVERY) {
 		/*
 		 * TODO: Proper sync recovery:
@@ -440,11 +430,16 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		 * - Measure the comm period using two subsequent ZC events
 		 * - Resume PWM
 		 */
-		_state.comm_period = new_comm_period;
 		engage_current_comm_step();
 	} else {
-		// Benchmarking shows that these weights provide lowest RPM ripple
-		_state.comm_period = (_state.comm_period * 3 + new_comm_period + 2) / 4;
+		zc_timestamp = ((_state.prev_zc_timestamp + _state.comm_period) + zc_timestamp + 2ULL) / 2ULL;
+	}
+
+	_state.comm_period = zc_timestamp - _state.prev_zc_timestamp;
+	_state.prev_zc_timestamp = zc_timestamp;
+
+	if (_state.comm_period > _params.comm_period_max) {
+		_state.comm_period = _params.comm_period_max;
 	}
 
 	_state.zc_detection_result = ZC_DETECTED;
