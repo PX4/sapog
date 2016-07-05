@@ -167,7 +167,11 @@ static struct control_state            /// Control state
 
 static struct precomputed_params       /// Parameters are read only
 {
-	int timing_advance_deg64;
+	int timing_advance_min_deg64;
+	int timing_advance_max_deg64;
+	uint32_t max_comm_period_for_max_timing_advance;
+	uint32_t max_comm_period_for_min_timing_advance;
+
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
 	unsigned zc_failures_max;
@@ -187,14 +191,17 @@ static struct precomputed_params       /// Parameters are read only
 
 static bool _initialization_confirmed = false;
 
-
+// Timing advance settings
+CONFIG_PARAM_INT("mot_tim_adv_min",     5,     0,     30)
+CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     30)
+CONFIG_PARAM_INT("mot_tim_max_cp",      500,   100,   50000)
+CONFIG_PARAM_INT("mot_tim_min_cp",      1000,  100,   50000)
 // Most important parameters
-CONFIG_PARAM_INT("mot_tim_adv",         15,    0,     30)
 CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
 CONFIG_PARAM_INT("mot_bemf_range",      70,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
-CONFIG_PARAM_INT("mot_zc_dets_min",     40,    6,     1000)
+CONFIG_PARAM_INT("mot_zc_dets_min",     100,   6,     1000)
 CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("mot_spup_to_ms",      1000,  100,   2000)
@@ -207,7 +214,11 @@ CONFIG_PARAM_FLOAT("mot_spup_dc_inc",   0.01,  0.001, 0.1)
 
 static void configure(void)
 {
-	_params.timing_advance_deg64        = configGet("mot_tim_adv") * 64 / 60;
+	_params.timing_advance_min_deg64               = configGet("mot_tim_adv_min") * 64 / 60;
+	_params.timing_advance_max_deg64               = configGet("mot_tim_adv_max") * 64 / 60;
+	_params.max_comm_period_for_max_timing_advance = configGet("mot_tim_max_cp") * HNSEC_PER_USEC;
+	_params.max_comm_period_for_min_timing_advance = configGet("mot_tim_min_cp") * HNSEC_PER_USEC;
+
 	_params.motor_bemf_window_len_denom = configGet("mot_bemf_win_den");
 	_params.bemf_valid_range_pct128     = configGet("mot_bemf_range") * 128 / 100;
 	_params.zc_failures_max  = configGet("mot_zc_fails_max");
@@ -225,6 +236,16 @@ static void configure(void)
 	/*
 	 * Validation
 	 */
+	if (_params.timing_advance_min_deg64 > _params.timing_advance_max_deg64) {
+		_params.timing_advance_min_deg64 = _params.timing_advance_max_deg64;  // Minimizing
+	}
+	assert(_params.timing_advance_min_deg64 <= _params.timing_advance_max_deg64);
+
+	if (_params.max_comm_period_for_max_timing_advance > _params.max_comm_period_for_min_timing_advance) {
+		_params.max_comm_period_for_max_timing_advance = _params.max_comm_period_for_min_timing_advance; // Min
+	}
+	assert(_params.max_comm_period_for_max_timing_advance <= _params.max_comm_period_for_min_timing_advance);
+
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec()) {
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
 	}
@@ -299,23 +320,42 @@ static void register_bad_step(bool* need_to_stop)
 
 static inline int get_effective_timing_advance_deg64(void)
 {
-	static const int SAFE_LIMIT = 16;
+	/*
+	 * Handling extremes
+	 */
+	if (_state.comm_period <= _params.max_comm_period_for_max_timing_advance) {
+		return _params.timing_advance_max_deg64;
+	}
 
-	if (_params.timing_advance_deg64 <= SAFE_LIMIT) {
-		return _params.timing_advance_deg64;
+	if (_state.comm_period >= _params.max_comm_period_for_min_timing_advance) {
+		return _params.timing_advance_min_deg64;
 	}
 
 	if (_state.flags & (FLAG_SPINUP | FLAG_SYNC_RECOVERY)) {
-		return SAFE_LIMIT;
+		return _params.timing_advance_min_deg64;
 	}
 
-	return _params.timing_advance_deg64;
+	/*
+	 * Linear interpolation
+	 */
+	const int tim_delta = _params.timing_advance_max_deg64 - _params.timing_advance_min_deg64;
+
+	assert(_params.max_comm_period_for_min_timing_advance > _params.max_comm_period_for_max_timing_advance);
+	assert(tim_delta >= 0);
+
+	const int result = _params.timing_advance_max_deg64 -
+	       (tim_delta * (int64_t)(_state.comm_period - _params.max_comm_period_for_max_timing_advance) /
+	       (_params.max_comm_period_for_min_timing_advance - _params.max_comm_period_for_max_timing_advance));
+
+	assert(result >= _params.timing_advance_min_deg64);
+	assert(result <= _params.timing_advance_max_deg64);
+	return result;
 }
 
 static void fake_missed_zc_detection(uint64_t timestamp_hnsec)
 {
 	const uint32_t leeway = _state.comm_period / 2 +
-		TIMING_ADVANCE64(_state.comm_period, _params.timing_advance_deg64);
+		TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64());
 
 	_state.prev_zc_timestamp = timestamp_hnsec - leeway;
 }
@@ -1078,6 +1118,10 @@ void motor_rtctl_print_debug_info(void)
 	const struct control_state state_copy = _state;
 	irq_primask_enable();
 
+	irq_primask_disable();
+	const int timing_advance_deg = (get_effective_timing_advance_deg64() + 1) * 60 / 64;  // Rounding
+	irq_primask_enable();
+
 	printf("Motor RTCTL state\n");
 	PRINT_INT("comm period",     state_copy.comm_period / HNSEC_PER_USEC);
 	PRINT_INT("flags",           state_copy.flags);
@@ -1087,6 +1131,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("pwm val",         state_copy.pwm_val);
 	PRINT_INT("bemf opt",        state_copy.zc_bemf_samples_optimal);
 	PRINT_INT("bemf opt past zc",state_copy.zc_bemf_samples_optimal_past_zc);
+	PRINT_INT("timing adv deg",  timing_advance_deg);
 
 	/*
 	 * Diagnostics
