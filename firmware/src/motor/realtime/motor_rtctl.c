@@ -191,7 +191,7 @@ static bool _initialization_confirmed = false;
 // Most important parameters
 CONFIG_PARAM_INT("mot_tim_adv",         15,    0,     30)
 CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
-CONFIG_PARAM_INT("mot_bemf_win_den",    3,     3,     8)
+CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
 CONFIG_PARAM_INT("mot_bemf_range",      70,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
 CONFIG_PARAM_INT("mot_zc_dets_min",     40,    6,     1000)
@@ -668,16 +668,16 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	 * Deciding if we have enough data to resolve the ZC timestamp.
 	 */
 	if ((_state.zc_bemf_samples_acquired_past_zc < _state.zc_bemf_samples_optimal_past_zc) ||
-	    (_state.zc_bemf_samples_acquired < _state.zc_bemf_samples_optimal)) {
+	    (_state.zc_bemf_samples_acquired < 2)) {
+		// We don't update voltage/current in the same cycle where we solve the ZC approximation,
+		// in order to distribute the IRQ load more evenly.
+		update_input_voltage_current(sample);
 		return;
 	}
 
 	if (step->floating == 0) {
 		TESTPAD_ZC_SET();
 	}
-
-	// Sampling voltage/current as far from the last commutation event as possible
-	update_input_voltage_current(sample);
 
 	/*
 	 * Find the exact ZC timestamp using the collected samples
