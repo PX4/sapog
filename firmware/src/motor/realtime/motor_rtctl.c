@@ -414,7 +414,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	assert(zc_timestamp > _state.prev_zc_timestamp);   // Sanity check
 	assert(zc_timestamp < _state.prev_zc_timestamp * 10);
 
-	if (_state.flags & FLAG_SYNC_RECOVERY) {
+	if (_state.flags & (FLAG_SYNC_RECOVERY | FLAG_SPINUP)) {
 		/*
 		 * TODO: Proper sync recovery:
 		 * - Disable PWM
@@ -426,7 +426,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		engage_current_comm_step();
 	} else {
 		const uint64_t predicted_zc_ts = _state.prev_zc_timestamp + _state.comm_period;
-		zc_timestamp = (predicted_zc_ts * 3 + zc_timestamp + 4ULL) / 4ULL;
+		zc_timestamp = (predicted_zc_ts + zc_timestamp + 2ULL) / 2ULL;
 	}
 
 	_state.comm_period = zc_timestamp - _state.prev_zc_timestamp;
