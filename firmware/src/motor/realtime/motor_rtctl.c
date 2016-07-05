@@ -192,16 +192,16 @@ static struct precomputed_params       /// Parameters are read only
 static bool _initialization_confirmed = false;
 
 // Timing advance settings
-CONFIG_PARAM_INT("mot_tim_adv_min",     5,     0,     30)
-CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     30)
-CONFIG_PARAM_INT("mot_tim_max_cp",      500,   100,   50000)
-CONFIG_PARAM_INT("mot_tim_min_cp",      1000,  100,   50000)
+CONFIG_PARAM_INT("mot_tim_adv_min",     5,     0,     20)
+CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     29)
+CONFIG_PARAM_INT("mot_tim_max_cp",      300,   100,   50000)
+CONFIG_PARAM_INT("mot_tim_min_cp",      600,   100,   50000)
 // Most important parameters
 CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
 CONFIG_PARAM_INT("mot_bemf_range",      70,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
-CONFIG_PARAM_INT("mot_zc_dets_min",     100,   6,     1000)
+CONFIG_PARAM_INT("mot_zc_dets_min",     200,   6,     1000)
 CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("mot_spup_to_ms",      1000,  100,   2000)
