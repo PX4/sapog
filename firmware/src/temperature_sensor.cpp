@@ -35,6 +35,7 @@
 #include <temperature_sensor.hpp>
 #include <zubax_chibios/os.hpp>
 #include <board/board.hpp>
+#include <motor/motor.h>
 #include <unistd.h>
 #include <limits>
 #include <algorithm>
@@ -79,6 +80,11 @@ class : public chibios_rt::BaseStaticThread<128>
 		while (!os::isRebootRequested()) {
 			wdt.reset();
 			::usleep(500 * 1000);
+
+			if (!motor_is_running() && !motor_is_idle()) {
+				// When the motor is starting, I2C goes bananas
+				continue;
+			}
 
 			const std::int16_t new_temp = try_read();
 			if (new_temp >= 0) {
