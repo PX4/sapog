@@ -539,15 +539,7 @@ static uint64_t solve_zc_approximation(void)
 	}
 
 	int64_t slope = 0, yintercept = 0;
-	if (_state.zc_bemf_samples_acquired == 3) {
-		// Special case - 3 samples per comm period - ignore the first sample
-		solve_least_squares(_state.zc_bemf_samples_acquired - 1, &data_x[1], &_state.zc_bemf_samples[1],
-			&slope, &yintercept);
-	} else {
-		// General case - 2 or >=4 samples per comm period
-		solve_least_squares(_state.zc_bemf_samples_acquired, data_x, _state.zc_bemf_samples,
-			&slope, &yintercept);
-	}
+	solve_least_squares(_state.zc_bemf_samples_acquired, data_x, _state.zc_bemf_samples, &slope, &yintercept);
 
 	const int x = (-yintercept + slope / 2) / slope; // Linear equation solved for x
 
