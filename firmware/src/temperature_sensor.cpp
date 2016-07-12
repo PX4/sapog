@@ -76,6 +76,7 @@ class : public chibios_rt::BaseStaticThread<128>
 	{
 		os::watchdog::Timer wdt;
 		wdt.startMSec(2000);
+		setName("tempsens");
 
 		while (!os::isRebootRequested()) {
 			wdt.reset();
