@@ -34,7 +34,7 @@ PROJECT = io.px4.sapog
 
 HW_VERSION = 1
 FW_VERSION_MAJOR = 1
-FW_VERSION_MINOR = 1
+FW_VERSION_MINOR = 2
 
 export SAPOG_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 export SAPOG_SRC_DIR = $(abspath $(SAPOG_BASE)/src)
@@ -107,8 +107,9 @@ DDEFS += -DCORTEX_VTOR_INIT=$(BOOTLOADER_SIZE)            \
 LDSCRIPT= linker.ld
 
 USE_LTO = yes
-RELEASE_OPT = -O3 -fomit-frame-pointer
-DEBUG_OPT = -O3 -g3 -DDISABLE_WATCHDOG=1
+# Warning: GCC 4.9 with O3 and LTO breaks the code mysteriously! GCC 5.x segfaults during linking. Why GCC, why!?
+RELEASE_OPT = -O2 -fomit-frame-pointer
+DEBUG_OPT = -O2 -g3 -DDISABLE_WATCHDOG=1
 
 # More warnings are enabled in the included makefile
 CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow -Werror
