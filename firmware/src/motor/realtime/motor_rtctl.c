@@ -73,6 +73,11 @@
 #define TESTPAD_ZC_SET()           TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
 #define TESTPAD_ZC_CLEAR()         TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
 
+#undef MIN
+#undef MAX
+#define MIN(a, b)                  (((a) < (b)) ? (a) : (b))
+#define MAX(a, b)                  (((a) > (b)) ? (a) : (b))
+
 /**
  * Commutation tables
  * Phase order: Positive, Negative, Floating
@@ -612,6 +617,17 @@ static uint64_t solve_zc_approximation(void)
 			valid = (x >= 0) &&
 			        (x <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 10));
 		}
+	}
+
+	if (valid) {
+		static const int MAX_COMM_PERIOD_CHANGE_PCT = 300;
+
+		const int64_t new_comm_period = (int64_t)zc_timestamp - (int64_t)_state.prev_zc_timestamp;
+
+		const int32_t comm_period_change_pct = (100 * labs((int64_t)_state.comm_period - new_comm_period)) /
+			MIN((int64_t)_state.comm_period, new_comm_period);
+
+		valid = comm_period_change_pct <= MAX_COMM_PERIOD_CHANGE_PCT;
 	}
 
 	if (!valid) {
