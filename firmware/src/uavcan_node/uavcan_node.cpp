@@ -460,6 +460,7 @@ public:
 	void main() override
 	{
 		wdt_.startMSec(10000);
+		setName("uavcan");
 
 		init_can();
 
