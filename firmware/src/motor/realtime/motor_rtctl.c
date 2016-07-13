@@ -731,7 +731,7 @@ static int spinup_sample_bemf(void)
 
 static uint64_t spinup_wait_zc(const uint64_t step_deadline)
 {
-	const int min_samples_past_zc = (_state.comm_period / _params.adc_sampling_period) / 32 + 1;
+	const int min_samples_past_zc = (_state.comm_period / _params.adc_sampling_period) / 64 + 1;
 
 	int num_samples_past_zc = 0;
 	uint64_t zc_timestamp = 0;
