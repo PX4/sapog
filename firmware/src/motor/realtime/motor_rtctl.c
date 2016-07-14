@@ -533,10 +533,16 @@ static void update_neutral_voltage(const struct motor_adc_sample* sample)
 	_state.neutral_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 }
 
+// Returns TRUE if the BEMF has POSITIVE slope, otherwise returns FALSE.
+static bool is_bemf_slope_positive(void)
+{
+	return (_state.current_comm_step & 1) != 0;
+}
+
 static bool is_past_zc(const int bemf)
 {
-	const bool zc_polarity = _state.current_comm_step & 1;
-	return (zc_polarity && (bemf >= 0)) || (!zc_polarity && (bemf <= 0));
+	const bool bemf_slope_positive = is_bemf_slope_positive();
+	return (bemf_slope_positive && (bemf >= 0)) || (!bemf_slope_positive && (bemf <= 0));
 }
 
 /// Fixed point multiplier
