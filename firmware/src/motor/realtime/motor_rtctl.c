@@ -518,6 +518,13 @@ static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 	int insertion_index = 0;
 
 	if (_state.zc_bemf_samples_acquired < _state.zc_bemf_samples_optimal) {
+		/*
+		 * It is very important that we do not collect more samples than zc_bemf_samples_optimal!
+		 * Exceeding this value may cause problems, because first few samples may be distorted by saturation
+		 * currents. Limiting the number of samples to the optimum (computed in the function
+		 * prepare_zc_detector_for_next_step()) allows us to push the early samples out of the
+		 * buffer as newer samples arrive.
+		 */
 		insertion_index = _state.zc_bemf_samples_acquired;
 		_state.zc_bemf_samples_acquired++;
 	} else {
