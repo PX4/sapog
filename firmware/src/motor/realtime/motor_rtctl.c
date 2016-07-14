@@ -511,25 +511,20 @@ static void update_input_voltage_current(const struct motor_adc_sample* sample)
 
 static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 {
-	assert(_state.zc_bemf_samples_acquired <= _state.zc_bemf_samples_optimal);
-	assert(_state.zc_bemf_samples_optimal > 1);
+	assert(_state.zc_bemf_samples_acquired <= MAX_BEMF_SAMPLES);
 
-	int insertion_index = 0;
-
-	if (_state.zc_bemf_samples_acquired < _state.zc_bemf_samples_optimal) {
-		insertion_index = _state.zc_bemf_samples_acquired;
+	if (_state.zc_bemf_samples_acquired < MAX_BEMF_SAMPLES) {
 		_state.zc_bemf_samples_acquired++;
 	} else {
-		insertion_index = _state.zc_bemf_samples_optimal - 1;
 		// Move all samples one step to the left (hope the compiler will replace this with memmove())
-		for (int i = 0; i < insertion_index; i++) {
+		for (int i = 0; i < (MAX_BEMF_SAMPLES - 1); i++) {
 			_state.zc_bemf_samples[i] = _state.zc_bemf_samples[i + 1];
 			_state.zc_bemf_timestamps[i] = _state.zc_bemf_timestamps[i + 1];
 		}
 	}
 
-	_state.zc_bemf_samples[insertion_index] = bemf;
-	_state.zc_bemf_timestamps[insertion_index] = timestamp;
+	_state.zc_bemf_samples[_state.zc_bemf_samples_acquired - 1] = bemf;
+	_state.zc_bemf_timestamps[_state.zc_bemf_samples_acquired - 1] = timestamp;
 }
 
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
