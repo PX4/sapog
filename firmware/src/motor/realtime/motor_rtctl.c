@@ -200,8 +200,8 @@ static bool _initialization_confirmed = false;
 // Timing advance settings
 CONFIG_PARAM_INT("mot_tim_adv_min",     5,     0,     20)
 CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     29)
-CONFIG_PARAM_INT("mot_tim_max_cp",      300,   100,   50000)
-CONFIG_PARAM_INT("mot_tim_min_cp",      600,   100,   50000)
+CONFIG_PARAM_INT("mot_tim_cp_max",      300,   100,   50000)
+CONFIG_PARAM_INT("mot_tim_cp_min",      600,   100,   50000)
 // Most important parameters
 CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
@@ -222,8 +222,8 @@ static void configure(void)
 {
 	_params.timing_advance_min_deg64               = configGet("mot_tim_adv_min") * 64 / 60;
 	_params.timing_advance_max_deg64               = configGet("mot_tim_adv_max") * 64 / 60;
-	_params.max_comm_period_for_max_timing_advance = configGet("mot_tim_max_cp") * HNSEC_PER_USEC;
-	_params.max_comm_period_for_min_timing_advance = configGet("mot_tim_min_cp") * HNSEC_PER_USEC;
+	_params.max_comm_period_for_max_timing_advance = configGet("mot_tim_cp_max") * HNSEC_PER_USEC;
+	_params.max_comm_period_for_min_timing_advance = configGet("mot_tim_cp_min") * HNSEC_PER_USEC;
 
 	_params.motor_bemf_window_len_denom = configGet("mot_bemf_win_den");
 	_params.bemf_valid_range_pct128     = configGet("mot_bemf_range") * 128 / 100;
