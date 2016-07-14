@@ -615,21 +615,18 @@ static uint64_t solve_zc_approximation(void)
 			// In normal mode, expect the solution close to the first sample
 			valid = abs(x) <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2);
 		} else {
-			// In extrapolation mode, expect the solution strictly ahead of the first sample
-			valid = (x >= 0) &&
-			        (x <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 10));
+			/*
+			 * In extrapolation mode, expect the solution strictly ahead of the first sample.
+			 * Note that we must not invalidate the solution in extrapolation mode if it is too far
+			 * in the future, because it would break a special case when the obtained samples happen
+			 * to be on the part of the BEMF curve when it is almost at zero slope, which happens
+			 * typically in the beginning of the commutation step (up to the zero cross under high
+			 * saturation). In the case of near zero slope, the calling code will detect that the
+			 * solution is too far in the future, and it will just continue collecting more samples,
+			 * which will naturally resolve the zero slope problem.
+			 */
+			valid = x > 0;
 		}
-	}
-
-	if (valid) {
-		static const int MAX_COMM_PERIOD_CHANGE_PCT = 300;
-
-		const int64_t new_comm_period = (int64_t)zc_timestamp - (int64_t)_state.prev_zc_timestamp;
-
-		const int32_t comm_period_change_pct = (100 * labs((int64_t)_state.comm_period - new_comm_period)) /
-			MIN((int64_t)_state.comm_period, new_comm_period);
-
-		valid = comm_period_change_pct <= MAX_COMM_PERIOD_CHANGE_PCT;
 	}
 
 	if (!valid) {
