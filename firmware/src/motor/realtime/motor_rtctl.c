@@ -123,6 +123,7 @@ static struct diag_info                /// This data is never used by the contro
 	uint32_t extra_bemf_samples_past_zc;
 	uint32_t bemf_samples_out_of_range;
 	uint32_t bemf_samples_premature_zc;
+	uint32_t bemf_wrong_slope;
 	uint32_t desaturations;
 	uint32_t late_commutations;
 
@@ -696,6 +697,26 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	}
 
 	/*
+	 * Checking if BEMF goes in the right direction.
+	 * This check is only performed for the first sample.
+	 */
+	if (_state.zc_bemf_samples_acquired == 1) {
+		bool correct_slope = false;
+		if (is_bemf_slope_positive()) {
+			correct_slope = bemf > _state.zc_bemf_samples[0];
+		} else {
+			correct_slope = bemf < _state.zc_bemf_samples[0];
+		}
+
+		if (!correct_slope) {
+			_diag.bemf_wrong_slope++;
+			// Discarding all samples, they are invalid
+			_state.zc_bemf_samples_acquired = 0;
+			// Continuing regardless - this new sample could be correct
+		}
+	}
+
+	/*
 	 * Here the BEMF sample is considered to be valid, and can be added to the solution.
 	 */
 	add_bemf_sample(bemf, sample->timestamp);
@@ -1171,6 +1192,7 @@ void motor_rtctl_print_debug_info(void)
 	PRINT_INT("bemf out of range", diag_copy.bemf_samples_out_of_range);
 	PRINT_INT("bemf premature zc", diag_copy.bemf_samples_premature_zc);
 	PRINT_INT("bemf extra past zc",diag_copy.extra_bemf_samples_past_zc);
+	PRINT_INT("bemf wrong slope",  diag_copy.bemf_wrong_slope);
 	PRINT_INT("zc sol failures",   diag_copy.zc_solution_failures);
 	PRINT_INT("zc sol extrpl disc",diag_copy.zc_solution_extrapolation_discarded);
 	PRINT_INT("zc sol num samples",diag_copy.zc_solution_num_samples);
