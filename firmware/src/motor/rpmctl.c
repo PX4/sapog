@@ -73,9 +73,6 @@ void rpmctl_reset(void)
 
 float rpmctl_update(const struct rpmctl_input* input)
 {
-	/*
-	 * This PID is only a proof of concept, not intended for real use
-	 */
 	const float error = input->sp - input->pv;
 	assert(isfinite(error));
 
