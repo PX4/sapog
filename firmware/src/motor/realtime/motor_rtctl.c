@@ -205,7 +205,7 @@ CONFIG_PARAM_INT("mot_tim_cp_min",      600,   100,   50000)
 // Most important parameters
 CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
-CONFIG_PARAM_INT("mot_bemf_range",      70,    10,    100)
+CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
 CONFIG_PARAM_INT("mot_zc_dets_min",     200,   6,     1000)
 CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
