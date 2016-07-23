@@ -526,7 +526,10 @@ void motor_set_duty_cycle(float dc, int ttl_ms)
 {
 	chMtxLock(&_mutex);
 
-	_state.mode = MOTOR_CONTROL_MODE_OPENLOOP;
+	if (_state.mode != MOTOR_CONTROL_MODE_OPENLOOP) {
+		_state.mode = MOTOR_CONTROL_MODE_OPENLOOP;
+		_state.limit_mask = 0;
+	}
 
 	if (dc < 0.0) { dc = 0.0; }
 	if (dc > 1.0) { dc = 1.0; }
@@ -547,7 +550,10 @@ void motor_set_rpm(unsigned rpm, int ttl_ms)
 {
 	chMtxLock(&_mutex);
 
-	_state.mode = MOTOR_CONTROL_MODE_RPM;
+	if (_state.mode != MOTOR_CONTROL_MODE_RPM) {
+		_state.mode = MOTOR_CONTROL_MODE_RPM;
+		_state.limit_mask = 0;
+	}
 
 	if (rpm > _params.rpm_max) {
 		rpm = _params.rpm_max;

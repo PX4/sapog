@@ -102,7 +102,8 @@ SERIAL_CLI_PORT_NUMBER = 1
 BOOTLOADER_SIZE = 16384
 
 DDEFS += -DCORTEX_VTOR_INIT=$(BOOTLOADER_SIZE)            \
-         -DCRT1_AREAS_NUMBER=0
+         -DCRT1_AREAS_NUMBER=0                            \
+         -DCONFIG_PARAMS_MAX=50
 
 LDSCRIPT= linker.ld
 

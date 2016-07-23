@@ -304,14 +304,16 @@ void motor_timer_set_relative(int delay_hnsec)
 }
 
 __attribute__((optimize(3)))
-void motor_timer_set_absolute(uint64_t timestamp_hnsec)
+int64_t motor_timer_set_absolute(uint64_t timestamp_hnsec)
 {
 	const uint64_t current_timestamp = motor_timer_hnsec();
-	if (timestamp_hnsec > current_timestamp) {
-		motor_timer_set_relative(timestamp_hnsec - current_timestamp);
+	const int64_t delta = (int64_t)timestamp_hnsec - (int64_t)current_timestamp;
+	if (delta > 0) {
+		motor_timer_set_relative(delta);
 	} else {
 		motor_timer_set_relative(0);
 	}
+	return delta;
 }
 
 void motor_timer_cancel(void)
