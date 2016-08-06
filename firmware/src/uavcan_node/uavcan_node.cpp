@@ -57,7 +57,7 @@ namespace
 
 typedef uavcan::Node<uavcan::MemPoolBlockSize * 128> Node;
 
-uavcan_stm32::CanInitHelper<> can;
+uavcan_stm32::CanInitHelper<254> can;
 
 os::config::Param<unsigned> param_node_id("uavcan_node_id",   0,      0,       125);
 
@@ -590,7 +590,7 @@ int init()
 {
 	init_bootloader_interface();
 
-	(void)node_thread.start((HIGHPRIO + NORMALPRIO) / 2);
+	(void)node_thread.start(HIGHPRIO - 2);
 
 	return 0;
 }
