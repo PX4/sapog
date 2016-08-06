@@ -272,7 +272,26 @@ class EnumerationHandler : public uavcan::TimerBase
 		os::lowsyslog("UAVCAN: Enumeration request from %d, parameter: %s, timeout: %d sec\n",
 			(int)req.getSrcNodeID().get(), (const char*)req.parameter_name.c_str(), (int)req.timeout_sec);
 
-		if (req.parameter_name != "esc_index") {
+		/*
+		 * Checking the parameter name.
+		 *
+		 * Empty means that the node is allowed to autodetect what parameter we're enumerating.
+		 * In the case of Sapog we can enumerate only the ESC index, so it's a no-brainer.
+		 * If the name is not empty, it must be the name of the ESC index parameter.
+		 * Currently this name is "esc_index", but it may be changed in the future.
+		 *
+		 * However, we'll also need to retain support for "esc_index" even if the parameter gets
+		 * renamed in the future, as a workaround for incorrect implementation of the enumeration
+		 * procedure in PX4.
+		 *
+		 * Please find the relevant discussion here: https://github.com/PX4/Firmware/pull/2748
+		 * TL;DR:
+		 *    There's no such thing as standardized parameter names, except for what's documented here in the
+		 *    UAVCAN specification:
+		 *    http://uavcan.org/Specification/6._Application_level_functions/#standard-configuration-parameters
+		 */
+		if (!req.parameter_name.empty() && (req.parameter_name != "esc_index"))
+		{
 			os::lowsyslog("UAVCAN: Enumeration failure - INVALID PARAM NAME\n");
 			resp.error = uavcan::protocol::enumeration::Begin::Response::ERROR_INVALID_PARAMETER;
 			return;
