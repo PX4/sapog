@@ -331,6 +331,50 @@ class : public chibios_rt::BaseStaticThread<4000>
 {
 	uavcan::LazyConstructor<EnumerationHandler> enumeration_handler_;
 	os::watchdog::Timer wdt_;
+	volatile bool need_to_print_status_ = false;
+
+	void handle_background_tasks()
+	{
+		if (need_to_print_status_) {
+			need_to_print_status_ = false;
+
+			std::printf("CAN bitrate: %u\n", unsigned(active_can_bus_bit_rate));
+			std::printf("Node ID:     %u\n", get_node().getNodeID().get());
+			std::printf("Node mode:   %u\n", node_status_mode);
+			std::printf("Node health: %u\n", node_status_health);
+
+			const auto perf = get_node().getDispatcher().getTransferPerfCounter();
+
+			const auto pool_capacity = get_node().getAllocator().getBlockCapacity();
+			const auto pool_peak_usage = get_node().getAllocator().getPeakNumUsedBlocks();
+
+			uavcan::CanIfacePerfCounters iface_perf[uavcan::MaxCanIfaces];
+			std::uint8_t num_ifaces = 0;
+			for (num_ifaces = 0;
+			     num_ifaces < get_node().getDispatcher().getCanIOManager().getNumIfaces();
+			     num_ifaces++)
+			{
+				iface_perf[num_ifaces] =
+					get_node().getDispatcher().getCanIOManager().getIfacePerfCounters(num_ifaces);
+			}
+
+			std::printf("Memory pool capacity:   %u blocks\n", pool_capacity);
+			std::printf("Memory pool peak usage: %u blocks\n", pool_peak_usage);
+
+			std::printf("Transfers RX/TX: %u / %u\n",
+				    unsigned(perf.getRxTransferCount()),
+				    unsigned(perf.getTxTransferCount()));
+			std::printf("Transfer errors: %u\n", unsigned(perf.getErrorCount()));
+
+			for (unsigned i = 0; i < num_ifaces; i++)
+			{
+				std::printf("CAN iface %u:\n", i);
+				std::printf("    Frames RX/TX: %u / %u\n",
+					    unsigned(iface_perf[i].frames_rx), unsigned(iface_perf[i].frames_tx));
+				std::printf("    Errors:       %u\n", unsigned(iface_perf[i].errors));
+			}
+		}
+	}
 
 	void init_can()
 	{
@@ -338,6 +382,8 @@ class : public chibios_rt::BaseStaticThread<4000>
 		do {
 			wdt_.reset();
 			::sleep(1);
+
+			handle_background_tasks();
 
 			std::uint32_t bitrate = get_inherited_can_bus_bit_rate();
 			const bool autodetect = bitrate == 0;
@@ -400,6 +446,7 @@ class : public chibios_rt::BaseStaticThread<4000>
 			}
 			os::lowsyslog("UAVCAN: Node init failure: %i, will retry\n", uavcan_start_res);
 			::sleep(1);
+			handle_background_tasks();
 		}
 		assert(get_node().isStarted());
 
@@ -432,6 +479,7 @@ class : public chibios_rt::BaseStaticThread<4000>
 	            {
 	                get_node().spin(uavcan::MonotonicDuration::fromMSec(100));
 			wdt_.reset();
+			handle_background_tasks();
 	            }
 
 	            os::lowsyslog("UAVCAN: Dynamic node ID %d allocated by %d\n",
@@ -490,6 +538,8 @@ public:
 		while (!os::isRebootRequested()) {
 			wdt_.reset();
 
+			handle_background_tasks();
+
 			get_node().getNodeStatusProvider().setHealth(node_status_health);
 			get_node().getNodeStatusProvider().setMode(node_status_mode);
 
@@ -501,6 +551,14 @@ public:
 
 		os::lowsyslog("UAVCAN: Going down\n");
 		(void)get_node().spin(uavcan::MonotonicDuration::fromMSec(10));
+	}
+
+	void print_status()
+	{
+		need_to_print_status_ = true;
+		while (need_to_print_status_) {
+			::usleep(10000);
+		}
 	}
 } node_thread;
 
@@ -522,6 +580,11 @@ void set_node_status_critical()
 }
 
 extern void init_bootloader_interface();
+
+void print_status()
+{
+	node_thread.print_status();
+}
 
 int init()
 {

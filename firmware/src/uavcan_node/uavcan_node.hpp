@@ -45,6 +45,8 @@ void set_node_status_critical();
 
 bool is_passive_mode();
 
+void print_status();
+
 int init();
 
 }

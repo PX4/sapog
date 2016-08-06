@@ -44,6 +44,7 @@
 #include <unistd.h>
 #include <board/board.hpp>
 #include <motor/motor.h>
+#include <uavcan_node/uavcan_node.hpp>
 #include <zubax_chibios/util/base64.hpp>
 #include "console.hpp"
 
@@ -78,6 +79,11 @@ static void cmd_beep(BaseSequentialStream *chp, int argc, char *argv[])
 	}
 
 	motor_beep(freq, duration);
+}
+
+static void cmd_uavcan(BaseSequentialStream *, int, char**)
+{
+	uavcan_node::print_status();
 }
 
 static void cmd_stat(BaseSequentialStream *chp, int argc, char *argv[])
@@ -287,6 +293,7 @@ static const ShellCommand _commands[] =
 	COMMAND(md)
 	COMMAND(m)
 	COMMAND(zubax_id)
+	COMMAND(uavcan)
 	{NULL, NULL}
 };
 
