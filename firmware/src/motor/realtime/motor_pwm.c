@@ -491,8 +491,9 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	frequency = (frequency < 100)  ? 100  : frequency;
 	frequency = (frequency > 5000) ? 5000 : frequency;
 
-	duration_msec = (duration_msec < 1)    ? 1    : duration_msec;
-	duration_msec = (duration_msec > 5000) ? 5000 : duration_msec;
+	// TODO HACK: Longer beeps disrupt other processes, beeping should be done in a non-blocking way from ISR
+	duration_msec = (duration_msec < 1)   ? 1   : duration_msec;
+	duration_msec = (duration_msec > 100) ? 100 : duration_msec;
 
 	/*
 	 * Timing constants
