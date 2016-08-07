@@ -371,6 +371,8 @@ class : public chibios_rt::BaseStaticThread<4000>
 				std::printf("CAN iface %u:\n", i);
 				std::printf("    Frames RX/TX: %u / %u\n",
 					    unsigned(iface_perf[i].frames_rx), unsigned(iface_perf[i].frames_tx));
+				std::printf("    RX overflows: %u\n",
+					    unsigned(can.driver.getIface(i)->getRxQueueOverflowCount()));
 				std::printf("    Errors:       %u\n", unsigned(iface_perf[i].errors));
 			}
 		}
