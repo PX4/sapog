@@ -1,7 +1,7 @@
 PX4 Sapog
 =========
 
-Please refer to the documentation page at <https://docs.zubax.com/sapog>.
+**Please refer to the documentation page at <https://docs.zubax.com/sapog>.**
 
 ### Hardware timer usage
 
@@ -32,7 +32,7 @@ Execute `./blackmagic_flash.sh [portname]` from the `tools` directory to flash t
 
 #### [UAVCAN](http://uavcan.org/) testing tool
 
-**[Consider using the UAVCAN GUI Tool instead](https://github.com/UAVCAN/gui_tool).**
+**[Consider using the UAVCAN GUI Tool instead](http://uavcan.org/GUI_Tool).**
 
 This step is optional. Works only for Linux.
 
