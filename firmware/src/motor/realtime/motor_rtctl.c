@@ -905,6 +905,9 @@ static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_
 	assert(power_multiplier >= 1);
 	assert(power_multiplier <= POWER_MULT_MAX);
 
+	const unsigned comm_period_lowpass =
+		_params.spinup_comm_period_lowpass + MIN(num_prior_attempts / 2, 5);  // Make limits configurable?
+
 	// Make sure we're not going to underflow during time calculations
 	while (motor_timer_hnsec() < _params.spinup_start_comm_period) {
 		;
@@ -948,7 +951,7 @@ static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_
 			const uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
 			_state.prev_zc_timestamp = zc_timestamp;
 			_state.comm_period =
-				LOWPASS(_state.comm_period, new_comm_period, _params.spinup_comm_period_lowpass);
+				LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
 			step_deadline = zc_timestamp + _state.comm_period / 2;
 
 			// Check the termination condition
