@@ -92,11 +92,11 @@
 
 #define VAL_GPIOACRL            0xb8000008      // 7..0
 #define VAL_GPIOACRH            0x888b8bbb      // 15..8
-#define VAL_GPIOAODR            0x00000000
+#define VAL_GPIOAODR            ((1 << 11))
 
 #define VAL_GPIOBCRL            0x8b8888bb
 #define VAL_GPIOBCRH            0x38b88866
-#define VAL_GPIOBODR            ((1 << GPIO_PIN_I2C_SCL) | (1 << GPIO_PIN_I2C_SDA))
+#define VAL_GPIOBODR            ((1 << GPIO_PIN_I2C_SCL) | (1 << GPIO_PIN_I2C_SDA) | (1 << 12))
 
 #define VAL_GPIOCCRL            0xbb884444
 #define VAL_GPIOCCRH            0x8881188b
