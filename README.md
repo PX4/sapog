@@ -39,7 +39,7 @@ This step is optional. Works only for Linux.
 Make sure the libuavcan is installed in the system. If not yet:
 
 ```bash
-cd firmware/uavcan
+cd firmware/libuavcan
 mkdir build
 cd build
 cmake ..
