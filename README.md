@@ -1,6 +1,8 @@
 PX4 Sapog
 =========
 
+[![Join the chat at https://gitter.im/Zubax/general](https://img.shields.io/badge/GITTER-join%20chat-green.svg)](https://gitter.im/Zubax/general)
+
 **Please refer to the documentation page at <https://docs.zubax.com/sapog>.**
 
 ### Hardware timer usage
