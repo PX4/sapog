@@ -24,6 +24,8 @@ Prerequisites:
 
 #### Firmware
 
+**Prebuilt binaries are available at <https://files.zubax.com/products/io.px4.sapog/>.**
+
 ```bash
 git submodule update --init --recursive
 cd firmware
