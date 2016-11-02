@@ -148,8 +148,8 @@ static void init_timers(void)
 	// Left-aligned PWM, direction up (will be enabled later)
 	TIM2->CR1 = TIM1->CR1 = 0;
 
-	// Output idle state 0, buffered updates
-	TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
+	// Output idle state 0, unbuffered updates
+	TIM1->CR2 = 0;
 
 	/*
 	 * OC channels
@@ -347,18 +347,6 @@ static inline void adjust_adc_sync_default(void)
 	adjust_adc_sync(_pwm_half_top);
 }
 
-static inline void apply_phase_config(void)
-{
-	/*
-	 * TODO: Do not reset PWM timer at comm switch? Does this have any side effects?
-	 *       If the PWM timer is not reset, new polarity config will not be reloaded,
-	 *       so some work-around is needed. Also, beep function will need to
-	 *       manipulate FETs directly (not via the PWM controller).
-	 */
-	// This will reload the shadow PWM registers and restart both timers synchronously
-	TIM1->EGR = TIM_EGR_COMG | TIM_EGR_UG;
-}
-
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 {
 	irq_primask_disable();
@@ -388,7 +376,6 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 	}
 
 	adjust_adc_sync(_pwm_half_top);  // Default for phase manip
-	apply_phase_config();
 }
 
 void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
@@ -409,7 +396,6 @@ void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
 	}
 
 	adjust_adc_sync(_pwm_top);
-	apply_phase_config();
 }
 
 void motor_pwm_set_freewheeling(void)
@@ -417,7 +403,6 @@ void motor_pwm_set_freewheeling(void)
 	irq_primask_disable();
 	phase_reset_all_i();
 	adjust_adc_sync_default();
-	apply_phase_config();
 	irq_primask_enable();
 }
 
@@ -425,7 +410,6 @@ void motor_pwm_emergency(void)
 {
 	const irqstate_t irqstate = irq_primask_save();
 	phase_reset_all_i();
-	apply_phase_config();
 	irq_primask_restore(irqstate);
 }
 
@@ -478,7 +462,6 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 	phase_set_i(step->negative, pwm_val, true);
 
 	adjust_adc_sync(pwm_val);
-	apply_phase_config();
 }
 
 void motor_pwm_beep(int frequency, int duration_msec)
@@ -528,21 +511,18 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	phase_set_i(low_phase_first, 0, false);
 	phase_set_i(low_phase_second, 0, false);
 	phase_set_i(high_phase, 0, false);
-	apply_phase_config();
 
 	while (end_time > motor_timer_hnsec()) {
 		chSysSuspend();
 
 		irq_primask_disable();
 		phase_set_i(high_phase, _pwm_top, false);
-		apply_phase_config();
 		irq_primask_enable();
 
 		motor_timer_hndelay(active_hnsec);
 
 		irq_primask_disable();
 		phase_set_i(high_phase, 0, false);
-		apply_phase_config();
 		irq_primask_enable();
 
 		chSysEnable();
