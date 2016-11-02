@@ -34,32 +34,6 @@ make RELEASE=1 # RELEASE is optional; omit to build the debug version
 
 Execute `./blackmagic_flash.sh [portname]` from the `tools` directory to flash the firmware with a Black Magic Debug Probe.
 
-#### [UAVCAN](http://uavcan.org/) testing tool
-
-**[Consider using the UAVCAN GUI Tool instead](http://uavcan.org/GUI_Tool).**
-
-This step is optional. Works only for Linux.
-
-Make sure the libuavcan is installed in the system. If not yet:
-
-```bash
-cd firmware/libuavcan
-mkdir build
-cd build
-cmake ..
-make
-sudo make install
-```
-
-Build the UAVCAN testing tool:
-```bash
-cd tools/uavcan_tool
-mkdir build
-cd build
-cmake ..
-make
-```
-
 ## Hardware
 
 Reference hardware design is published under CC BY-SA 3.0 in the [PX4 Hardware repository](https://github.com/PX4/Hardware).
