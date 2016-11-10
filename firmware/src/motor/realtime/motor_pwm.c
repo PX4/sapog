@@ -50,10 +50,9 @@
 # error "Invalid timer clock"
 #endif
 
-#define PWM_DEAD_TIME_NANOSEC   750
-
 
 CONFIG_PARAM_INT("mot_pwm_hz",    30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_INT("mot_pwm_dt_ns",   700,                     200,                     800)
 
 /**
  * Local constants, initialized once
@@ -124,7 +123,7 @@ static int init_constants(unsigned frequency)
 	return 0;
 }
 
-static void init_timers(void)
+static void init_timers(const float pwm_dead_time)
 {
 	ASSERT_ALWAYS(_pwm_top > 0);   // Make sure it was initialized
 
@@ -179,7 +178,7 @@ static void init_timers(void)
 	 * DTG bit 7 must be 0, otherwise it will change multiplier which is not supported yet.
 	 * At 72 MHz one tick ~ 13.9 nsec, max 127 * 13.9 ~ 1.764 usec, which is large enough.
 	 */
-	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
+	assert(isfinite(pwm_dead_time) && (pwm_dead_time > 0));
 	const float pwm_dead_time_ticks_float = pwm_dead_time / (1.f / PWM_TIMER_FREQUENCY);
 	assert(pwm_dead_time_ticks_float > 0);
 	assert(pwm_dead_time_ticks_float < (_pwm_top * 0.2f));
@@ -235,7 +234,7 @@ int motor_pwm_init(void)
 		return ret;
 	}
 
-	init_timers();
+	init_timers(configGet("mot_pwm_dt_ns") * 1e-9F);
 	start_timers();
 
 	motor_pwm_set_freewheeling();
