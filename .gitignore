@@ -15,7 +15,7 @@ build
 
 # IDE
 .metadata/*
-*/.settings/*
+.settings
 .project
 .cproject
 .idea
