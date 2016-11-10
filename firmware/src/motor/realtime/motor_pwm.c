@@ -434,10 +434,10 @@ int motor_pwm_compute_pwm_val(float duty_cycle)
 
 	if (duty_cycle >= 0) {
 		// Forward mode
-		output = _pwm_top - ((_pwm_top - int_duty_cycle) / 2);
+		output = _pwm_top - ((_pwm_top - int_duty_cycle) / 2) + 1;
 
-		assert(output >= _pwm_half_top);
-		assert(output <= _pwm_top);
+		assert(output > _pwm_half_top);
+		assert(output <= (_pwm_top + 1));
 	} else {
 		// Braking mode
 		output = (_pwm_top - int_duty_cycle) / 2;
