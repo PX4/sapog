@@ -50,10 +50,9 @@
 # error "Invalid timer clock"
 #endif
 
-#define PWM_DEAD_TIME_NANOSEC   750
-
 
 CONFIG_PARAM_INT("mot_pwm_hz",    30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_INT("mot_pwm_dt_ns",   700,                     200,                     800)
 
 /**
  * Local constants, initialized once
@@ -124,7 +123,7 @@ static int init_constants(unsigned frequency)
 	return 0;
 }
 
-static void init_timers(void)
+static void init_timers(const float pwm_dead_time)
 {
 	ASSERT_ALWAYS(_pwm_top > 0);   // Make sure it was initialized
 
@@ -148,8 +147,8 @@ static void init_timers(void)
 	// Left-aligned PWM, direction up (will be enabled later)
 	TIM2->CR1 = TIM1->CR1 = 0;
 
-	// Output idle state 0, buffered updates
-	TIM1->CR2 = TIM_CR2_CCUS | TIM_CR2_CCPC;
+	// Output idle state 0, unbuffered updates
+	TIM1->CR2 = 0;
 
 	/*
 	 * OC channels
@@ -179,7 +178,7 @@ static void init_timers(void)
 	 * DTG bit 7 must be 0, otherwise it will change multiplier which is not supported yet.
 	 * At 72 MHz one tick ~ 13.9 nsec, max 127 * 13.9 ~ 1.764 usec, which is large enough.
 	 */
-	const float pwm_dead_time = PWM_DEAD_TIME_NANOSEC / 1e9f;
+	assert(isfinite(pwm_dead_time) && (pwm_dead_time > 0));
 	const float pwm_dead_time_ticks_float = pwm_dead_time / (1.f / PWM_TIMER_FREQUENCY);
 	assert(pwm_dead_time_ticks_float > 0);
 	assert(pwm_dead_time_ticks_float < (_pwm_top * 0.2f));
@@ -235,7 +234,7 @@ int motor_pwm_init(void)
 		return ret;
 	}
 
-	init_timers();
+	init_timers(configGet("mot_pwm_dt_ns") * 1e-9F);
 	start_timers();
 
 	motor_pwm_set_freewheeling();
@@ -347,18 +346,6 @@ static inline void adjust_adc_sync_default(void)
 	adjust_adc_sync(_pwm_half_top);
 }
 
-static inline void apply_phase_config(void)
-{
-	/*
-	 * TODO: Do not reset PWM timer at comm switch? Does this have any side effects?
-	 *       If the PWM timer is not reset, new polarity config will not be reloaded,
-	 *       so some work-around is needed. Also, beep function will need to
-	 *       manipulate FETs directly (not via the PWM controller).
-	 */
-	// This will reload the shadow PWM registers and restart both timers synchronously
-	TIM1->EGR = TIM_EGR_COMG | TIM_EGR_UG;
-}
-
 void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 {
 	irq_primask_disable();
@@ -388,7 +375,6 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 	}
 
 	adjust_adc_sync(_pwm_half_top);  // Default for phase manip
-	apply_phase_config();
 }
 
 void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
@@ -409,7 +395,6 @@ void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
 	}
 
 	adjust_adc_sync(_pwm_top);
-	apply_phase_config();
 }
 
 void motor_pwm_set_freewheeling(void)
@@ -417,7 +402,6 @@ void motor_pwm_set_freewheeling(void)
 	irq_primask_disable();
 	phase_reset_all_i();
 	adjust_adc_sync_default();
-	apply_phase_config();
 	irq_primask_enable();
 }
 
@@ -425,7 +409,6 @@ void motor_pwm_emergency(void)
 {
 	const irqstate_t irqstate = irq_primask_save();
 	phase_reset_all_i();
-	apply_phase_config();
 	irq_primask_restore(irqstate);
 }
 
@@ -450,10 +433,10 @@ int motor_pwm_compute_pwm_val(float duty_cycle)
 
 	if (duty_cycle >= 0) {
 		// Forward mode
-		output = _pwm_top - ((_pwm_top - int_duty_cycle) / 2);
+		output = _pwm_top - ((_pwm_top - int_duty_cycle) / 2) + 1;
 
-		assert(output >= _pwm_half_top);
-		assert(output <= _pwm_top);
+		assert(output > _pwm_half_top);
+		assert(output <= (_pwm_top + 1));
 	} else {
 		// Braking mode
 		output = (_pwm_top - int_duty_cycle) / 2;
@@ -478,7 +461,6 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 	phase_set_i(step->negative, pwm_val, true);
 
 	adjust_adc_sync(pwm_val);
-	apply_phase_config();
 }
 
 void motor_pwm_beep(int frequency, int duration_msec)
@@ -528,21 +510,18 @@ void motor_pwm_beep(int frequency, int duration_msec)
 	phase_set_i(low_phase_first, 0, false);
 	phase_set_i(low_phase_second, 0, false);
 	phase_set_i(high_phase, 0, false);
-	apply_phase_config();
 
 	while (end_time > motor_timer_hnsec()) {
 		chSysSuspend();
 
 		irq_primask_disable();
 		phase_set_i(high_phase, _pwm_top, false);
-		apply_phase_config();
 		irq_primask_enable();
 
 		motor_timer_hndelay(active_hnsec);
 
 		irq_primask_disable();
 		phase_set_i(high_phase, 0, false);
-		apply_phase_config();
 		irq_primask_enable();
 
 		chSysEnable();
