@@ -7,21 +7,35 @@ PX4 Sapog
 
 ## Firmware
 
+### Bootloader
+
+The bootloader allows to update the firmware via the standard UAVCAN firmware upgrade protocol,
+which is documented at [uavcan.org](http://uavcan.org/Specification/6._Application_level_functions/#firmware-update).
+No additional steps are needed to build the bootloader - the build system will build it automatically together with
+the firmware. The resulting `*.elf` file will be extended with the bootloader too, so it can be flashed directly into an
+factory fresh MCU.
+
 ### Build instructions
 
 **Prebuilt binaries are available at <https://files.zubax.com/products/io.px4.sapog/>.**
 
 Prerequisites:
 
-* [GCC ARM 4.9 or newer](https://launchpad.net/gcc-arm-embedded)
+* [GCC ARM 4.9 or newer](https://launchpad.net/gcc-arm-embedded) (beware that *some* newer versions of GCC segfault during linking)
 * Python 3.2+
-* Linux or OSX host computer
+* Linux or OSX host computer (Windows is not supported)
 
 ```bash
 git submodule update --init --recursive
 cd firmware
 make RELEASE=1 # RELEASE is optional; omit to build the debug version
 ```
+
+The build outputs will be stored into `build/`:
+
+* `*.application.bin` - built application binary, suitable for uploading via the bootloader;
+* `*.compound.bin` - application binary together with the bootloader, in one image;
+* `compound.elf` - application ELF together with the bootloader, in one file; this option is recommended for debugging.
 
 Execute `./blackmagic_flash.sh [portname]` from the `tools` directory to flash the firmware with a Black Magic Debug Probe.
 
