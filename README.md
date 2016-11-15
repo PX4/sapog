@@ -7,6 +7,9 @@ PX4 Sapog
 
 ## Firmware
 
+If you're not running Linux or OSX natively, you can download
+[Bistromathic - a Linux virtual machine pre-configured for embedded development](https://files.zubax.com/vm/bistromathic.ova).
+
 ### Bootloader
 
 The bootloader allows to update the firmware via the standard UAVCAN firmware upgrade protocol,
