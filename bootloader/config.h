@@ -178,7 +178,6 @@
 
 #define HW_UAVCAN_NAME "io.px4.sapog"
 #define HW_VERSION_MAJOR 1
-#define HW_VERSION_MINOR 0
 
 #define FLASH_BASE              STM32_FLASH_BASE
 #define FLASH_NUMBER_PAGES      128
@@ -220,6 +219,11 @@
                     GPIO_PORTC | GPIO_PIN7)
 #define GPIO_LED_B (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
                     GPIO_PORTC | GPIO_PIN8)
+
+#define GPIO_HWID_0 (GPIO_INPUT | GPIO_CNF_INPULLUP | GPIO_PORTC | GPIO_PIN0)
+#define GPIO_HWID_1 (GPIO_INPUT | GPIO_CNF_INPULLUP | GPIO_PORTC | GPIO_PIN1)
+#define GPIO_HWID_2 (GPIO_INPUT | GPIO_CNF_INPULLUP | GPIO_PORTC | GPIO_PIN2)
+#define GPIO_HWID_3 (GPIO_INPUT | GPIO_CNF_INPULLUP | GPIO_PORTC | GPIO_PIN3)
 
 /************************************************************************************
  * Public Data
@@ -273,6 +277,11 @@ inline static void board_initialize(void)
     stm32_configgpio(GPIO_LED_R);
     stm32_configgpio(GPIO_LED_G);
     stm32_configgpio(GPIO_LED_B);
+
+    stm32_configgpio(GPIO_HWID_0);
+    stm32_configgpio(GPIO_HWID_1);
+    stm32_configgpio(GPIO_HWID_2);
+    stm32_configgpio(GPIO_HWID_3);
 
     stm32_gpiowrite(GPIO_LED_R, true);
 }
@@ -336,7 +345,7 @@ inline static void board_get_hardware_version(uint8_t *major, uint8_t *minor,
     uint8_t unique_id[16], uint8_t *coa_length, uint8_t *coa)
 {
     *major = HW_VERSION_MAJOR;
-    *minor = HW_VERSION_MINOR;
+    *minor = getreg32(STM32_GPIOC_IDR) & 0x0F;
     *coa_length = 0u;
 
     memset(unique_id, 0, 16u);
