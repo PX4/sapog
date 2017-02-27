@@ -137,6 +137,8 @@ int main()
 	 * TODO: Refactor.
 	 * TODO: Report status flags via vendor-specific status field.
 	 */
+	auto config_modifications = os::config::getModificationCounter();
+
 	while (!os::isRebootRequested()) {
 		wdt.reset();
 
@@ -147,6 +149,16 @@ int main()
 			led_ctl.set(board::LEDColor::DARK_GREEN);
 			uavcan_node::set_node_status_ok();
 		}
+
+		const auto new_config_modifications = os::config::getModificationCounter();
+		if ((new_config_modifications != config_modifications) && motor_is_idle())
+		{
+			config_modifications = new_config_modifications;
+			os::lowsyslog("Saving configuration... ");
+			const int res = ::configSave();		// TODO use C++ API
+			os::lowsyslog("Done [%d]\n", res);
+		}
+
 		::usleep(10 * 1000);
 	}
 
