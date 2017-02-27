@@ -168,3 +168,11 @@ int main()
 
 	return 0;
 }
+
+
+#define MATCH_GCC_VERSION(major, minor)  \
+    ((__GNUC__ == (major)) && (__GNUC_MINOR__ == (minor)))
+
+#if !MATCH_GCC_VERSION(4, 9)
+# error "This compiler is not supported"
+#endif
