@@ -210,7 +210,7 @@ CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
 CONFIG_PARAM_INT("mot_zc_dets_min",     200,   6,     1000)
 CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
 // Spinup settings
-CONFIG_PARAM_INT("mot_spup_to_ms",      1000,  100,   2000)
+CONFIG_PARAM_INT("mot_spup_to_ms",      1000,  100,   9500)
 CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
 CONFIG_PARAM_INT("mot_spup_en_cp",      2000,  1000,  10000)
 CONFIG_PARAM_INT("mot_spup_gcomms",     200,   6,     1000)
