@@ -76,8 +76,6 @@ static struct motor_adc_sample _sample;
 __attribute__((optimize(3)))
 CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 {
-	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
-
 	_sample.timestamp = motor_timer_hnsec() -
 		((SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / 2) / NSEC_PER_HNSEC;
 
@@ -103,7 +101,6 @@ CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 	// TODO: check if the current/voltage/temperature channels need to be sampled
 
 	ADC1->SR = 0;         // Reset the IRQ flags
-	TESTPAD_CLEAR(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 }
 
 static void adc_calibrate(ADC_TypeDef* const adc)

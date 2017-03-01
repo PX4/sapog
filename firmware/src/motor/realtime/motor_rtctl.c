@@ -70,8 +70,8 @@
 #define LOWPASS(xold, xnew, alpha_rcpr) \
 	(((xold) * (alpha_rcpr) + (xnew) + (((alpha_rcpr) + 1) / 2)) / ((alpha_rcpr) + 1))
 
-#define TESTPAD_ZC_SET()           TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
-#define TESTPAD_ZC_CLEAR()         TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
+#define TESTPAD_ZC_SET()           TESTPAD_SET  (GPIO_PORT_TEST_ZC, GPIO_PIN_TEST_ZC)
+#define TESTPAD_ZC_CLEAR()         TESTPAD_CLEAR(GPIO_PORT_TEST_ZC, GPIO_PIN_TEST_ZC)
 
 #undef MIN
 #undef MAX

@@ -120,8 +120,6 @@ static volatile uint64_t _raw_ticks = 0;
 __attribute__((optimize(3)))
 CH_FAST_IRQ_HANDLER(TIMEVT_IRQHandler)
 {
-	TESTPAD_SET(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
-
 	if ((TIMEVT->SR & TIM_SR_CC1IF) && (TIMEVT->DIER & TIM_DIER_CC1IE)) {
 		TIMEVT->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
 		TIMEVT->SR = ~TIM_SR_CC1IF;
@@ -129,8 +127,6 @@ CH_FAST_IRQ_HANDLER(TIMEVT_IRQHandler)
 		const uint64_t timestamp = motor_timer_hnsec() - 2;
 		motor_timer_callback(timestamp);
 	}
-
-	TESTPAD_CLEAR(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
 }
 
 /**
