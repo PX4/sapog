@@ -896,7 +896,15 @@ static uint64_t spinup_wait_zc(const uint64_t step_deadline)
 	return zc_timestamp;
 }
 
-static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_attempts)
+struct bemf_spinup_result
+{
+	bool success;
+	float duty_cycle;
+	unsigned num_comms;
+	unsigned num_good_comms;
+};
+
+static struct bemf_spinup_result do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_attempts)
 {
 	assert(chThdGetPriorityX() == HIGHPRIO);  // Mandatory
 
@@ -980,10 +988,13 @@ static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_
 		}
 	}
 
-	printf("Motor: Spinup end; dc: %f, comms: %d, good comms: %d\n",
-		dc, num_comms, num_good_comms);
+	struct bemf_spinup_result output;
+	output.success = _state.comm_period < _params.comm_period_max;
+	output.duty_cycle = dc;
+	output.num_comms = num_comms;
+	output.num_good_comms = num_good_comms;
 
-	return _state.comm_period < _params.comm_period_max;
+	return output;
 }
 
 void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attempts)
@@ -1018,26 +1029,34 @@ void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attemp
 	/*
 	 * Initial spinup.
 	 */
+	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);  // Reset the end-of-spinup indicator
+
 	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
 
 	motor_pwm_prepare_to_start();
 
-	const bool started = do_bemf_spinup(duty_cycle, num_prior_attempts);
+	const struct bemf_spinup_result result = do_bemf_spinup(duty_cycle, num_prior_attempts);
 
 	/*
 	 * Engage the normal mode if started
 	 * At this point, if the spinup was OK, we're sutiated RIGHT AFTER THE DETECTED ZERO CROSS, engaged.
 	 */
-	if (started) {
+	if (result.success) {
+		// Hand-off to IRQ driven logic now:
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
 		_state.zc_detection_result = ZC_DETECTED;
 		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
 		motor_timer_set_relative(_state.comm_period / 3);
+
+		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);   // End of spinup indication
 		printf("Motor: Spinup OK, comm period: %u usec\n", (unsigned)(_state.comm_period / HNSEC_PER_USEC));
 	} else {
 		printf("Motor: Spinup failed\n");
 		motor_rtctl_stop();
 	}
+
+	printf("Motor: Spinup end; dc: %f, comms: %d, good comms: %d\n",
+	       result.duty_cycle, result.num_comms, result.num_good_comms);
 
 	chThdSetPriority(orig_priority);
 }
