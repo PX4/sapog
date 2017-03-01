@@ -872,8 +872,8 @@ static uint64_t spinup_wait_zc(const uint64_t step_deadline)
 
 	while (motor_timer_hnsec() <= step_deadline) {
 		const bool past_zc = is_past_zc(spinup_sample_bemf());
-
 		if (past_zc) {
+			TESTPAD_ZC_SET();
 			if (zc_timestamp == 0) {
 				zc_timestamp = motor_timer_hnsec();
 			}
@@ -883,12 +883,15 @@ static uint64_t spinup_wait_zc(const uint64_t step_deadline)
 				break;
 			}
 		} else {
+			TESTPAD_ZC_CLEAR();
 			zc_timestamp = 0;
 			if (num_samples_past_zc > 0) {
 				num_samples_past_zc--;
 			}
 		}
 	}
+
+	TESTPAD_ZC_CLEAR();
 
 	return zc_timestamp;
 }

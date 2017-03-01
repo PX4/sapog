@@ -57,11 +57,8 @@
 #define GPIO_PORT_TEST_A        GPIOC
 #define GPIO_PIN_TEST_A         11
 
-#define GPIO_PORT_TEST_B        GPIOC
-#define GPIO_PIN_TEST_B         12
-
-#define GPIO_PORT_TEST_ZC       GPIOB
-#define GPIO_PIN_TEST_ZC        15
+#define GPIO_PORT_TEST_ZC       GPIOC
+#define GPIO_PIN_TEST_ZC        12
 
 /*
  * I/O ports initial setup, this configuration is established soon after reset
