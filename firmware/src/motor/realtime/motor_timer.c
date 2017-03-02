@@ -133,9 +133,9 @@ CH_FAST_IRQ_HANDLER(TIMEVT_IRQHandler)
 			const uint64_t timestamp = motor_timer_hnsec() - 2;
 			motor_timer_callback(timestamp);
 		} else {
-			if (_remaining_ticks > 0xFFFF) {
-				TIMEVT->CCR1 += 0xFFFF;
-				_remaining_ticks -= 0xFFFF;             // Go around
+			if (_remaining_ticks >= TICKS_PER_OVERFLOW) {
+				// We don't need to re-configure the CCR register - the value won't change
+				_remaining_ticks -= TICKS_PER_OVERFLOW; // Go around
 			} else {
 				TIMEVT->CCR1 += _remaining_ticks;
 				_remaining_ticks = 0;                   // Go around the last time
