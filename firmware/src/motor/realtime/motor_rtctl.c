@@ -961,8 +961,7 @@ static struct bemf_spinup_result do_bemf_spinup(const float max_duty_cycle, cons
 			// Update comm period
 			const uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
 			_state.prev_zc_timestamp = zc_timestamp;
-			_state.comm_period =
-				LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
+			_state.comm_period = LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
 			step_deadline = zc_timestamp + _state.comm_period / 2;
 
 			// Check the termination condition
@@ -1043,12 +1042,17 @@ void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attemp
 	 */
 	if (result.success) {
 		// Hand-off to IRQ driven logic now:
+		chSysSuspend();
+
 		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
 		_state.zc_detection_result = ZC_DETECTED;
 		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
-		motor_timer_set_relative(_state.comm_period / 3);
+		motor_timer_set_absolute(_state.prev_zc_timestamp + _state.comm_period / 2);
 
 		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);   // End of spinup indication
+
+		chSysEnable();
+
 		printf("Motor: Spinup OK, comm period: %u usec\n", (unsigned)(_state.comm_period / HNSEC_PER_USEC));
 	} else {
 		printf("Motor: Spinup failed\n");
