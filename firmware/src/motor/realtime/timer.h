@@ -59,7 +59,11 @@ uint64_t motor_timer_get_max_delay_hnsec(void);
  */
 uint64_t motor_timer_hnsec(void);
 
-void motor_timer_set_relative(int delay_hnsec);
+/**
+ * There is no limit on the maximum interval.
+ * The driver may automatically split a very long interval into several timer IRQs.
+ */
+void motor_timer_set_relative(int64_t delay_hnsec);
 
 /**
  * Returns the time delta between the requested deadline and the current time.
