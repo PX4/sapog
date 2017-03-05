@@ -154,6 +154,7 @@ static struct control_state            /// Control state
 	unsigned immediate_zc_failures;
 	unsigned immediate_zc_detects;
 	unsigned immediate_desaturations;
+	unsigned immediate_spinup_zc_slope_error;
 	unsigned zc_detects_during_spinup;
 
 	int zc_bemf_samples[MAX_BEMF_SAMPLES];
@@ -387,6 +388,8 @@ static void prepare_zc_detector_for_next_step(void)
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
 {
+	TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+
 	if (!(_state.flags & FLAG_ACTIVE)) {
 		return;
 	}
@@ -452,6 +455,8 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	prepare_zc_detector_for_next_step();
 	motor_adc_enable_from_isr();
+
+	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 }
 
 static void handle_detected_zc(uint64_t zc_timestamp)
@@ -686,12 +691,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	const bool past_zc = is_past_zc(bemf);
 
-	if (past_zc) {
-		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-	} else {
-		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-	}
-
 	/*
 	 * BEMF/ZC validation
 	 */
@@ -787,7 +786,22 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			}
 			// Otherwise just exit and try again with the next sample
 		} else {
-			// Just try again
+			if (_state.immediate_spinup_zc_slope_error >= (MOTOR_NUM_COMMUTATION_STEPS * 2)) {
+				_state.immediate_spinup_zc_slope_error = 0;
+
+				// Skip one step
+				_state.current_comm_step++;
+				if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
+					_state.current_comm_step = 0;
+				}
+
+				// Fake ZC
+				TESTPAD_ZC_SET();
+				handle_detected_zc(_state.prev_comm_timestamp + _state.comm_period / 3);
+				TESTPAD_ZC_CLEAR();
+			} else {
+				_state.immediate_spinup_zc_slope_error++;
+			}
 		}
 		return;
 	}
@@ -800,6 +814,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		 */
 		_diag.zc_solution_extrapolation_discarded++;
 		return;
+	}
+
+	if (_state.immediate_spinup_zc_slope_error > 0) {
+		_state.immediate_spinup_zc_slope_error--;
 	}
 
 	TESTPAD_ZC_SET();
