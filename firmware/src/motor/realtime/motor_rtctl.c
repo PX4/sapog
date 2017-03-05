@@ -391,7 +391,12 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		return;
 	}
 
-	motor_timer_set_relative(_state.comm_period);
+	if ((_state.flags & FLAG_SPINUP) == 0) {
+		motor_timer_set_relative(_state.comm_period);
+	} else {
+		// This hack allows the algorithm to automatically lower the comm period when it skips a zero cross
+		motor_timer_set_relative((_params.spinup_start_comm_period + _state.comm_period) / 2);
+	}
 
 	// Next comm step
 	_state.prev_comm_timestamp = timestamp_hnsec;
@@ -672,6 +677,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	const bool past_zc = is_past_zc(bemf);
 
+	if (past_zc) {
+		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	} else {
+		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	}
+
 	/*
 	 * BEMF/ZC validation
 	 */
@@ -753,9 +764,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	/*
 	 * Find the exact ZC timestamp using the collected samples
 	 */
-	TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	//TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 	const uint64_t zc_timestamp = solve_zc_approximation();
-	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	//TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 
 	if (zc_timestamp == 0) {
 		// Abort only if there's no chance to get more data
@@ -872,8 +883,6 @@ void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attemp
 	/*
 	 * Start the background IRQ-driven process
 	 */
-	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);  // Make sure the general purpose testpoint is reset
-
 	motor_pwm_prepare_to_start();
 
 	chSysSuspend();
