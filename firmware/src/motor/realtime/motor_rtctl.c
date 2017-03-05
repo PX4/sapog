@@ -170,7 +170,10 @@ static struct control_state            /// Control state
 	int input_current;
 
 	int pwm_val;
+	int pwm_val_before_spinup;
 	int pwm_val_after_spinup;
+
+	uint64_t spinup_ramp_duration_hnsec;
 } _state;
 
 static struct precomputed_params       /// Parameters are read only
@@ -188,7 +191,6 @@ static struct precomputed_params       /// Parameters are read only
 	int comm_blank_hnsec;
 
 	uint32_t spinup_timeout;
-	uint32_t spinup_start_comm_period;
 	unsigned spinup_num_good_comms;
 
 	uint32_t adc_sampling_period;
@@ -207,10 +209,9 @@ CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
 CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
 CONFIG_PARAM_INT("mot_zc_dets_min",     200,   6,     1000)
-CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
+CONFIG_PARAM_INT("mot_comm_per_max",    50000, 1000,  200000)
 // Spinup settings
 CONFIG_PARAM_INT("mot_spup_to_ms",      3000,  100,   9500)
-CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
 CONFIG_PARAM_INT("mot_spup_gcomms",     200,   6,     1000)
 
 
@@ -229,7 +230,6 @@ static void configure(void)
 	_params.comm_blank_hnsec = configGet("mot_blank_usec") * HNSEC_PER_USEC;
 
 	_params.spinup_timeout              = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
-	_params.spinup_start_comm_period    = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
 	_params.spinup_num_good_comms       = configGet("mot_spup_gcomms");
 
 	/*
@@ -244,10 +244,6 @@ static void configure(void)
 		_params.max_comm_period_for_max_timing_advance = _params.max_comm_period_for_min_timing_advance; // Min
 	}
 	assert(_params.max_comm_period_for_max_timing_advance <= _params.max_comm_period_for_min_timing_advance);
-
-	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec()) {
-		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
-	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
 
@@ -381,8 +377,6 @@ static void prepare_zc_detector_for_next_step(void)
 
 void motor_timer_callback(uint64_t timestamp_hnsec)
 {
-	TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-
 	if (!(_state.flags & FLAG_ACTIVE)) {
 		return;
 	}
@@ -391,7 +385,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		motor_timer_set_relative(_state.comm_period);
 	} else {
 		// This hack allows the algorithm to automatically lower the comm period when it skips a zero cross
-		motor_timer_set_relative((_params.spinup_start_comm_period + _state.comm_period) / 2);
+		motor_timer_set_relative((_params.comm_period_max + _state.comm_period) / 2);
 	}
 
 	// Next comm step
@@ -449,7 +443,22 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	prepare_zc_detector_for_next_step();
 	motor_adc_enable_from_isr();
 
-	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	// Spinup voltage ramp handling
+	if ((_state.flags & FLAG_SPINUP) != 0) {
+		const uint64_t delta = timestamp_hnsec - _diag.started_at;
+		if (delta >= _state.spinup_ramp_duration_hnsec) {
+			_state.pwm_val = _state.pwm_val_after_spinup;
+		} else {
+			_state.zc_detects_during_spinup = 0;
+
+			_state.pwm_val = _state.pwm_val_before_spinup +
+				(((uint64_t)(_state.pwm_val_after_spinup - _state.pwm_val_before_spinup)) * delta) /
+				_state.spinup_ramp_duration_hnsec;
+
+			assert(_state.pwm_val >= _state.pwm_val_before_spinup);
+			assert(_state.pwm_val <= _state.pwm_val_after_spinup);
+		}
+	}
 }
 
 static void handle_detected_zc(uint64_t zc_timestamp)
@@ -484,11 +493,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 
 	_state.prev_zc_timestamp = zc_timestamp;
 
-	if ((_state.flags & FLAG_SPINUP) == 0) {
-		_state.comm_period = MIN(_state.comm_period, _params.comm_period_max);
-	} else {
-		_state.comm_period = MIN(_state.comm_period, _params.spinup_start_comm_period);
-	}
+	_state.comm_period = MIN(_state.comm_period, _params.comm_period_max);
 
 	_state.zc_detection_result = ZC_DETECTED;
 
@@ -689,6 +694,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	const bool past_zc = is_past_zc(bemf);
 
+	if (past_zc) {
+		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	} else {
+		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+	}
+
 	/*
 	 * BEMF/ZC validation
 	 */
@@ -865,7 +876,7 @@ static void init_adc_filters(void)
 	_state.input_current = smpl.input_current;
 }
 
-void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attempts)
+void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool reverse, unsigned num_prior_attempts)
 {
 	(void) num_prior_attempts;
 
@@ -897,22 +908,29 @@ void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attemp
 
 	chSysSuspend();
 
-	_diag.started_at = motor_timer_hnsec();
+	_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(0.0F);
+	_state.pwm_val_after_spinup  = motor_pwm_compute_pwm_val(duty_cycle);
+	_state.pwm_val               = 1;   // Minimum
 
-	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(duty_cycle);
-	_state.pwm_val              = motor_pwm_compute_pwm_val(duty_cycle);  // Same value
+	_state.spinup_ramp_duration_hnsec = (uint32_t)(voltage_ramp_duration * ((float)HNSEC_PER_SEC) + 0.5F);
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
-	_state.comm_period = _params.spinup_start_comm_period;
+	_state.comm_period = _params.comm_period_max;
 
 	_state.prev_comm_timestamp = motor_timer_hnsec();
 	_state.prev_zc_timestamp = _state.prev_comm_timestamp - _state.comm_period / 2;
 	_state.zc_detection_result = ZC_DETECTED;
 	_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
 
+	_diag.started_at = motor_timer_hnsec();
+
 	motor_timer_set_relative(_state.comm_period / 2);
 
 	chSysEnable();
+
+	printf("Spinup Ramp: before %d, after %d, duration %u hnsec\n",
+		_state.pwm_val_before_spinup, _state.pwm_val_after_spinup,
+		(unsigned)(_state.spinup_ramp_duration_hnsec));
 }
 
 void motor_rtctl_stop(void)

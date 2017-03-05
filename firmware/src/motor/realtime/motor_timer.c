@@ -229,12 +229,6 @@ void motor_timer_init(void)
 	TIMSTP->CR1 = TIM_CR1_CEN;    // Start
 }
 
-uint64_t motor_timer_get_max_delay_hnsec(void)
-{
-	ASSERT_ALWAYS(_nanosec_per_tick > 0);   // Make sure the timer was initialized
-	return (_nanosec_per_tick * TICKS_PER_OVERFLOW) / 100;
-}
-
 __attribute__((optimize(1)))          // To prevent code reordering
 uint64_t motor_timer_hnsec(void)
 {

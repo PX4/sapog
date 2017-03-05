@@ -92,6 +92,7 @@ static struct params
 {
 	float dc_min_voltage;
 	float dc_spinup_voltage;
+	float spinup_voltage_ramp_duration;
 	float dc_step_max;
 	float dc_slope;
 
@@ -110,10 +111,11 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("mot_v_min",    2.3,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("mot_v_spinup", 3.0,    0.5,     20.0)
-CONFIG_PARAM_FLOAT("mot_dc_accel", 0.09,   0.001,   0.5)
-CONFIG_PARAM_FLOAT("mot_dc_slope", 5.0,    0.1,     20.0)
+CONFIG_PARAM_FLOAT("mot_v_min",        2.3,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("mot_v_spinup",     3.0,    0.5,     20.0)
+CONFIG_PARAM_FLOAT("mot_spup_vramp_t", 1.0,    0.1,     10.0)
+CONFIG_PARAM_FLOAT("mot_dc_accel",     0.09,   0.001,   0.5)
+CONFIG_PARAM_FLOAT("mot_dc_slope",     5.0,    0.1,     20.0)
 
 CONFIG_PARAM_INT("mot_num_poles",  14,     2,       100)
 CONFIG_PARAM_INT("ctl_dir",        0,      0,       1)
@@ -131,6 +133,7 @@ static void configure(void)
 {
 	_params.dc_min_voltage    = configGet("mot_v_min");
 	_params.dc_spinup_voltage = configGet("mot_v_spinup");
+	_params.spinup_voltage_ramp_duration = configGet("mot_spup_vramp_t");
 	_params.dc_step_max    = configGet("mot_dc_accel");
 	_params.dc_slope       = configGet("mot_dc_slope");
 
@@ -247,7 +250,8 @@ static void update_control_non_running(void)
 		const uint64_t timestamp = motor_rtctl_timestamp_hnsec();
 
 		_state.dc_actual = spinup_dc;
-		motor_rtctl_start(spinup_dc, _params.reverse, _state.num_unexpected_stops);
+		motor_rtctl_start(spinup_dc, _params.spinup_voltage_ramp_duration,
+			_params.reverse, _state.num_unexpected_stops);
 		_state.rtctl_state = motor_rtctl_get_state();
 
 		// This HACK prevents the setpoint TTL expiration in case of protracted startup
