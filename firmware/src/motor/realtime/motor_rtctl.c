@@ -867,12 +867,6 @@ void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attemp
 
 	motor_forced_rotation_detector_reset();
 
-	_diag.started_at = motor_timer_hnsec();
-
-	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
-
-	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(duty_cycle);
-
 	init_adc_filters();
 
 	/*
@@ -884,12 +878,20 @@ void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attemp
 
 	chSysSuspend();
 
+	_diag.started_at = motor_timer_hnsec();
+
+	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(duty_cycle);
+	_state.pwm_val              = motor_pwm_compute_pwm_val(duty_cycle);  // Same value
+
+	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
 	_state.comm_period = _params.spinup_start_comm_period;
-	_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
-	_state.pwm_val = motor_pwm_compute_pwm_val(duty_cycle);
+
+	_state.prev_comm_timestamp = motor_timer_hnsec();
+	_state.prev_zc_timestamp = _state.prev_comm_timestamp - _state.comm_period / 2;
 	_state.zc_detection_result = ZC_DETECTED;
 	_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
-	motor_timer_set_relative(0);
+
+	motor_timer_set_relative(_state.comm_period / 2);
 
 	chSysEnable();
 }
