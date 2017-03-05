@@ -430,10 +430,10 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			engage_current_comm_step();
 		} else {
 			motor_pwm_set_freewheeling();
+			_state.flags |= FLAG_SYNC_RECOVERY;
 		}
 		fake_missed_zc_detection(timestamp_hnsec);
 		register_bad_step(&stop_now);
-		_state.flags |= FLAG_SYNC_RECOVERY;
 		break;
 	}
 	default: {
@@ -778,14 +778,17 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 	//TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 
 	if (zc_timestamp == 0) {
-		// Abort only if there's no chance to get more data
-		if ((_state.zc_bemf_samples_acquired >= _state.zc_bemf_samples_optimal) &&
-		    ((_state.flags & FLAG_SPINUP) == 0)) {
-			// Sorry Mario
-			motor_pwm_set_freewheeling();
-			_state.zc_detection_result = ZC_FAILED;
+		if ((_state.flags & FLAG_SPINUP) == 0) {
+			// Abort only if there's no chance to get more data
+			if (_state.zc_bemf_samples_acquired >= _state.zc_bemf_samples_optimal) {
+				// Sorry Mario
+				motor_pwm_set_freewheeling();
+				_state.zc_detection_result = ZC_FAILED;
+			}
+			// Otherwise just exit and try again with the next sample
+		} else {
+			// Just try again
 		}
-		// Otherwise just exit and try again with the next sample
 		return;
 	}
 
