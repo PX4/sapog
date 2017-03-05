@@ -154,8 +154,8 @@ static struct control_state            /// Control state
 	unsigned immediate_zc_failures;
 	unsigned immediate_zc_detects;
 	unsigned immediate_desaturations;
-	unsigned immediate_spinup_zc_slope_error;
 	unsigned zc_detects_during_spinup;
+	bool spinup_zc_slope_error;
 
 	int zc_bemf_samples[MAX_BEMF_SAMPLES];
 	uint64_t zc_bemf_timestamps[MAX_BEMF_SAMPLES];
@@ -477,6 +477,11 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		engage_current_comm_step();
 	} else if (_state.flags & FLAG_SPINUP) {
 		_state.comm_period = (zc_timestamp - _state.prev_comm_timestamp) * 2;
+
+		if (_state.spinup_zc_slope_error) {
+			_state.spinup_zc_slope_error = false;
+			_state.comm_period = _state.comm_period / 2;
+		}
 	} else {
 		const uint64_t predicted_zc_ts = _state.prev_zc_timestamp + _state.comm_period;
 		zc_timestamp = (predicted_zc_ts + zc_timestamp + 2ULL) / 2ULL;
@@ -786,22 +791,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			}
 			// Otherwise just exit and try again with the next sample
 		} else {
-			if (_state.immediate_spinup_zc_slope_error >= (MOTOR_NUM_COMMUTATION_STEPS * 2)) {
-				_state.immediate_spinup_zc_slope_error = 0;
-
-				// Skip one step
-				_state.current_comm_step++;
-				if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
-					_state.current_comm_step = 0;
-				}
-
-				// Fake ZC
-				TESTPAD_ZC_SET();
-				handle_detected_zc(_state.prev_comm_timestamp + _state.comm_period / 3);
-				TESTPAD_ZC_CLEAR();
-			} else {
-				_state.immediate_spinup_zc_slope_error++;
-			}
+			_state.spinup_zc_slope_error = true;
+			// Just keep going
 		}
 		return;
 	}
@@ -814,10 +805,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		 */
 		_diag.zc_solution_extrapolation_discarded++;
 		return;
-	}
-
-	if (_state.immediate_spinup_zc_slope_error > 0) {
-		_state.immediate_spinup_zc_slope_error--;
 	}
 
 	TESTPAD_ZC_SET();
