@@ -641,8 +641,17 @@ static uint64_t solve_zc_approximation(void)
 				valid = x > 0;
 			}
 		} else {
-			// Special cases for spinup mode
-			valid = x > 0;
+			// Special case for spinup mode: first and last samples should be on the opposite sides of
+			// the neutral
+			if (is_bemf_slope_positive()) {
+				valid = (slope > 0) &&
+				        (_state.zc_bemf_samples[0] < 0) &&
+				        (_state.zc_bemf_samples[_state.zc_bemf_samples_acquired - 1] > 0);
+			} else {
+				valid = (slope < 0) &&
+				        (_state.zc_bemf_samples[0] > 0) &&
+				        (_state.zc_bemf_samples[_state.zc_bemf_samples_acquired - 1] < 0);
+			}
 		}
 	}
 
