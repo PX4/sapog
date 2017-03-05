@@ -189,7 +189,6 @@ static struct precomputed_params       /// Parameters are read only
 
 	uint32_t spinup_timeout;
 	uint32_t spinup_start_comm_period;
-	uint32_t spinup_end_comm_period;
 	unsigned spinup_num_good_comms;
 
 	uint32_t adc_sampling_period;
@@ -212,7 +211,6 @@ CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
 // Spinup settings
 CONFIG_PARAM_INT("mot_spup_to_ms",      3000,  100,   9500)
 CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
-CONFIG_PARAM_INT("mot_spup_en_cp",      1000,  500,   10000)
 CONFIG_PARAM_INT("mot_spup_gcomms",     200,   6,     1000)
 
 
@@ -232,7 +230,6 @@ static void configure(void)
 
 	_params.spinup_timeout              = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
 	_params.spinup_start_comm_period    = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
-	_params.spinup_end_comm_period      = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
 	_params.spinup_num_good_comms       = configGet("mot_spup_gcomms");
 
 	/*
@@ -250,10 +247,6 @@ static void configure(void)
 
 	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec()) {
 		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
-	}
-
-	if (_params.spinup_end_comm_period > _params.comm_period_max) {
-		_params.spinup_end_comm_period = _params.comm_period_max;
 	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
