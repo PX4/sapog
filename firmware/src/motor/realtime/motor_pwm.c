@@ -241,20 +241,6 @@ int motor_pwm_init(void)
 	return 0;
 }
 
-void motor_pwm_prepare_to_start(void)
-{
-	// High side drivers cap precharge
-	const enum motor_pwm_phase_manip cmd[3] = {
-		MOTOR_PWM_MANIP_LOW,
-		MOTOR_PWM_MANIP_LOW,
-		MOTOR_PWM_MANIP_LOW
-	};
-	motor_pwm_manip(cmd);
-	usleep(1000);
-	motor_pwm_set_freewheeling();
-	usleep(10000);
-}
-
 uint32_t motor_adc_sampling_period_hnsec(void)
 {
 	return HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((int)_pwm_top + 1));

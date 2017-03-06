@@ -147,6 +147,7 @@ static struct control_state            /// Control state
 	uint64_t prev_zc_timestamp;
 	uint64_t prev_comm_timestamp;
 	uint32_t comm_period;
+	uint32_t spinup_max_comm_period;
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
@@ -384,8 +385,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	if ((_state.flags & FLAG_SPINUP) == 0) {
 		motor_timer_set_relative(_state.comm_period);
 	} else {
-		// This hack allows the algorithm to automatically lower the comm period when it skips a zero cross
-		motor_timer_set_relative((_params.comm_period_max + _state.comm_period) / 2);
+		motor_timer_set_relative(_state.spinup_max_comm_period);
 	}
 
 	// Next comm step
@@ -478,12 +478,20 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		_state.comm_period = zc_timestamp - _state.prev_zc_timestamp;
 		engage_current_comm_step();
 	} else if (_state.flags & FLAG_SPINUP) {
-		_state.comm_period = (zc_timestamp - _state.prev_comm_timestamp) * 2;
+		const uint32_t new_comm_period = (zc_timestamp - _state.prev_comm_timestamp) * 2;
+
+		if (new_comm_period > _state.comm_period) {
+			_state.comm_period = (new_comm_period + _state.comm_period * 3) / 4;
+		} else {
+			_state.comm_period = new_comm_period;
+		}
 
 		if (_state.spinup_zc_slope_error) {
 			_state.spinup_zc_slope_error = false;
 			_state.comm_period = _state.comm_period / 2;
 		}
+
+		_state.spinup_max_comm_period = (_state.comm_period + _state.spinup_max_comm_period * 15U) / 16U;
 	} else {
 		const uint64_t predicted_zc_ts = _state.prev_zc_timestamp + _state.comm_period;
 		zc_timestamp = (predicted_zc_ts + zc_timestamp + 2ULL) / 2ULL;
@@ -493,7 +501,11 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 
 	_state.prev_zc_timestamp = zc_timestamp;
 
-	_state.comm_period = MIN(_state.comm_period, _params.comm_period_max);
+	if (_state.flags & FLAG_SPINUP) {
+		_state.comm_period = MIN(_state.comm_period, _state.spinup_max_comm_period);
+	} else {
+		_state.comm_period = MIN(_state.comm_period, _params.comm_period_max);
+	}
 
 	_state.zc_detection_result = ZC_DETECTED;
 
@@ -904,8 +916,6 @@ void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool rever
 	/*
 	 * Start the background IRQ-driven process
 	 */
-	motor_pwm_prepare_to_start();
-
 	chSysSuspend();
 
 	if (voltage_ramp_duration > 0.0F) {
@@ -923,7 +933,8 @@ void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool rever
 	}
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
-	_state.comm_period = _params.comm_period_max;
+	_state.comm_period            = _params.comm_period_max;
+	_state.spinup_max_comm_period = _params.comm_period_max;
 
 	_state.prev_comm_timestamp = motor_timer_hnsec();
 	_state.prev_zc_timestamp = _state.prev_comm_timestamp - _state.comm_period / 2;
