@@ -793,7 +793,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		TESTPAD_ZC_CLEAR();
 	} else {
 		if (past_zc) {
-			_state.spinup_bemf_integral += abs(bemf);
+			_state.spinup_bemf_integral += abs(bemf) * 2;
 		} else {
 			_state.spinup_bemf_integral -= abs(bemf);
 		}
@@ -818,6 +818,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 				motor_timer_set_relative(0);
 			} else {
+				TESTPAD_ZC_SET();
 				_state.spinup_bemf_integral = 0;
 				_state.blank_time_deadline = sample->timestamp + _params.comm_blank_hnsec;
 
@@ -828,6 +829,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 				}
 
 				engage_current_comm_step();
+				TESTPAD_ZC_CLEAR();
 			}
 		}
 	}
