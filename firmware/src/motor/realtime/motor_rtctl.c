@@ -147,7 +147,6 @@ static struct control_state            /// Control state
 	uint64_t prev_zc_timestamp;
 	uint64_t prev_comm_timestamp;
 	uint32_t comm_period;
-	uint32_t spinup_max_comm_period;
 	int64_t spinup_bemf_integral;
 
 	int current_comm_step;
@@ -385,7 +384,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	if ((_state.flags & FLAG_SPINUP) == 0) {
 		motor_timer_set_relative(_state.comm_period);
 	} else {
-		motor_timer_set_relative(_state.spinup_max_comm_period);
+		motor_timer_set_relative(_params.comm_period_max);
 		_state.spinup_bemf_integral = 0;
 	}
 
@@ -451,6 +450,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			_state.pwm_val = _state.pwm_val_after_spinup;
 		} else {
 			_state.zc_detects_during_spinup = 0;
+			_state.immediate_zc_failures = 0;
 
 			_state.pwm_val = _state.pwm_val_before_spinup +
 				(((uint64_t)(_state.pwm_val_after_spinup - _state.pwm_val_before_spinup)) * delta) /
@@ -804,15 +804,14 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			const uint32_t min_threshold = _params.adc_sampling_period * 3;
 
 			if (new_comm_period > min_threshold) {
-				_state.comm_period = MIN(new_comm_period, _state.spinup_max_comm_period);
-
-				_state.spinup_max_comm_period =
-					(_state.comm_period + _state.spinup_max_comm_period * 15U) / 16U;
+				_state.comm_period =
+					MIN((new_comm_period + _state.comm_period) / 2,
+					    _params.comm_period_max);
 
 				_state.prev_zc_timestamp = sample->timestamp - _state.comm_period / 2;
 				_state.zc_detection_result = ZC_DETECTED;
 
-				if (_state.spinup_max_comm_period < (5 * HNSEC_PER_MSEC)) {
+				if (_state.comm_period < (5 * HNSEC_PER_MSEC)) {
 					_state.flags &= ~FLAG_SPINUP;
 				}
 
@@ -940,8 +939,7 @@ void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool rever
 	}
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
-	_state.comm_period            = _params.comm_period_max;
-	_state.spinup_max_comm_period = _params.comm_period_max;
+	_state.comm_period = _params.comm_period_max;
 
 	_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
 	_state.zc_detection_result = ZC_DETECTED;
