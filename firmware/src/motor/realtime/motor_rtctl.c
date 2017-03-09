@@ -798,7 +798,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			_state.spinup_bemf_integral -= abs(bemf);
 		}
 
-		if (_state.spinup_bemf_integral > -abs(bemf)) {
+		if (_state.spinup_bemf_integral > 0) {
 			const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
 
 			const uint32_t min_threshold = _params.adc_sampling_period * 3;
