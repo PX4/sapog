@@ -829,7 +829,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			_state.spinup_bemf_integral_negative++;
 		}
 
-		const bool zero_cross_detected = past_zc && (_state.spinup_bemf_integral_positive >= 50);
+		const bool zero_cross_detected =
+			(_state.spinup_bemf_integral_positive >= 50) &&
+			(_state.spinup_bemf_integral_negative >= 5);
 
 		if (zero_cross_detected) {
 			TESTPAD_ZC_SET();
