@@ -81,22 +81,42 @@
 /**
  * Commutation tables
  * Phase order: Positive, Negative, Floating
+ *
+ * FORWARD TABLE:
+ *   Step  01234501...
+ *   BEMF  -+-+-+-+...
+ *           __
+ *   A     _/  \__/
+ *         __    __
+ *   B       \__/
+ *             __
+ *   C     \__/  \_
+ *
+ * REVERSE TABLE:
+ *   Step  01234501...
+ *   BEMF  -+-+-+-+...
+ *           __
+ *   A     _/  \__/
+ *             __
+ *   B     \__/  \_
+ *         __    __
+ *   C       \__/
  */
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE_FORWARD[MOTOR_NUM_COMMUTATION_STEPS] = {
-	{1, 0, 2},
-	{1, 2, 0},
-	{0, 2, 1},
-	{0, 1, 2},
-	{2, 1, 0},
-	{2, 0, 1}
+	{1, 0, 2},      // BEMF -
+	{1, 2, 0},      // BEMF +
+	{0, 2, 1},      // BEMF -
+	{0, 1, 2},      // BEMF +
+	{2, 1, 0},      // BEMF -
+	{2, 0, 1}       // BEMF +
 };
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[MOTOR_NUM_COMMUTATION_STEPS] = {
-	{2, 0, 1},
-	{2, 1, 0},
-	{0, 1, 2},
-	{0, 2, 1},
-	{1, 2, 0},
-	{1, 0, 2}
+	{2, 0, 1},      // BEMF -
+	{2, 1, 0},      // BEMF +
+	{0, 1, 2},      // BEMF -
+	{0, 2, 1},      // BEMF +
+	{1, 2, 0},      // BEMF -
+	{1, 0, 2}       // BEMF +
 };
 
 enum flags
@@ -147,7 +167,8 @@ static struct control_state            /// Control state
 	uint64_t prev_zc_timestamp;
 	uint64_t prev_comm_timestamp;
 	uint32_t comm_period;
-	int64_t spinup_bemf_integral;
+	int64_t spinup_bemf_integral_negative;
+	int64_t spinup_bemf_integral_positive;
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
@@ -385,7 +406,8 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		motor_timer_set_relative(_state.comm_period);
 	} else {
 		motor_timer_set_relative(_params.comm_period_max);
-		_state.spinup_bemf_integral = 0;
+		_state.spinup_bemf_integral_negative = 0;
+		_state.spinup_bemf_integral_positive = 0;
 	}
 
 	// Next comm step
@@ -405,6 +427,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		break;
 	}
 	case ZC_DESATURATION: {
+		assert((_state.flags & FLAG_SPINUP) == 0);
 		engage_current_comm_step();
 		fake_missed_zc_detection(timestamp_hnsec);
 		_state.flags |= FLAG_SYNC_RECOVERY;
@@ -468,6 +491,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	assert(zc_timestamp < _state.prev_zc_timestamp * 10);
 
 	if (_state.flags & FLAG_SYNC_RECOVERY) {
+		assert((_state.flags & FLAG_SPINUP) == 0);
 		/*
 		 * TODO: Proper sync recovery:
 		 * - Disable PWM
@@ -540,8 +564,7 @@ static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
 {
-	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	_state.neutral_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
+	_state.neutral_voltage = (sample->phase_values[0] + sample->phase_values[1] + sample->phase_values[2]) / 3;
 }
 
 // Returns TRUE if the BEMF has POSITIVE slope, otherwise returns FALSE.
@@ -553,7 +576,7 @@ static bool is_bemf_slope_positive(void)
 static bool is_past_zc(const int bemf)
 {
 	const bool bemf_slope_positive = is_bemf_slope_positive();
-	return (bemf_slope_positive && (bemf >= 0)) || (!bemf_slope_positive && (bemf <= 0));
+	return (bemf_slope_positive && (bemf > 0)) || (!bemf_slope_positive && (bemf < 0));
 }
 
 /// Fixed point multiplier
@@ -792,44 +815,45 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		handle_detected_zc(zc_timestamp);
 		TESTPAD_ZC_CLEAR();
 	} else {
-		if (past_zc) {
-			_state.spinup_bemf_integral += abs(bemf) * 2;
-		} else {
-			_state.spinup_bemf_integral -= abs(bemf);
+		if (sample->timestamp < (_state.prev_comm_timestamp + _state.comm_period / 100)) {
+			return;
 		}
 
-		if (_state.spinup_bemf_integral > 0) {
-			const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
-
-			const uint32_t min_threshold = _params.adc_sampling_period * 3;
-
-			if (new_comm_period > min_threshold) {
-				_state.comm_period =
-					MIN((new_comm_period + _state.comm_period) / 2,
-					    _params.comm_period_max);
-
-				_state.prev_zc_timestamp = sample->timestamp - _state.comm_period / 2;
-				_state.zc_detection_result = ZC_DETECTED;
-
-				if (_state.comm_period < (5 * HNSEC_PER_MSEC)) {
-					_state.flags &= ~FLAG_SPINUP;
-				}
-
-				motor_timer_set_relative(0);
-			} else {
-				TESTPAD_ZC_SET();
-				_state.spinup_bemf_integral = 0;
-				_state.blank_time_deadline = sample->timestamp + _params.comm_blank_hnsec;
-
-				// Switch step
-				_state.current_comm_step++;
-				if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
-					_state.current_comm_step = 0;
-				}
-
-				engage_current_comm_step();
-				TESTPAD_ZC_CLEAR();
+		if (past_zc) {
+			_state.spinup_bemf_integral_positive++;
+		} else {
+			if (_state.spinup_bemf_integral_positive > 0) {
+				_state.spinup_bemf_integral_negative = 0;
+				_state.spinup_bemf_integral_positive = 0;
 			}
+			_state.spinup_bemf_integral_negative++;
+		}
+
+		const bool zero_cross_detected = past_zc && (_state.spinup_bemf_integral_positive >= 50);
+
+		if (zero_cross_detected) {
+			TESTPAD_ZC_SET();
+
+			const uint32_t new_comm_period = (sample->timestamp - _state.prev_comm_timestamp) * 2;
+
+			_state.comm_period =
+				MIN((new_comm_period + _state.comm_period) / 2,
+				    _params.comm_period_max);
+
+			_state.prev_zc_timestamp = sample->timestamp;
+			_state.zc_detection_result = ZC_DETECTED;
+
+			motor_timer_set_relative(0);
+
+			if (_state.comm_period < (5 * HNSEC_PER_MSEC)) {
+				_state.flags &= ~FLAG_SPINUP;
+//				_state.flags |= FLAG_SYNC_RECOVERY;
+//				_state.zc_detection_result = ZC_DESATURATION;
+//				motor_pwm_set_freewheeling();
+				stop_from_isr();
+			}
+
+			TESTPAD_ZC_CLEAR();
 		}
 	}
 }
