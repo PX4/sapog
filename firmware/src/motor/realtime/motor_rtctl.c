@@ -727,7 +727,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			return;
 		}
 
-		if (past_zc && (_state.zc_bemf_samples_acquired == 0) && !(_state.flags & FLAG_SPINUP)) {
+		if (past_zc && (_state.zc_bemf_samples_acquired == 0)) {
 			_diag.bemf_samples_premature_zc++;
 			/*
 			 * BEMF signal may be affected by extreme saturation, which we can detect
@@ -801,15 +801,13 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		const uint64_t zc_timestamp = solve_zc_approximation();
 
 		if (zc_timestamp == 0) {
-			if ((_state.flags & FLAG_SPINUP) == 0) {
-				// Abort only if there's no chance to get more data
-				if (_state.zc_bemf_samples_acquired >= _state.zc_bemf_samples_optimal) {
-					// Sorry Mario
-					motor_pwm_set_freewheeling();
-					_state.zc_detection_result = ZC_FAILED;
-				}
-				// Otherwise just exit and try again with the next sample
+			// Abort only if there's no chance to get more data
+			if (_state.zc_bemf_samples_acquired >= _state.zc_bemf_samples_optimal) {
+				// Sorry Mario
+				motor_pwm_set_freewheeling();
+				_state.zc_detection_result = ZC_FAILED;
 			}
+			// Otherwise just exit and try again with the next sample
 			return;
 		}
 
