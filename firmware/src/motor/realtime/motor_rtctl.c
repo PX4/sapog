@@ -970,9 +970,9 @@ void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool rever
 	chSysSuspend();
 
 	if (voltage_ramp_duration > 0.0F) {
-		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(0.0F);
+		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(0.01F);
 		_state.pwm_val_after_spinup  = motor_pwm_compute_pwm_val(duty_cycle);
-		_state.pwm_val               = 1;   // Minimum
+		_state.pwm_val               = _state.pwm_val_before_spinup;
 
 		_state.spinup_ramp_duration_hnsec = (uint32_t)(voltage_ramp_duration * ((float)HNSEC_PER_SEC) + 0.5F);
 	} else {
