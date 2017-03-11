@@ -255,10 +255,10 @@ static void phase_reset_all_i(void)
 {
 	TIM1->CCER = 0;                                     // Disable CC outputs
 	TIM1->CCMR1 &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_OC2M);  // Set FROZEN PWM mode
-	TIM1->CCMR2 &= ~TIM_CCMR2_OC3M_0;
-	TIM1->CCR1 = 0;                                     // Reset CC registers
-	TIM1->CCR2 = 0;
-	TIM1->CCR3 = 0;
+	TIM1->CCMR2 &= ~TIM_CCMR2_OC3M;
+	TIM1->CCR1 = _pwm_half_top;                         // Reset CC registers
+	TIM1->CCR2 = _pwm_half_top;                         // Note that we're resetting to half top, because that
+	TIM1->CCR3 = _pwm_half_top;                         // helps to avoid bumps when turning the channel on
 	TIM1->EGR = TIM_EGR_COMG;                           // Reload shadow registers
 }
 
