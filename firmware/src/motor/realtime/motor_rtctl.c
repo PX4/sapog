@@ -134,6 +134,13 @@ enum zc_detection_result
 	ZC_DESATURATION
 };
 
+enum spinup_comm_state
+{
+	SPINUP_COMM_WINDING_DISCHARGE,
+	SPINUP_COMM_BEMF_STABILIZATION,
+	SPINUP_COMM_WAITING_FOR_ZERO_CROSS
+};
+
 static struct diag_info                /// This data is never used by the control algorithms, it is write only
 {
 	/// Increment-only counters
@@ -167,8 +174,10 @@ static struct control_state            /// Control state
 	uint64_t prev_zc_timestamp;
 	uint64_t prev_comm_timestamp;
 	uint32_t comm_period;
-	int64_t spinup_bemf_integral_negative;
-	int64_t spinup_bemf_integral_positive;
+
+	enum spinup_comm_state spinup_comm_state;
+	uint64_t spinup_bemf_stabilization_deadline;
+	int64_t spinup_bemf_integral;
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
@@ -406,8 +415,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		motor_timer_set_relative(_state.comm_period);
 	} else {
 		motor_timer_set_relative(_params.comm_period_max);
-		_state.spinup_bemf_integral_negative = 0;
-		_state.spinup_bemf_integral_positive = 0;
+		_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
 	}
 
 	// Next comm step
@@ -475,12 +483,16 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			_state.zc_detects_during_spinup = 0;
 			_state.immediate_zc_failures = 0;
 
-			_state.pwm_val = _state.pwm_val_before_spinup +
+			const int new_pwm_val = _state.pwm_val_before_spinup +
 				(((uint64_t)(_state.pwm_val_after_spinup - _state.pwm_val_before_spinup)) * delta) /
 				_state.spinup_ramp_duration_hnsec;
 
-			assert(_state.pwm_val >= _state.pwm_val_before_spinup);
-			assert(_state.pwm_val <= _state.pwm_val_after_spinup);
+			assert(new_pwm_val >= _state.pwm_val_before_spinup);
+			assert(new_pwm_val <= _state.pwm_val_after_spinup);
+
+			if (new_pwm_val > _state.pwm_val) {
+				_state.pwm_val = new_pwm_val;
+			}
 		}
 	}
 }
@@ -695,13 +707,15 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	const bool past_zc = is_past_zc(bemf);
 
-	if (past_zc) {
-		TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-	} else {
-		TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-	}
-
 	if ((_state.flags & FLAG_SPINUP) == 0) {
+#ifndef NDEBUG
+		if (past_zc) {
+			TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+		} else {
+			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+		}
+#endif
+
 		/*
 		 * BEMF/ZC validation
 		 */
@@ -784,9 +798,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		/*
 		 * Find the exact ZC timestamp using the collected samples
 		 */
-		//TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		const uint64_t zc_timestamp = solve_zc_approximation();
-		//TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 
 		if (zc_timestamp == 0) {
 			if ((_state.flags & FLAG_SPINUP) == 0) {
@@ -815,47 +827,78 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		handle_detected_zc(zc_timestamp);
 		TESTPAD_ZC_CLEAR();
 	} else {
-		if (sample->timestamp < (_state.prev_comm_timestamp + _state.comm_period / 100)) {
-			return;
-		}
+		if (_state.spinup_comm_state == SPINUP_COMM_WINDING_DISCHARGE) {
+			TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 
-		if (past_zc) {
-			_state.spinup_bemf_integral_positive++;
-		} else {
-			if (_state.spinup_bemf_integral_positive > 0) {
-				_state.spinup_bemf_integral_negative = 0;
-				_state.spinup_bemf_integral_positive = 0;
+			// TODO: Check the threshold!
+			const int threshold = _state.neutral_voltage / 2;
+
+			if (!past_zc || (abs(bemf) < threshold)) {
+				_state.spinup_comm_state = SPINUP_COMM_BEMF_STABILIZATION;
+
+				_state.spinup_bemf_stabilization_deadline =
+					sample->timestamp + _params.adc_sampling_period * 2;
 			}
-			_state.spinup_bemf_integral_negative++;
+
+			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		}
 
-		const bool zero_cross_detected =
-			(_state.spinup_bemf_integral_positive >= 50) &&
-			(_state.spinup_bemf_integral_negative >= 5);
-
-		if (zero_cross_detected) {
+		if (_state.spinup_comm_state == SPINUP_COMM_BEMF_STABILIZATION) {
 			TESTPAD_ZC_SET();
 
-			const uint32_t new_comm_period = (sample->timestamp - _state.prev_comm_timestamp) * 2;
+			if (!past_zc) {
+				_state.spinup_comm_state = SPINUP_COMM_WAITING_FOR_ZERO_CROSS;
+				_state.spinup_bemf_integral = 0;
+			} else {
+				const bool timed_out = sample->timestamp > _state.spinup_bemf_stabilization_deadline;
 
-			_state.comm_period =
-				MIN((new_comm_period + _state.comm_period) / 2,
-				    _params.comm_period_max);
+				if (timed_out) {
+					// Switch step
+					_state.current_comm_step++;
+					if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
+						_state.current_comm_step = 0;
+					}
 
-			_state.prev_zc_timestamp = sample->timestamp;
-			_state.zc_detection_result = ZC_DETECTED;
+					engage_current_comm_step();
 
-			motor_timer_set_relative(0);
-
-			if (_state.comm_period < (5 * HNSEC_PER_MSEC)) {
-				_state.flags &= ~FLAG_SPINUP;
-//				_state.flags |= FLAG_SYNC_RECOVERY;
-//				_state.zc_detection_result = ZC_DESATURATION;
-//				motor_pwm_set_freewheeling();
-				stop_from_isr();
+					// Begin inductance discharge monitoring
+					_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
+					_state.blank_time_deadline = sample->timestamp + _params.comm_blank_hnsec;
+					_state.prev_comm_timestamp = sample->timestamp;
+				}
 			}
 
 			TESTPAD_ZC_CLEAR();
+		}
+
+		if (_state.spinup_comm_state == SPINUP_COMM_WAITING_FOR_ZERO_CROSS) {
+			if (past_zc) {
+				_state.spinup_bemf_integral += abs(bemf) * 10;
+			} else {
+				_state.spinup_bemf_integral -= abs(bemf);
+			}
+
+			if (_state.spinup_bemf_integral > 0) {
+				const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
+
+				_state.comm_period =
+					MIN((new_comm_period + _state.comm_period) / 2,
+					    _params.comm_period_max);
+
+				_state.prev_zc_timestamp = sample->timestamp;
+				_state.zc_detection_result = ZC_DETECTED;
+
+				motor_timer_set_relative(0);
+
+				if (_state.comm_period < (10 * HNSEC_PER_MSEC)) {
+					if (_state.pwm_val >= _state.pwm_val_after_spinup) {
+						_state.flags &= ~FLAG_SPINUP;
+					} else {
+						// Speed up the ramp a bit in order to converge faster
+						_state.pwm_val++;
+					}
+				}
+			}
 		}
 	}
 }
