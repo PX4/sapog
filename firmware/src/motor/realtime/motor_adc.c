@@ -98,8 +98,6 @@ CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 
 	motor_adc_sample_callback(&_sample);
 
-	// TODO: check if the current/voltage/temperature channels need to be sampled
-
 	ADC1->SR = 0;         // Reset the IRQ flags
 }
 
