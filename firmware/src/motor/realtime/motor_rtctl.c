@@ -934,30 +934,7 @@ void motor_rtctl_confirm_initialization(void)
 
 static void init_adc_filters(void)
 {
-	struct motor_adc_sample smpl;
-	enum motor_pwm_phase_manip manip_cmd[3];
-
-	// Low phase
-	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
-		manip_cmd[i] = MOTOR_PWM_MANIP_LOW;
-	}
-	motor_pwm_manip(manip_cmd);
-	smpl = motor_adc_get_last_sample();
-	const int low = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
-
-	// High phase
-	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
-		manip_cmd[i] = MOTOR_PWM_MANIP_HIGH;
-	}
-	motor_pwm_manip(manip_cmd);
-	smpl = motor_adc_get_last_sample();
-	const int high = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
-
-	// Phase neutral
-	motor_pwm_set_freewheeling();
-	_state.neutral_voltage = (low + high) / 2;
-
-	// Supply voltage and current
+	struct motor_adc_sample smpl = motor_adc_get_last_sample();
 	_state.input_voltage = smpl.input_voltage;
 	_state.input_current = smpl.input_current;
 }
