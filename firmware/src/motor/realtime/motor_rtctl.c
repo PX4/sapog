@@ -881,8 +881,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			if (_state.spinup_bemf_integral > 0) {
 				const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
 
+				// We're using 3x averaging in order to compensate for phase asymmetry
 				_state.comm_period =
-					MIN((new_comm_period + _state.comm_period) / 2,
+					MIN((new_comm_period + _state.comm_period * 2) / 3,
 					    _params.comm_period_max);
 
 				_state.prev_zc_timestamp = sample->timestamp;
@@ -890,7 +891,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 				motor_timer_set_relative(0);
 
-				if (_state.comm_period < (10 * HNSEC_PER_MSEC)) {
+				if (_state.comm_period < (_params.adc_sampling_period * 200)) {
 					if (_state.pwm_val >= _state.pwm_val_after_spinup) {
 						_state.flags &= ~FLAG_SPINUP;
 					} else {
