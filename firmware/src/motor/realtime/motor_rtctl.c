@@ -828,8 +828,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		if (_state.spinup_comm_state == SPINUP_COMM_WINDING_DISCHARGE) {
 			TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 
-			// TODO: Check the threshold!
-			const int threshold = _state.neutral_voltage / 2;
+			const int threshold = _state.neutral_voltage * 3 / 4;
 
 			if (!past_zc || (abs(bemf) < threshold)) {
 				_state.spinup_comm_state = SPINUP_COMM_BEMF_STABILIZATION;
