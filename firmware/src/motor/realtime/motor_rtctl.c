@@ -873,6 +873,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			if (past_zc) {
 				_state.spinup_bemf_integral += abs(bemf) * 10;
 			} else {
+				_state.prev_zc_timestamp = sample->timestamp;
 				_state.spinup_bemf_integral -= abs(bemf);
 			}
 
@@ -884,7 +885,6 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 					MIN((new_comm_period + _state.comm_period * 2) / 3,
 					    _params.comm_period_max);
 
-				_state.prev_zc_timestamp = sample->timestamp;
 				_state.zc_detection_result = ZC_DETECTED;
 
 				motor_timer_set_relative(0);
