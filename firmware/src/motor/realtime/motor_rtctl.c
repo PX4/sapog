@@ -927,7 +927,8 @@ static void init_adc_filters(void)
 	_state.input_current = smpl.input_current;
 }
 
-void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool reverse, unsigned num_prior_attempts)
+void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
+                       float spinup_ramp_duration, bool reverse, unsigned num_prior_attempts)
 {
 	(void) num_prior_attempts;
 
@@ -937,7 +938,7 @@ void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool rever
 		return;
 	}
 
-	if (duty_cycle <= 0) {
+	if ((initial_duty_cycle <= 0) || (target_duty_cycle <= 0)) {
 		assert(0);
 		return;
 	}
@@ -957,19 +958,19 @@ void motor_rtctl_start(float duty_cycle, float voltage_ramp_duration, bool rever
 	 */
 	chSysSuspend();
 
-	if (voltage_ramp_duration > 0.0F) {
-		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(0.01F);
-		_state.pwm_val_after_spinup  = motor_pwm_compute_pwm_val(duty_cycle);
-		_state.pwm_val               = _state.pwm_val_before_spinup;
+	if ((spinup_ramp_duration > 0.0F) && (initial_duty_cycle < target_duty_cycle)) {
+		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(initial_duty_cycle);
+		_state.pwm_val_after_spinup  = motor_pwm_compute_pwm_val(target_duty_cycle);
 
-		_state.spinup_ramp_duration_hnsec = (uint32_t)(voltage_ramp_duration * ((float)HNSEC_PER_SEC) + 0.5F);
+		_state.spinup_ramp_duration_hnsec = (uint32_t)(spinup_ramp_duration * ((float)HNSEC_PER_SEC) + 0.5F);
 	} else {
-		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(duty_cycle);
+		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(target_duty_cycle);  // no ramp
 		_state.pwm_val_after_spinup  = _state.pwm_val_before_spinup;
-		_state.pwm_val               = _state.pwm_val_before_spinup;
 
 		_state.spinup_ramp_duration_hnsec = 0;
 	}
+
+	_state.pwm_val = _state.pwm_val_before_spinup;
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
 	_state.comm_period = _params.comm_period_max;
