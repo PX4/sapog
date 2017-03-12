@@ -359,14 +359,6 @@ static inline int get_effective_timing_advance_deg64(void)
 	return result;
 }
 
-static void fake_missed_zc_detection(uint64_t timestamp_hnsec)
-{
-	const uint32_t leeway = _state.comm_period / 2 +
-		TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64());
-
-	_state.prev_zc_timestamp = timestamp_hnsec - leeway;
-}
-
 static void prepare_zc_detector_for_next_step(void)
 {
 	_state.zc_bemf_samples_acquired = 0;
@@ -398,7 +390,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	}
 
 	if ((_state.flags & FLAG_SPINUP) == 0) {
-		motor_timer_set_relative(_state.comm_period);
+		// Missing a step drops the advance angle back to negative 15 degrees temporarily,
+		// in order to account for possible rapid deceleration
+		const uint32_t zc_detection_timeout = _state.comm_period +
+			TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64()) +
+			TIMING_ADVANCE64(_state.comm_period, 16);
+
+		motor_timer_set_relative(zc_detection_timeout);
 	} else {
 		motor_timer_set_relative(_params.comm_period_max);
 		_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
@@ -423,7 +421,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	case ZC_DESATURATION: {
 		assert((_state.flags & FLAG_SPINUP) == 0);
 		engage_current_comm_step();
-		fake_missed_zc_detection(timestamp_hnsec);
+		_state.prev_zc_timestamp = timestamp_hnsec - _state.comm_period / 2;
 		_state.flags |= FLAG_SYNC_RECOVERY;
 		_state.immediate_desaturations++;
 		if (_state.immediate_desaturations >= _params.zc_failures_max) {
@@ -439,7 +437,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			motor_pwm_set_freewheeling();
 			_state.flags |= FLAG_SYNC_RECOVERY;
 		}
-		fake_missed_zc_detection(timestamp_hnsec);
+		_state.prev_zc_timestamp = timestamp_hnsec - _state.comm_period / 2;
 		register_bad_step(&stop_now);
 		break;
 	}
