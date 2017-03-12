@@ -984,10 +984,6 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 	motor_timer_set_relative(_state.comm_period / 2);
 
 	chSysEnable();
-
-	printf("Spinup Ramp: before %d, after %d, duration %u hnsec\n",
-		_state.pwm_val_before_spinup, _state.pwm_val_after_spinup,
-		(unsigned)(_state.spinup_ramp_duration_hnsec));
 }
 
 void motor_rtctl_stop(void)
