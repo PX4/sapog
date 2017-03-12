@@ -174,6 +174,7 @@ static struct control_state            /// Control state
 	uint64_t prev_zc_timestamp;
 	uint64_t prev_comm_timestamp;
 	uint32_t comm_period;
+	uint32_t averaged_comm_period;
 
 	enum spinup_comm_state spinup_comm_state;
 	uint64_t spinup_bemf_stabilization_deadline;
@@ -397,11 +398,22 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	}
 
 	if ((_state.flags & FLAG_SPINUP) == 0) {
-		// Missing a step drops the advance angle back to negative 15 degrees temporarily,
-		// in order to account for possible rapid deceleration
-		const uint32_t zc_detection_timeout = _state.comm_period +
-			TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64()) +
-			TIMING_ADVANCE64(_state.comm_period, 16);
+		/*
+		 * Missing a step drops the advance angle back to negative 15 degrees temporarily,
+		 * in order to account for possible rapid deceleration.
+		 * We also pick the greater value among the real measured comm period and its average,
+		 * which greatly helps during very intensive deceleration if the motor has severe phase asymmetry,
+		 * or the load varies highly. The reason it helps with asymmetry is because during deceleration,
+		 * a short comm period phase can be followed by a long comm period phase; if, during this transition,
+		 * the commutation period drops due to deceleration, the zero cross detection deadline may occur
+		 * before the real zero cross happens. Since during deceleration the average comm period is
+		 * always greater than the real comm period, this problem can be avoided.
+		 */
+		const uint32_t cp = MAX(_state.comm_period, _state.averaged_comm_period);
+
+		const uint32_t zc_detection_timeout = cp +
+			TIMING_ADVANCE64(cp, get_effective_timing_advance_deg64()) +
+			TIMING_ADVANCE64(cp, 16);
 
 		motor_timer_set_relative(zc_detection_timeout);
 	} else {
@@ -524,6 +536,8 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	_state.prev_zc_timestamp = zc_timestamp;
 	_state.comm_period = MIN(_state.comm_period, _params.comm_period_max);
 	_state.zc_detection_result = ZC_DETECTED;
+
+	_state.averaged_comm_period = (_state.comm_period + _state.averaged_comm_period * 3) / 4;
 
 	const uint32_t advance =
 		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64());
