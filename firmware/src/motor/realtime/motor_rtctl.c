@@ -218,6 +218,7 @@ static struct precomputed_params       /// Parameters are read only
 	uint32_t comm_period_max;
 	int comm_blank_hnsec;
 
+	uint32_t spinup_start_comm_period;
 	uint32_t spinup_end_comm_period;
 	uint32_t spinup_timeout;
 
@@ -236,8 +237,9 @@ CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)      // microsecond
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)        // dimensionless
 CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)      // percent
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)      // dimensionless
-CONFIG_PARAM_INT("mot_comm_per_max",    200000,5000,  300000)   // microsecond
+CONFIG_PARAM_INT("mot_comm_per_max",    12000, 5000,  50000)    // microsecond
 // Spinup settings
+CONFIG_PARAM_INT("mot_spup_st_cp",      200000,10000, 300000)   // microsecond
 CONFIG_PARAM_INT("mot_spup_en_cp",      7000,  1000,  50000);   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
 
@@ -254,8 +256,9 @@ static void configure(void)
 	_params.comm_period_max  = configGet("mot_comm_per_max") * HNSEC_PER_USEC;
 	_params.comm_blank_hnsec = configGet("mot_blank_usec") * HNSEC_PER_USEC;
 
-	_params.spinup_end_comm_period = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
-	_params.spinup_timeout         = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
+	_params.spinup_start_comm_period = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
+	_params.spinup_end_comm_period   = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
+	_params.spinup_timeout           = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
 
 	/*
 	 * Validation
@@ -272,6 +275,10 @@ static void configure(void)
 
 	if (_params.spinup_end_comm_period > _params.comm_period_max) {
 		_params.spinup_end_comm_period = _params.comm_period_max;
+	}
+
+	if (_params.spinup_start_comm_period < _params.spinup_end_comm_period) {
+		_params.spinup_start_comm_period = _params.spinup_end_comm_period;
 	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
@@ -398,7 +405,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 		motor_timer_set_relative(zc_detection_timeout);
 	} else {
-		motor_timer_set_relative(_params.comm_period_max);
+		motor_timer_set_relative(_params.spinup_start_comm_period);
 		_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
 	}
 
@@ -878,7 +885,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 				// We're using 3x averaging in order to compensate for phase asymmetry
 				_state.comm_period =
 					MIN((new_comm_period + _state.comm_period * 2) / 3,
-					    _params.comm_period_max);
+					    _params.spinup_start_comm_period);
 
 				_state.zc_detection_result = ZC_DETECTED;
 
@@ -980,7 +987,7 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 	_state.pwm_val = _state.pwm_val_before_spinup;
 
 	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
-	_state.comm_period = _params.comm_period_max;
+	_state.comm_period = _params.spinup_start_comm_period;
 
 	_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
 	_state.zc_detection_result = ZC_DETECTED;
