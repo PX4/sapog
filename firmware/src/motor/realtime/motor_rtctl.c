@@ -185,7 +185,6 @@ static struct control_state            /// Control state
 	unsigned immediate_zc_failures;
 	unsigned immediate_zc_detects;
 	unsigned immediate_desaturations;
-	unsigned zc_detects_during_spinup;
 
 	int zc_bemf_samples[MAX_BEMF_SAMPLES];
 	uint64_t zc_bemf_timestamps[MAX_BEMF_SAMPLES];
@@ -216,12 +215,10 @@ static struct precomputed_params       /// Parameters are read only
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
 	unsigned zc_failures_max;
-	unsigned zc_detects_min;
 	uint32_t comm_period_max;
 	int comm_blank_hnsec;
 
 	uint32_t spinup_timeout;
-	unsigned spinup_num_good_comms;
 
 	uint32_t adc_sampling_period;
 } _params;
@@ -238,11 +235,9 @@ CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
 CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
-CONFIG_PARAM_INT("mot_zc_dets_min",     200,   6,     1000)
 CONFIG_PARAM_INT("mot_comm_per_max",    200000,1000,  300000)
 // Spinup settings
 CONFIG_PARAM_INT("mot_spup_to_ms",      3000,  100,   9500)
-CONFIG_PARAM_INT("mot_spup_gcomms",     200,   6,     1000)
 
 
 static void configure(void)
@@ -255,12 +250,10 @@ static void configure(void)
 	_params.motor_bemf_window_len_denom = configGet("mot_bemf_win_den");
 	_params.bemf_valid_range_pct128     = configGet("mot_bemf_range") * 128 / 100;
 	_params.zc_failures_max  = configGet("mot_zc_fails_max");
-	_params.zc_detects_min   = configGet("mot_zc_dets_min");
 	_params.comm_period_max  = configGet("mot_comm_per_max") * HNSEC_PER_USEC;
 	_params.comm_blank_hnsec = configGet("mot_blank_usec") * HNSEC_PER_USEC;
 
 	_params.spinup_timeout              = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
-	_params.spinup_num_good_comms       = configGet("mot_spup_gcomms");
 
 	/*
 	 * Validation
@@ -309,19 +302,6 @@ static void register_good_step(void)
 
 	if (_state.immediate_desaturations > 0) {
 		_state.immediate_desaturations--;
-	}
-
-	if (_state.flags & FLAG_SPINUP) {
-		_state.zc_detects_during_spinup++;
-
-		const bool is_stable =
-			_state.immediate_zc_failures == 0 &&
-			_state.zc_detects_during_spinup > _params.zc_detects_min;
-
-		if (is_stable) {
-			_state.flags &= ~FLAG_SPINUP;
-			_state.pwm_val = _state.pwm_val_after_spinup;
-		}
 	}
 }
 
@@ -480,7 +460,6 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		if (delta >= _state.spinup_ramp_duration_hnsec) {
 			_state.pwm_val = _state.pwm_val_after_spinup;
 		} else {
-			_state.zc_detects_during_spinup = 0;
 			_state.immediate_zc_failures = 0;
 
 			const int new_pwm_val = _state.pwm_val_before_spinup +
