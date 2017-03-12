@@ -565,7 +565,10 @@ static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
 {
-	_state.neutral_voltage = (sample->phase_values[0] + sample->phase_values[1] + sample->phase_values[2]) / 3;
+	// Computing mean from all three phases (including the floating phase) has adverse effects on stability at
+	// high advance angles.
+	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
+	_state.neutral_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 }
 
 // Returns TRUE if the BEMF has POSITIVE slope, otherwise returns FALSE.
