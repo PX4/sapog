@@ -237,7 +237,7 @@ CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
 CONFIG_PARAM_INT("mot_comm_per_max",    200000,1000,  300000)
 // Spinup settings
-CONFIG_PARAM_INT("mot_spup_to_ms",      3000,  100,   9500)
+CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)
 
 
 static void configure(void)
@@ -472,6 +472,10 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			if (new_pwm_val > _state.pwm_val) {
 				_state.pwm_val = new_pwm_val;
 			}
+		}
+
+		if ((_diag.started_at + _params.spinup_timeout) <= timestamp_hnsec) {
+			stop_from_isr();
 		}
 	}
 }
