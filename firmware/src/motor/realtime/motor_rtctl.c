@@ -434,7 +434,13 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		if (_state.flags & FLAG_SPINUP) {
 			engage_current_comm_step();
 		} else {
-			motor_pwm_set_freewheeling();
+			if ((_state.flags & FLAG_SYNC_RECOVERY) == 0) {
+				// Try to run one more step in powered mode...
+				engage_current_comm_step();
+			} else {
+				// Disable power as a last resort - we're probably too much out of sync already
+				motor_pwm_set_freewheeling();
+			}
 			_state.flags |= FLAG_SYNC_RECOVERY;
 		}
 		_state.prev_zc_timestamp = timestamp_hnsec - _state.comm_period / 2;
