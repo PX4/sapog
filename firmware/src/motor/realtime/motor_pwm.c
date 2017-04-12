@@ -61,11 +61,14 @@ static uint16_t _pwm_top;
 static uint16_t _pwm_half_top;
 static uint16_t _pwm_min;
 static uint16_t _adc_advance_ticks;
+static bool _use_2q_commutation;
 
 
 static int init_constants(unsigned frequency)
 {
 	ASSERT_ALWAYS(_pwm_top == 0);   // Make sure it was not initialized already
+
+	_use_2q_commutation = false;
 
 	/*
 	 * PWM top, derived from frequency
@@ -241,6 +244,11 @@ int motor_pwm_init(void)
 	return 0;
 }
 
+void motor_pwm_set_2_quadrant_mode(bool enable_2q)
+{
+	_use_2q_commutation = enable_2q;
+}
+
 uint32_t motor_adc_sampling_period_hnsec(void)
 {
 	return HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((int)_pwm_top + 1));
@@ -289,31 +297,55 @@ static inline void phase_reset_i(uint_fast8_t phase)
 __attribute__((optimize(3)))
 static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool inverted)
 {
-	// Channel must be enabled in the last order when it is fully configured
-	if (phase == 0) {
-		TIM1->CCR1 = pwm_val;
-		if (inverted) {
-			TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;  // PWM mode 2 inverted
+	if (!_use_2q_commutation) {
+		// Channel must be enabled in the last order when it is fully configured
+		if (phase == 0) {
+			TIM1->CCR1 = pwm_val;
+			if (inverted) {
+				TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0;  // inverted
+			} else {
+				TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;                 // non inverted
+			}
+			TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE);
+		} else if (phase == 1) {
+			TIM1->CCR2 = pwm_val;
+			if (inverted) {
+				TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
+			} else {
+				TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
+			}
+			TIM1->CCER |= (TIM_CCER_CC2E | TIM_CCER_CC2NE);
 		} else {
-			TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;                 // PWM mode 1 non inverted
+			TIM1->CCR3 = pwm_val;
+			if (inverted) {
+				TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
+			} else {
+				TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
+			}
+			TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
 		}
-		TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE);
-	} else if (phase == 1) {
-		TIM1->CCR2 = pwm_val;
-		if (inverted) {
-			TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_0;
-		} else {
-			TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
-		}
-		TIM1->CCER |= (TIM_CCER_CC2E | TIM_CCER_CC2NE);
 	} else {
-		TIM1->CCR3 = pwm_val;
-		if (inverted) {
-			TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_0;
+		// Converting to 2-quadrant mode
+		if (pwm_val > _pwm_half_top) {
+			pwm_val = 2 * (pwm_val - _pwm_half_top);  // positive torque
 		} else {
-			TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
+			pwm_val = 0;                              // negative torque cannot be created in 2Q mode
 		}
-		TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
+
+		// The channel must be enabled in the last order when it is fully configured
+		if (phase == 0) {
+			TIM1->CCR1 = inverted ? 0 : pwm_val;
+			TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;                 // non inverted
+			TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE);
+		} else if (phase == 1) {
+			TIM1->CCR2 = inverted ? 0 : pwm_val;
+			TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
+			TIM1->CCER |= (TIM_CCER_CC2E | TIM_CCER_CC2NE);
+		} else {
+			TIM1->CCR3 = inverted ? 0 : pwm_val;
+			TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
+			TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
+		}
 	}
 }
 
@@ -361,26 +393,6 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 	}
 
 	adjust_adc_sync(_pwm_half_top);  // Default for phase manip
-}
-
-void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
-{
-	irq_primask_disable();
-	phase_reset_all_i();
-	irq_primask_enable();
-
-	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
-		const int pol = polarity[phase];
-		if (pol == 0) {
-			continue;
-		}
-		assert(pol == 1 || pol == -1);
-		irq_primask_disable();
-		phase_set_i(phase, (pol > 0) ? _pwm_top : 0, false);
-		irq_primask_enable();
-	}
-
-	adjust_adc_sync(_pwm_top);
 }
 
 void motor_pwm_set_freewheeling(void)

@@ -35,6 +35,7 @@
 #include "api.h"
 #include "adc.h"
 #include "pwm.h"
+#include "irq.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,18 +67,58 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 
 	printf("ADC raw vtg/cur: V=%i  I=%i\n", adc_sample.input_voltage, adc_sample.input_current);
 
-	if ((argc > 0) && !strcmp("enrg", argv[0])) {
+	if ((argc > 0) && !strcmp("step", argv[0])) {  // step <dc> <pos> <neg>
+		// Step manually with the configured duty cycle
 		if (argc != 4) {
-			printf("Invalid num args\n");
+			printf("Usage: step <dc> <pos> <neg>\n");
 			return;
 		}
-		const int polarity[MOTOR_NUM_PHASES] = {
-			atoi(argv[1]),
-			atoi(argv[2]),
-			atoi(argv[3])
-		};
-		printf("%i %i %i\n", polarity[0], polarity[1], polarity[2]);
-		motor_pwm_energize(polarity);
+
+		const float dc = atof(argv[1]);
+		if ((dc < -1.0F) || (dc > 1.0F)) {
+			puts("ERROR: Invalid duty cycle");
+			return;
+		}
+
+		struct motor_pwm_commutation_step step;
+		memset(&step, 0, sizeof(step));
+		step.positive = atoi(argv[2]);
+		step.negative = atoi(argv[3]);
+
+		if ((step.positive < 0) || (step.positive > 2) ||
+		    (step.negative < 0) || (step.negative > 2)) {
+			puts("ERROR: Invalid phase index");
+			return;
+		}
+
+		if (step.positive == step.negative) {
+			puts("ERROR: Phase polarity collision: pos == neg");
+			return;
+		}
+
+		// We have verified above that pos != neg and that both pos and neg are in {0, 1, 2}.
+		for (int i = 0; i < 3; i++) {
+			if ((i != step.positive) && (i != step.negative)) {
+				step.floating = i;
+				break;
+			}
+		}
+
+		const int pwm_val = motor_pwm_compute_pwm_val(dc);
+
+		printf("PWM val: %d, pos: %d, neg: %d, flt: %d\n",
+		       pwm_val, step.positive, step.negative, step.floating);
+
+		irq_primask_disable();
+		motor_pwm_set_step_from_isr(&step, pwm_val);
+		irq_primask_enable();
+
+	} else if ((argc > 0) && !strcmp("2q", argv[0])) {
+		// Configure 2 quadrant mode
+		const bool enable = (argc > 1) ? (atoi(argv[1]) != 0) : false;
+		printf("2Q mode: %s\n", enable ? "ON" : "OFF");
+		motor_pwm_set_2_quadrant_mode(enable);
+
 	} else if ((argc >= 1) && (argc <= 3)) {
 		const enum motor_pwm_phase_manip manip_cmd[MOTOR_NUM_PHASES] = {
 			arg_to_pwm_manip(argv[0]),
@@ -86,6 +127,7 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 		};
 		printf("Manip %i %i %i\n", (int)manip_cmd[0], (int)manip_cmd[1], (int)manip_cmd[2]);
 		motor_pwm_manip(manip_cmd);
+
 	} else {
 		motor_pwm_set_freewheeling();
 		printf("Freewheeling\n");
