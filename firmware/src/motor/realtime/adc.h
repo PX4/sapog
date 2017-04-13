@@ -44,6 +44,7 @@ extern "C" {
 
 extern const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC;
 extern const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC;
+extern const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC;
 
 
 struct motor_adc_sample

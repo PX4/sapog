@@ -63,6 +63,12 @@ const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = 0;
 
 const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
 
+/**
+ * This parameter is dictated by the phase voltage RC filters.
+ * Higher oversampling allows for a lower blanking time, due to stronger averaging.
+ */
+const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 2000;
+
 
 CONFIG_PARAM_FLOAT("mot_i_shunt_mr",         5.0,   0.1,   100.0)
 
@@ -76,6 +82,8 @@ static struct motor_adc_sample _sample;
 __attribute__((optimize(3)))
 CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 {
+	TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+
 	_sample.timestamp = motor_timer_hnsec() -
 		((SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / 2) / NSEC_PER_HNSEC;
 
@@ -95,6 +103,8 @@ CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 
 #undef SMPLADC1
 #undef SMPLADC2
+
+	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 
 	motor_adc_sample_callback(&_sample);
 

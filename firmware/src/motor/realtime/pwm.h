@@ -64,7 +64,7 @@ enum motor_pwm_phase_manip
  * Sanity constraints
  */
 #define MOTOR_PWM_MIN_FREQUENCY   20000
-#define MOTOR_PWM_MAX_FREQUENCY   50000
+#define MOTOR_PWM_MAX_FREQUENCY   40000
 
 /**
  * Initialize the PWM hardware.
@@ -75,7 +75,10 @@ int motor_pwm_init(void);
 /**
  * Switches the PWM driver into the 2 quadrant mode.
  * Note that by default, 4 quadrant mode is selected.
- * Selection of the 2 quadrant mode does not affect the semantics of the driver API calls.
+ * Selection of the 2 quadrant mode does not affect the semantics of the driver API calls;
+ * however, this mode silently imposes a number of significant restrictions. For example,
+ * the minimum PWM value that can be output is silently constrained (typically around ~30%).
+ * These restrictions make the 2Q mode unfit for general purpose use.
  */
 void motor_pwm_set_2_quadrant_mode(bool enable_2q);
 
