@@ -99,7 +99,7 @@ static int init_constants(unsigned frequency, const float pwm_dead_time_ns)
 	 */
 	const float pwm_clock_period = 1.f / PWM_TIMER_FREQUENCY;
 	const float pwm_min_duration =
-		(MOTOR_ADC_SAMPLE_WINDOW_NANOSEC + MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC + pwm_dead_time_ns * 2.0F) /
+		(MOTOR_ADC_SAMPLE_WINDOW_NANOSEC + MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC + pwm_dead_time_ns) /
 		1e9f;
 	const float pwm_min_ticks_float = pwm_min_duration / pwm_clock_period;
 	assert(pwm_min_ticks_float >= 0);
@@ -123,7 +123,7 @@ static int init_constants(unsigned frequency, const float pwm_dead_time_ns)
 	assert(adc_trigger_advance_ticks_float < (_pwm_top * 0.4f));
 	_adc_advance_ticks = (uint16_t)adc_trigger_advance_ticks_float;
 
-	const float adc_blanking = MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC / 1e9f;
+	const float adc_blanking = (MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC + pwm_dead_time_ns) / 1e9f;
 	_adc_blanking_ticks = (uint16_t)(adc_blanking / pwm_clock_period);
 
 	const float adc_sample_duration = MOTOR_ADC_SAMPLE_WINDOW_NANOSEC / 1e9f;
