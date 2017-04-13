@@ -297,6 +297,7 @@ static void stop_from_isr(void)
 	_state.flags = 0;
 	motor_timer_cancel();
 	motor_pwm_set_freewheeling();
+	motor_pwm_set_2_quadrant_mode(false);
 }
 
 static void engage_current_comm_step(void)
@@ -908,6 +909,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 				if (_state.comm_period <= _params.spinup_end_comm_period) {
 					if (_state.pwm_val >= _state.pwm_val_after_spinup) {
 						_state.flags &= ~FLAG_SPINUP;
+						motor_pwm_set_2_quadrant_mode(false);
 					} else {
 						// Speed up the ramp a bit in order to converge faster
 						_state.pwm_val++;
@@ -981,6 +983,8 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 
 	init_adc_filters();
 
+	motor_pwm_set_2_quadrant_mode(true);
+
 	/*
 	 * Start the background IRQ-driven process
 	 */
@@ -1025,6 +1029,8 @@ void motor_rtctl_stop(void)
 	irq_primask_enable();
 
 	motor_pwm_set_freewheeling();
+
+	motor_pwm_set_2_quadrant_mode(false);
 }
 
 void motor_rtctl_set_duty_cycle(float duty_cycle)
