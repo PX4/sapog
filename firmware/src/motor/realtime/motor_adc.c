@@ -66,7 +66,7 @@ const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLE
  * This parameter is dictated by the phase voltage RC filters.
  * Higher oversampling allows for a lower blanking time, due to stronger averaging.
  */
-const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 1500;
+const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 2000;
 
 
 CONFIG_PARAM_FLOAT("mot_i_shunt_mr",         5.0,   0.1,   100.0)

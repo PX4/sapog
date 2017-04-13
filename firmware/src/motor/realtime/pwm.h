@@ -77,7 +77,8 @@ int motor_pwm_init(void);
  * Note that by default, 4 quadrant mode is selected.
  * Selection of the 2 quadrant mode does not affect the semantics of the driver API calls;
  * however, this mode silently imposes a number of significant restrictions. For example,
- * the minimum PWM value that can be output is silently constrained (typically around ~30%).
+ * the minimum PWM value that can be output is silently constrained (typically around ~20%,
+ * depending on the PWM frequency).
  * These restrictions make the 2Q mode unfit for general purpose use.
  */
 void motor_pwm_set_2_quadrant_mode(bool enable_2q);
