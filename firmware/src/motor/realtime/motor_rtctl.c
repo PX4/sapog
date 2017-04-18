@@ -134,13 +134,6 @@ enum zc_detection_result
 	ZC_DESATURATION
 };
 
-enum spinup_comm_state
-{
-	SPINUP_COMM_WINDING_DISCHARGE,
-	SPINUP_COMM_BEMF_STABILIZATION,
-	SPINUP_COMM_WAITING_FOR_ZERO_CROSS
-};
-
 static struct diag_info                /// This data is never used by the control algorithms, it is write only
 {
 	/// Increment-only counters
@@ -176,8 +169,6 @@ static struct control_state            /// Control state
 	uint32_t comm_period;
 	uint32_t averaged_comm_period;
 
-	enum spinup_comm_state spinup_comm_state;
-	uint64_t spinup_bemf_stabilization_deadline;
 	int64_t spinup_bemf_integral;
 
 	int current_comm_step;
@@ -240,7 +231,7 @@ CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)      // percent
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)      // dimensionless
 CONFIG_PARAM_INT("mot_comm_per_max",    12000, 5000,  50000)    // microsecond
 // Spinup settings
-CONFIG_PARAM_INT("mot_spup_st_cp",      200000,10000, 300000)   // microsecond
+CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
 CONFIG_PARAM_INT("mot_spup_en_cp",      7000,  1000,  50000);   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
 
@@ -419,7 +410,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		motor_timer_set_relative(zc_detection_timeout);
 	} else {
 		motor_timer_set_relative(_params.spinup_start_comm_period);
-		_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
+		_state.spinup_bemf_integral = 0;
 	}
 
 	// Next comm step
@@ -843,57 +834,9 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		handle_detected_zc(zc_timestamp);
 		TESTPAD_ZC_CLEAR();
 	} else {
-		if (_state.spinup_comm_state == SPINUP_COMM_WINDING_DISCHARGE) {
-			TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-
-			const int threshold = _state.neutral_voltage * 3 / 4;
-
-			if (!past_zc || (abs(bemf) < threshold)) {
-				_state.spinup_comm_state = SPINUP_COMM_BEMF_STABILIZATION;
-
-				_state.spinup_bemf_stabilization_deadline =
-					sample->timestamp + _params.adc_sampling_period * 2;
-			}
-
-			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
-		}
-
-		if (_state.spinup_comm_state == SPINUP_COMM_BEMF_STABILIZATION) {
-			TESTPAD_ZC_SET();
-
-			if (!past_zc) {
-				_state.spinup_comm_state = SPINUP_COMM_WAITING_FOR_ZERO_CROSS;
-				_state.spinup_bemf_integral = 0;
-			} else {
-				const bool timed_out = sample->timestamp > _state.spinup_bemf_stabilization_deadline;
-
-				if (timed_out) {
-					// Switch step
-					_state.current_comm_step++;
-					if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
-						_state.current_comm_step = 0;
-					}
-
-					engage_current_comm_step();
-
-					// Begin inductance discharge monitoring
-					_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
-					_state.blank_time_deadline = sample->timestamp + _params.comm_blank_hnsec;
-					_state.prev_comm_timestamp = sample->timestamp;
-				}
-			}
-
-			TESTPAD_ZC_CLEAR();
-		}
-
-		if (_state.spinup_comm_state == SPINUP_COMM_WAITING_FOR_ZERO_CROSS) {
-			if (past_zc) {
-				_state.spinup_bemf_integral += abs(bemf) * 10;
-			} else {
-				_state.prev_zc_timestamp = sample->timestamp;
-				_state.spinup_bemf_integral -= abs(bemf);
-			}
-
+		if (past_zc) {
+			// We may switch to the next phase without ever setting the prev_zc_timeout value
+			// in this commutation period!
 			if (_state.spinup_bemf_integral > 0) {
 				const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
 
@@ -905,6 +848,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 				_state.zc_detection_result = ZC_DETECTED;
 
 				motor_timer_set_relative(0);
+				motor_adc_disable_from_isr();
 
 				if (_state.comm_period <= _params.spinup_end_comm_period) {
 					if (_state.pwm_val >= _state.pwm_val_after_spinup) {
@@ -915,7 +859,16 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 						_state.pwm_val++;
 					}
 				}
+			} else {
+				_state.spinup_bemf_integral += abs(bemf) * 2;
 			}
+		} else {
+			_state.spinup_bemf_integral -= abs(bemf);
+
+			// It is ABSOLUTELY CRUCIAL to provide a correct estimate of the last zero cross timestamp
+			// when transitioning from spinup mode to normal mode, otherwise the normal mode will
+			// quickly run out of sync!
+			_state.prev_zc_timestamp = sample->timestamp;
 		}
 	}
 }
