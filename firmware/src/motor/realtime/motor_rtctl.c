@@ -991,6 +991,9 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 	motor_timer_set_relative(_state.comm_period / 2);
 
 	chSysEnable();
+
+	printf("Motor: RTCTL Spinup: PWM val %d --> %d\n",
+	       _state.pwm_val_before_spinup, _state.pwm_val_after_spinup);
 }
 
 void motor_rtctl_stop(void)
