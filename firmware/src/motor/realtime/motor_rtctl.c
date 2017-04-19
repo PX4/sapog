@@ -213,6 +213,7 @@ static struct precomputed_params       /// Parameters are read only
 	uint32_t spinup_start_comm_period;
 	uint32_t spinup_end_comm_period;
 	uint32_t spinup_timeout;
+	uint32_t spinup_blanking_time_permil;
 
 	uint32_t adc_sampling_period;
 } _params;
@@ -234,6 +235,7 @@ CONFIG_PARAM_INT("mot_comm_per_max",    12000, 5000,  50000)    // microsecond
 CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
 CONFIG_PARAM_INT("mot_spup_en_cp",      7000,  1000,  50000);   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
+CONFIG_PARAM_INT("mot_spup_blnk_pm",    10,    1,     100)      // permill
 
 static void configure(void)
 {
@@ -251,6 +253,7 @@ static void configure(void)
 	_params.spinup_start_comm_period = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
 	_params.spinup_end_comm_period   = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
 	_params.spinup_timeout           = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
+	_params.spinup_blanking_time_permil = configGet("mot_spup_blnk_pm");
 
 	/*
 	 * Validation
@@ -475,8 +478,19 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	prepare_zc_detector_for_next_step();
 	motor_adc_enable_from_isr();
 
-	// Spinup voltage ramp handling
+	// Special spinup processing
 	if ((_state.flags & FLAG_SPINUP) != 0) {
+		// Spinup blanking time override
+		const uint64_t blanking_time =
+			((uint64_t)_state.comm_period * (uint64_t)_params.spinup_blanking_time_permil) / 1000U;
+
+		const uint64_t new_blanking_deadline = timestamp_hnsec + blanking_time;
+
+		if (new_blanking_deadline > _state.blank_time_deadline) {
+			_state.blank_time_deadline = new_blanking_deadline;
+		}
+
+		// Spinup voltage ramp handling
 		const uint64_t delta = timestamp_hnsec - _diag.started_at;
 		if (delta >= _state.spinup_ramp_duration_hnsec) {
 			_state.pwm_val = _state.pwm_val_after_spinup;
@@ -495,6 +509,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			}
 		}
 
+		// Spinup timeout
 		if ((_diag.started_at + _params.spinup_timeout) <= timestamp_hnsec) {
 			stop_from_isr();
 		}
@@ -845,12 +860,19 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 					MIN((new_comm_period + _state.comm_period * 2) / 3,
 					    _params.spinup_start_comm_period);
 
+				if (_state.averaged_comm_period > 0) {
+					_state.averaged_comm_period =
+						(_state.comm_period + _state.averaged_comm_period * 3) / 4;
+				} else {
+					_state.averaged_comm_period = _state.comm_period;
+				}
+
 				_state.zc_detection_result = ZC_DETECTED;
 
 				motor_timer_set_relative(0);
 				motor_adc_disable_from_isr();
 
-				if (_state.comm_period <= _params.spinup_end_comm_period) {
+				if (_state.averaged_comm_period <= _params.spinup_end_comm_period) {
 					if (_state.pwm_val >= _state.pwm_val_after_spinup) {
 						_state.flags &= ~FLAG_SPINUP;
 						motor_pwm_set_2_quadrant_mode(false);
