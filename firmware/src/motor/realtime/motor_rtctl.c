@@ -852,6 +852,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		if (past_zc) {
 			// We may switch to the next phase without ever setting the prev_zc_timeout value
 			// in this commutation period!
+			// TODO the above might be the reason for 2Q-4Q hand-off failure!
 			if (_state.spinup_bemf_integral > 0) {
 				const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
 
@@ -988,7 +989,71 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 
 	_diag.started_at = motor_timer_hnsec();
 
+#if 0
+	const uint64_t deadline = motor_timer_hnsec() + HNSEC_PER_SEC * 2;
+
+	while (motor_timer_hnsec() < deadline) {
+		engage_current_comm_step();
+		const uint64_t commutated_at = motor_timer_hnsec();
+		motor_timer_hndelay(HNSEC_PER_USEC * 300);       // Blanking time
+
+		// Wait for the zero crossing
+		long long integrator_pos = 0;
+		long long integrator_neg = 0;
+		const uint64_t zc_deadline = commutated_at + HNSEC_PER_MSEC * 100;
+
+		while (motor_timer_hnsec() < zc_deadline) {
+			const struct motor_adc_sample sample = motor_adc_get_last_sample();
+			update_input_voltage_current(&sample);
+			update_neutral_voltage(&sample);
+
+			const struct motor_pwm_commutation_step* const step =
+				_state.comm_table + _state.current_comm_step;
+
+			const int bemf = sample.phase_values[step->floating] - _state.neutral_voltage;
+
+			if (is_past_zc(bemf)) {
+//				const int bemf_threshold = _state.neutral_voltage * 3 / 4;
+//
+//				if ((integrator_pos == 0) &&
+//				    (integrator_neg == 0) &&
+//				    (abs(bemf) > bemf_threshold) &&
+//				    (motor_timer_hnsec() < (commutated_at + HNSEC_PER_MSEC)))
+//				{
+//					; // Flyback current
+//				}
+//				else if ((integrator_pos == 0) &&
+//				         (integrator_neg == 0))
+//				{
+//					integrator_pos++;
+//					integrator_neg++;
+//				}
+//				else
+				{
+					integrator_pos += abs(bemf);
+				}
+			} else {
+				integrator_neg += abs(bemf);
+			}
+
+			if ((integrator_pos > 1) &&
+			    (integrator_pos >= integrator_neg))
+			{
+				break;
+			}
+		}
+
+		_state.current_comm_step++;
+		if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
+			_state.current_comm_step = 0;
+		}
+	}
+
+	motor_rtctl_stop();
+	_state.flags = FLAG_ACTIVE;
+#else
 	motor_timer_set_relative(_state.comm_period / 2);
+#endif
 
 	chSysEnable();
 
