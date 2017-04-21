@@ -109,6 +109,8 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 		printf("PWM val: %d, pos: %d, neg: %d, flt: %d\n",
 		       pwm_val, step.positive, step.negative, step.floating);
 
+		motor_pwm_set_freewheeling();    // Pre-reset is required
+
 		irq_primask_disable();
 		motor_pwm_set_step_from_isr(&step, pwm_val);
 		irq_primask_enable();
