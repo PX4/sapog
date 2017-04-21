@@ -66,7 +66,7 @@ const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLE
  * This parameter is dictated by the phase voltage RC filters.
  * Higher oversampling allows for a lower blanking time, due to stronger averaging.
  */
-const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 7000;
+const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 5000;
 
 
 CONFIG_PARAM_FLOAT("mot_i_shunt_mr",         5.0,   0.1,   100.0)
@@ -88,15 +88,15 @@ CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 #define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
 	/*
 	 * ADC channel sampling:
-	 *   A A C VOLT
-	 *   C B B CURR
+	 *   VOLT A A C
+	 *   CURR C B B
 	 */
-	_sample.phase_values[0] = (SMPLADC1(0) + SMPLADC1(1)) / 2;
-	_sample.phase_values[1] = (SMPLADC2(1) + SMPLADC2(2)) / 2;
-	_sample.phase_values[2] = (SMPLADC2(0) + SMPLADC1(2)) / 2;
+	_sample.phase_values[0] = (SMPLADC1(1) + SMPLADC1(2)) / 2;
+	_sample.phase_values[1] = (SMPLADC2(2) + SMPLADC2(3)) / 2;
+	_sample.phase_values[2] = (SMPLADC2(1) + SMPLADC1(3)) / 2;
 
-	_sample.input_voltage = SMPLADC1(3);
-	_sample.input_current = SMPLADC2(3);
+	_sample.input_voltage = SMPLADC1(0);
+	_sample.input_current = SMPLADC2(0);
 
 #undef SMPLADC1
 #undef SMPLADC2
@@ -154,22 +154,25 @@ static void enable(void)
 
 	/*
 	 * ADC channel sampling:
-	 *   A A C VOLT
-	 *   C B B CURR
+	 *   VOLT A A C
+	 *   CURR C B B
+	 * BEMF is sampled in the last order because the BEMF signal conditioning circuits need several
+	 * microseconds to stabilize. Moving these channels to the end of the sequence allows us to reduce
+	 * the overall sampling time.
 	 */
 	ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_1;
 	ADC1->SQR3 =
-		ADC_SQR3_SQ1_0 |
+		ADC_SQR3_SQ1_2 |
 		ADC_SQR3_SQ2_0 |
-		ADC_SQR3_SQ3_0 | ADC_SQR3_SQ3_1 |
-		ADC_SQR3_SQ4_2;
+		ADC_SQR3_SQ3_0 |
+		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1;
 
 	ADC2->SQR1 = ADC1->SQR1;
 	ADC2->SQR3 =
-		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |
-		ADC_SQR3_SQ2_1 |
+		ADC_SQR3_SQ1_2 | ADC_SQR3_SQ1_0 |
+		ADC_SQR3_SQ2_0 | ADC_SQR3_SQ2_1 |
 		ADC_SQR3_SQ3_1 |
-		ADC_SQR3_SQ4_2 | ADC_SQR3_SQ4_0;
+		ADC_SQR3_SQ4_1;
 
 	// SMPR registers are not configured because they have right values by default
 
