@@ -47,7 +47,7 @@
 #define ADC_REF_VOLTAGE          3.3f
 #define ADC_RESOLUTION           12
 
-#define NUM_SAMPLES_PER_ADC      2
+#define NUM_SAMPLES_PER_ADC      4
 
 /**
  * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
@@ -58,8 +58,7 @@
 /**
  * ADC will be triggered at this time before the PWM mid cycle.
  */
-//const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1)) / 2;
-const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = 0;
+const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1)) / 2;
 
 const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
 
@@ -89,23 +88,15 @@ CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 #define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
 	/*
 	 * ADC channel sampling:
-	 *   A C
-	 *   B VOLT/CURR
+	 *   A A C VOLT
+	 *   C B B CURR
 	 */
-	_sample.phase_values[0] = SMPLADC1(0);
-	_sample.phase_values[1] = SMPLADC2(0);
-	_sample.phase_values[2] = SMPLADC1(1);
+	_sample.phase_values[0] = (SMPLADC1(0) + SMPLADC1(1)) / 2;
+	_sample.phase_values[1] = (SMPLADC2(1) + SMPLADC2(2)) / 2;
+	_sample.phase_values[2] = (SMPLADC2(0) + SMPLADC1(2)) / 2;
 
-	// Voltage and current channels are alternating
-	if ((ADC2->SQR3 & ADC_SQR3_SQ2_0) != 0)
-	{
-		ADC2->SQR3 &= ~ADC_SQR3_SQ2_0;
-		_sample.input_current = SMPLADC2(1);
-	} else
-	{
-		ADC2->SQR3 |= ADC_SQR3_SQ2_0;
-		_sample.input_voltage = SMPLADC2(1);
-	}
+	_sample.input_voltage = SMPLADC1(3);
+	_sample.input_current = SMPLADC2(3);
 
 #undef SMPLADC1
 #undef SMPLADC2
@@ -163,18 +154,22 @@ static void enable(void)
 
 	/*
 	 * ADC channel sampling:
-	 *   A C
-	 *   B VOLT/CURR
+	 *   A A C VOLT
+	 *   C B B CURR
 	 */
-	ADC1->SQR1 = ADC_SQR1_L_0;
+	ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_1;
 	ADC1->SQR3 =
-		ADC_SQR3_SQ1_0 |                     // A
-		ADC_SQR3_SQ2_0 | ADC_SQR3_SQ2_1;     // C
+		ADC_SQR3_SQ1_0 |
+		ADC_SQR3_SQ2_0 |
+		ADC_SQR3_SQ3_0 | ADC_SQR3_SQ3_1 |
+		ADC_SQR3_SQ4_2;
 
 	ADC2->SQR1 = ADC1->SQR1;
 	ADC2->SQR3 =
-		ADC_SQR3_SQ1_1 |                     // B
-		ADC_SQR3_SQ2_2 | ADC_SQR3_SQ2_0;     // VOLT/CURR
+		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |
+		ADC_SQR3_SQ2_1 |
+		ADC_SQR3_SQ3_1 |
+		ADC_SQR3_SQ4_2 | ADC_SQR3_SQ4_0;
 
 	// SMPR registers are not configured because they have right values by default
 
