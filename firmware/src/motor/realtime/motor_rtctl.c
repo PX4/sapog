@@ -966,6 +966,8 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 	 */
 	chSysSuspend();
 
+	TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);   // Spin up indicator
+
 	if ((spinup_ramp_duration > 0.0F) && (initial_duty_cycle < target_duty_cycle)) {
 		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(initial_duty_cycle);
 		_state.pwm_val_after_spinup  = motor_pwm_compute_pwm_val(target_duty_cycle);
@@ -1054,6 +1056,8 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 #else
 	motor_timer_set_relative(_state.comm_period / 2);
 #endif
+
+	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);  // Spin up indicator
 
 	chSysEnable();
 
