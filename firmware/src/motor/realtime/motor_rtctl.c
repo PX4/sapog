@@ -226,7 +226,7 @@ CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     29)       // electrical de
 CONFIG_PARAM_INT("mot_tim_cp_max",      300,   100,   50000)    // microsecond
 CONFIG_PARAM_INT("mot_tim_cp_min",      600,   100,   50000)    // microsecond
 // Most important parameters
-CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)      // microsecond
+CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    300)      // microsecond
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)        // dimensionless
 CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)      // percent
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)      // dimensionless
@@ -235,7 +235,7 @@ CONFIG_PARAM_INT("mot_comm_per_max",    12000, 5000,  50000)    // microsecond
 CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
 CONFIG_PARAM_INT("mot_spup_en_cp",      7000,  1000,  50000);   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
-CONFIG_PARAM_INT("mot_spup_blnk_pm",    10,    1,     100)      // permill
+CONFIG_PARAM_INT("mot_spup_blnk_pm",    10,    1,     300)      // permill
 
 static void configure(void)
 {
