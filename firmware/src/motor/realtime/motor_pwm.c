@@ -63,14 +63,11 @@ static uint16_t _pwm_min;
 static uint16_t _adc_advance_ticks;
 static uint16_t _adc_blanking_ticks;
 static uint16_t _adc_sample_duration_ticks;
-static bool _use_2q_commutation;
 
 
 static int init_constants(unsigned frequency, const float pwm_dead_time_ns)
 {
 	ASSERT_ALWAYS(_pwm_top == 0);   // Make sure it was not initialized already
-
-	_use_2q_commutation = false;
 
 	/*
 	 * PWM top, derived from frequency
@@ -258,11 +255,6 @@ int motor_pwm_init(void)
 	return 0;
 }
 
-void motor_pwm_set_2_quadrant_mode(bool enable_2q)
-{
-	_use_2q_commutation = enable_2q;
-}
-
 uint32_t motor_adc_sampling_period_hnsec(void)
 {
 	return HNSEC_PER_SEC / (PWM_TIMER_FREQUENCY / ((int)_pwm_top + 1));
@@ -335,25 +327,6 @@ static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool i
 		} else {
 			TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 		}
-		TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
-	}
-}
-
-__attribute__((optimize(3)))
-static inline void phase_set_2q_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool inverted)
-{
-	// The channel must be enabled in the last order when it is fully configured
-	if (phase == 0) {
-		TIM1->CCR1 = inverted ? 0 : pwm_val;
-		TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;                 // non inverted
-		TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC1NE);
-	} else if (phase == 1) {
-		TIM1->CCR2 = inverted ? 0 : pwm_val;
-		TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
-		TIM1->CCER |= (TIM_CCER_CC2E | TIM_CCER_CC2NE);
-	} else {
-		TIM1->CCR3 = inverted ? 0 : pwm_val;
-		TIM1->CCMR2 |= TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
 		TIM1->CCER |= (TIM_CCER_CC3E | TIM_CCER_CC3NE);
 	}
 }
@@ -472,28 +445,10 @@ void motor_pwm_set_step_from_isr(const struct motor_pwm_commutation_step* step, 
 {
 	phase_reset_i(step->floating);
 
-	if (!_use_2q_commutation) {
-		phase_set_i(step->positive, pwm_val, false);
-		phase_set_i(step->negative, pwm_val, true);
+	phase_set_i(step->positive, pwm_val, false);
+	phase_set_i(step->negative, pwm_val, true);
 
-		adjust_adc_sync(pwm_val);
-	} else {
-		// Converting to 2-quadrant mode
-		if (pwm_val > _pwm_half_top) {
-			pwm_val = 2 * (pwm_val - _pwm_half_top);  // positive torque
-		} else {
-			pwm_val = 0;                              // negative torque cannot be created in 2Q mode
-		}
-
-		if (pwm_val < _pwm_min) {
-			pwm_val = _pwm_min;                       // we can't modulate zero PWM in 2Q mode
-		}
-
-		phase_set_2q_i(step->positive, pwm_val, false);
-		phase_set_2q_i(step->negative, pwm_val, true);
-
-		adjust_adc_sync(pwm_val);
-	}
+	adjust_adc_sync(pwm_val);
 }
 
 void motor_pwm_beep(int frequency, int duration_msec)

@@ -115,12 +115,6 @@ void motor_rtctl_execute_cli_command(int argc, const char* argv[])
 		motor_pwm_set_step_from_isr(&step, pwm_val);
 		irq_primask_enable();
 
-	} else if ((argc > 0) && !strcmp("2q", argv[0])) {
-		// Configure 2 quadrant mode
-		const bool enable = (argc > 1) ? (atoi(argv[1]) != 0) : false;
-		printf("2Q mode: %s\n", enable ? "ON" : "OFF");
-		motor_pwm_set_2_quadrant_mode(enable);
-
 	} else if ((argc >= 1) && (argc <= 3)) {
 		const enum motor_pwm_phase_manip manip_cmd[MOTOR_NUM_PHASES] = {
 			arg_to_pwm_manip(argv[0]),
