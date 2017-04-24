@@ -134,13 +134,6 @@ enum zc_detection_result
 	ZC_DESATURATION
 };
 
-enum spinup_comm_state
-{
-	SPINUP_COMM_WINDING_DISCHARGE,
-	SPINUP_COMM_BEMF_STABILIZATION,
-	SPINUP_COMM_WAITING_FOR_ZERO_CROSS
-};
-
 static struct diag_info                /// This data is never used by the control algorithms, it is write only
 {
 	/// Increment-only counters
@@ -176,9 +169,9 @@ static struct control_state            /// Control state
 	uint32_t comm_period;
 	uint32_t averaged_comm_period;
 
-	enum spinup_comm_state spinup_comm_state;
-	uint64_t spinup_bemf_stabilization_deadline;
-	int64_t spinup_bemf_integral;
+	int64_t spinup_bemf_integral_positive;
+	int64_t spinup_bemf_integral_negative;
+	bool spinup_prev_zc_timestamp_set;
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
@@ -220,8 +213,8 @@ static struct precomputed_params       /// Parameters are read only
 	int comm_blank_hnsec;
 
 	uint32_t spinup_start_comm_period;
-	uint32_t spinup_end_comm_period;
 	uint32_t spinup_timeout;
+	uint32_t spinup_blanking_time_permil;
 
 	uint32_t adc_sampling_period;
 } _params;
@@ -234,15 +227,15 @@ CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     29)       // electrical de
 CONFIG_PARAM_INT("mot_tim_cp_max",      300,   100,   50000)    // microsecond
 CONFIG_PARAM_INT("mot_tim_cp_min",      600,   100,   50000)    // microsecond
 // Most important parameters
-CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)      // microsecond
+CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    300)      // microsecond
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)        // dimensionless
 CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)      // percent
-CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)      // dimensionless
-CONFIG_PARAM_INT("mot_comm_per_max",    12000, 5000,  50000)    // microsecond
+CONFIG_PARAM_INT("mot_zc_fails_max",    30,    6,     300)      // dimensionless
+CONFIG_PARAM_INT("mot_comm_per_max",    3000,  1000,  15000)    // microsecond
 // Spinup settings
-CONFIG_PARAM_INT("mot_spup_st_cp",      200000,10000, 300000)   // microsecond
-CONFIG_PARAM_INT("mot_spup_en_cp",      7000,  1000,  50000);   // microsecond
+CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
+CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
 
 static void configure(void)
 {
@@ -258,8 +251,8 @@ static void configure(void)
 	_params.comm_blank_hnsec = configGet("mot_blank_usec") * HNSEC_PER_USEC;
 
 	_params.spinup_start_comm_period = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
-	_params.spinup_end_comm_period   = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
 	_params.spinup_timeout           = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
+	_params.spinup_blanking_time_permil = configGet("mot_spup_blnk_pm");
 
 	/*
 	 * Validation
@@ -274,12 +267,8 @@ static void configure(void)
 	}
 	assert(_params.max_comm_period_for_max_timing_advance <= _params.max_comm_period_for_min_timing_advance);
 
-	if (_params.spinup_end_comm_period > _params.comm_period_max) {
-		_params.spinup_end_comm_period = _params.comm_period_max;
-	}
-
-	if (_params.spinup_start_comm_period < _params.spinup_end_comm_period) {
-		_params.spinup_start_comm_period = _params.spinup_end_comm_period;
+	if (_params.spinup_start_comm_period < _params.comm_period_max) {
+		_params.spinup_start_comm_period = _params.comm_period_max;
 	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
@@ -418,7 +407,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		motor_timer_set_relative(zc_detection_timeout);
 	} else {
 		motor_timer_set_relative(_params.spinup_start_comm_period);
-		_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
+		_state.spinup_bemf_integral_positive = 0;
+		_state.spinup_bemf_integral_negative = 0;
+		_state.spinup_prev_zc_timestamp_set = false;
 	}
 
 	// Next comm step
@@ -483,8 +474,19 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	prepare_zc_detector_for_next_step();
 	motor_adc_enable_from_isr();
 
-	// Spinup voltage ramp handling
+	// Special spinup processing
 	if ((_state.flags & FLAG_SPINUP) != 0) {
+		// Spinup blanking time override
+		const uint64_t blanking_time =
+			((uint64_t)_state.comm_period * (uint64_t)_params.spinup_blanking_time_permil) / 1000U;
+
+		const uint64_t new_blanking_deadline = timestamp_hnsec + blanking_time;
+
+		if (new_blanking_deadline > _state.blank_time_deadline) {
+			_state.blank_time_deadline = new_blanking_deadline;
+		}
+
+		// Spinup voltage ramp handling
 		const uint64_t delta = timestamp_hnsec - _diag.started_at;
 		if (delta >= _state.spinup_ramp_duration_hnsec) {
 			_state.pwm_val = _state.pwm_val_after_spinup;
@@ -503,6 +505,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 			}
 		}
 
+		// Spinup timeout
 		if ((_diag.started_at + _params.spinup_timeout) <= timestamp_hnsec) {
 			stop_from_isr();
 		}
@@ -842,76 +845,75 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		handle_detected_zc(zc_timestamp);
 		TESTPAD_ZC_CLEAR();
 	} else {
-		if (_state.spinup_comm_state == SPINUP_COMM_WINDING_DISCHARGE) {
-			TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+		if (past_zc) {
+			const int bemf_threshold = _state.neutral_voltage * 15 / 16;
 
-			const int threshold = _state.neutral_voltage * 3 / 4;
-
-			if (!past_zc || (abs(bemf) < threshold)) {
-				_state.spinup_comm_state = SPINUP_COMM_BEMF_STABILIZATION;
-
-				_state.spinup_bemf_stabilization_deadline =
-					sample->timestamp + _params.adc_sampling_period * 2;
+			if ((_state.spinup_bemf_integral_positive == 0) &&
+			    (_state.spinup_bemf_integral_negative == 0) &&
+			    (abs(bemf) > bemf_threshold))
+			{
+			    ; // Flyback current
 			}
+			else if ((_state.spinup_bemf_integral_positive == 0) &&
+			         (_state.spinup_bemf_integral_negative == 0))
+			{
+				// Flyback current has ended, increment both in order to avoid ZC detection
+				// on this step, because we need to wait 1 cycle after the flyback has ended
+				// in order to let the BEMF stabilize.
+				// TODO: refactor this into a proper state machine.
+				_state.spinup_bemf_integral_positive++;
+				_state.spinup_bemf_integral_negative++;
+			}
+			else
+			{
+				_state.spinup_bemf_integral_positive += abs(bemf);
+			}
+		} else {
+			_state.spinup_bemf_integral_negative += abs(bemf);
 
-			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
+			// It is ABSOLUTELY CRUCIAL to provide a correct estimate of the last zero cross timestamp
+			// when transitioning from spinup mode to normal mode, otherwise the normal mode will
+			// quickly run out of sync!
+			_state.prev_zc_timestamp = sample->timestamp;
+			_state.spinup_prev_zc_timestamp_set = true;
 		}
 
-		if (_state.spinup_comm_state == SPINUP_COMM_BEMF_STABILIZATION) {
-			TESTPAD_ZC_SET();
-
-			if (!past_zc) {
-				_state.spinup_comm_state = SPINUP_COMM_WAITING_FOR_ZERO_CROSS;
-				_state.spinup_bemf_integral = 0;
-			} else {
-				const bool timed_out = sample->timestamp > _state.spinup_bemf_stabilization_deadline;
-
-				if (timed_out) {
-					// Switch step
-					_state.current_comm_step++;
-					if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
-						_state.current_comm_step = 0;
-					}
-
-					engage_current_comm_step();
-
-					// Begin inductance discharge monitoring
-					_state.spinup_comm_state = SPINUP_COMM_WINDING_DISCHARGE;
-					_state.blank_time_deadline = sample->timestamp + _params.comm_blank_hnsec;
-					_state.prev_comm_timestamp = sample->timestamp;
-				}
-			}
-
-			TESTPAD_ZC_CLEAR();
-		}
-
-		if (_state.spinup_comm_state == SPINUP_COMM_WAITING_FOR_ZERO_CROSS) {
-			if (past_zc) {
-				_state.spinup_bemf_integral += abs(bemf) * 10;
-			} else {
+		// Advance angle should be around zero during spinup, otherwise synchronization can be
+		// lost quickly, especially if the rotor is loaded!
+		if ((_state.spinup_bemf_integral_positive > 1) &&
+		    (_state.spinup_bemf_integral_positive >= _state.spinup_bemf_integral_negative))
+		{
+			if (!_state.spinup_prev_zc_timestamp_set) {
+				// We didn't have a chance to detect ZC properly, so we speculate
 				_state.prev_zc_timestamp = sample->timestamp;
-				_state.spinup_bemf_integral -= abs(bemf);
+				_state.spinup_prev_zc_timestamp_set = true;
 			}
 
-			if (_state.spinup_bemf_integral > 0) {
-				const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
+			const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
 
-				// We're using 3x averaging in order to compensate for phase asymmetry
-				_state.comm_period =
-					MIN((new_comm_period + _state.comm_period * 2) / 3,
-					    _params.spinup_start_comm_period);
+			// We're using 3x averaging in order to compensate for phase asymmetry
+			_state.comm_period =
+				MIN((new_comm_period + _state.comm_period * 2) / 3,
+				    _params.spinup_start_comm_period);
 
-				_state.zc_detection_result = ZC_DETECTED;
+			if (_state.averaged_comm_period > 0) {
+				_state.averaged_comm_period =
+					(_state.comm_period + _state.averaged_comm_period * 3) / 4;
+			} else {
+				_state.averaged_comm_period = _state.comm_period;
+			}
 
-				motor_timer_set_relative(0);
+			_state.zc_detection_result = ZC_DETECTED;
 
-				if (_state.comm_period <= _params.spinup_end_comm_period) {
-					if (_state.pwm_val >= _state.pwm_val_after_spinup) {
-						_state.flags &= ~FLAG_SPINUP;
-					} else {
-						// Speed up the ramp a bit in order to converge faster
-						_state.pwm_val++;
-					}
+			motor_timer_set_relative(0);
+			motor_adc_disable_from_isr();
+
+			if (_state.averaged_comm_period <= _params.comm_period_max) {
+				if (_state.pwm_val >= _state.pwm_val_after_spinup) {
+					_state.flags &= ~FLAG_SPINUP;
+				} else {
+					// Speed up the ramp a bit in order to converge faster
+					_state.pwm_val++;
 				}
 			}
 		}
@@ -986,6 +988,8 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 	 */
 	chSysSuspend();
 
+	TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);   // Spin up indicator
+
 	if ((spinup_ramp_duration > 0.0F) && (initial_duty_cycle < target_duty_cycle)) {
 		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(initial_duty_cycle);
 		_state.pwm_val_after_spinup  = motor_pwm_compute_pwm_val(target_duty_cycle);
@@ -1011,7 +1015,12 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 
 	motor_timer_set_relative(_state.comm_period / 2);
 
+	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);  // Spin up indicator
+
 	chSysEnable();
+
+	printf("Motor: RTCTL Spinup: PWM val %d --> %d\n",
+	       _state.pwm_val_before_spinup, _state.pwm_val_after_spinup);
 }
 
 void motor_rtctl_stop(void)
