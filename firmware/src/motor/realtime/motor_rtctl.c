@@ -235,7 +235,7 @@ CONFIG_PARAM_INT("mot_comm_per_max",    12000, 5000,  50000)    // microsecond
 CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
 CONFIG_PARAM_INT("mot_spup_en_cp",      7000,  1000,  50000);   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
-CONFIG_PARAM_INT("mot_spup_blnk_pm",    10,    1,     300)      // permill
+CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
 
 static void configure(void)
 {
@@ -851,7 +851,8 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		if (past_zc) {
 			// We may switch to the next phase without ever setting the prev_zc_timeout value
 			// in this commutation period!
-			// TODO the above might be the reason for 2Q-4Q hand-off failure!
+			// Advance angle should be around zero during spinup, otherwise synchronization can be
+			// lost quickly, especially if the rotor is loaded!
 			if (_state.spinup_bemf_integral > 0) {
 				const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
 
@@ -881,7 +882,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 					}
 				}
 			} else {
-				_state.spinup_bemf_integral += abs(bemf) * 2;
+				_state.spinup_bemf_integral += abs(bemf);
 			}
 		} else {
 			_state.spinup_bemf_integral -= abs(bemf);
