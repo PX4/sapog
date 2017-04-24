@@ -213,7 +213,6 @@ static struct precomputed_params       /// Parameters are read only
 	int comm_blank_hnsec;
 
 	uint32_t spinup_start_comm_period;
-	uint32_t spinup_end_comm_period;
 	uint32_t spinup_timeout;
 	uint32_t spinup_blanking_time_permil;
 
@@ -232,10 +231,9 @@ CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    300)      // microsecond
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)        // dimensionless
 CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)      // percent
 CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)      // dimensionless
-CONFIG_PARAM_INT("mot_comm_per_max",    12000, 5000,  50000)    // microsecond
+CONFIG_PARAM_INT("mot_comm_per_max",    3000,  1000,  15000)    // microsecond
 // Spinup settings
 CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
-CONFIG_PARAM_INT("mot_spup_en_cp",      7000,  1000,  50000);   // microsecond
 CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
 CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
 
@@ -253,7 +251,6 @@ static void configure(void)
 	_params.comm_blank_hnsec = configGet("mot_blank_usec") * HNSEC_PER_USEC;
 
 	_params.spinup_start_comm_period = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
-	_params.spinup_end_comm_period   = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
 	_params.spinup_timeout           = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
 	_params.spinup_blanking_time_permil = configGet("mot_spup_blnk_pm");
 
@@ -270,12 +267,8 @@ static void configure(void)
 	}
 	assert(_params.max_comm_period_for_max_timing_advance <= _params.max_comm_period_for_min_timing_advance);
 
-	if (_params.spinup_end_comm_period > _params.comm_period_max) {
-		_params.spinup_end_comm_period = _params.comm_period_max;
-	}
-
-	if (_params.spinup_start_comm_period < _params.spinup_end_comm_period) {
-		_params.spinup_start_comm_period = _params.spinup_end_comm_period;
+	if (_params.spinup_start_comm_period < _params.comm_period_max) {
+		_params.spinup_start_comm_period = _params.comm_period_max;
 	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
@@ -915,7 +908,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			motor_timer_set_relative(0);
 			motor_adc_disable_from_isr();
 
-			if (_state.averaged_comm_period <= _params.spinup_end_comm_period) {
+			if (_state.averaged_comm_period <= _params.comm_period_max) {
 				if (_state.pwm_val >= _state.pwm_val_after_spinup) {
 					_state.flags &= ~FLAG_SPINUP;
 				} else {
