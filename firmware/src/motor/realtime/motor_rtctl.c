@@ -171,6 +171,7 @@ static struct control_state            /// Control state
 
 	int64_t spinup_bemf_integral_positive;
 	int64_t spinup_bemf_integral_negative;
+	bool spinup_prev_zc_timestamp_set;
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
@@ -415,6 +416,7 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		motor_timer_set_relative(_params.spinup_start_comm_period);
 		_state.spinup_bemf_integral_positive = 0;
 		_state.spinup_bemf_integral_negative = 0;
+		_state.spinup_prev_zc_timestamp_set = false;
 	}
 
 	// Next comm step
@@ -880,6 +882,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			// when transitioning from spinup mode to normal mode, otherwise the normal mode will
 			// quickly run out of sync!
 			_state.prev_zc_timestamp = sample->timestamp;
+			_state.spinup_prev_zc_timestamp_set = true;
 		}
 
 		// Advance angle should be around zero during spinup, otherwise synchronization can be
@@ -887,6 +890,12 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		if ((_state.spinup_bemf_integral_positive > 1) &&
 		    (_state.spinup_bemf_integral_positive >= _state.spinup_bemf_integral_negative))
 		{
+			if (!_state.spinup_prev_zc_timestamp_set) {
+				// We didn't have a chance to detect ZC properly, so we speculate
+				_state.prev_zc_timestamp = sample->timestamp;
+				_state.spinup_prev_zc_timestamp_set = true;
+			}
+
 			const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
 
 			// We're using 3x averaging in order to compensate for phase asymmetry
