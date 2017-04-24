@@ -169,7 +169,8 @@ static struct control_state            /// Control state
 	uint32_t comm_period;
 	uint32_t averaged_comm_period;
 
-	int64_t spinup_bemf_integral;
+	int64_t spinup_bemf_integral_positive;
+	int64_t spinup_bemf_integral_negative;
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
@@ -412,7 +413,8 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		motor_timer_set_relative(zc_detection_timeout);
 	} else {
 		motor_timer_set_relative(_params.spinup_start_comm_period);
-		_state.spinup_bemf_integral = 0;
+		_state.spinup_bemf_integral_positive = 0;
+		_state.spinup_bemf_integral_negative = 0;
 	}
 
 	// Next comm step
@@ -849,48 +851,69 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 		TESTPAD_ZC_CLEAR();
 	} else {
 		if (past_zc) {
-			// We may switch to the next phase without ever setting the prev_zc_timeout value
-			// in this commutation period!
-			// Advance angle should be around zero during spinup, otherwise synchronization can be
-			// lost quickly, especially if the rotor is loaded!
-			if (_state.spinup_bemf_integral > 0) {
-				const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
+			const int bemf_threshold = _state.neutral_voltage * 15 / 16;
 
-				// We're using 3x averaging in order to compensate for phase asymmetry
-				_state.comm_period =
-					MIN((new_comm_period + _state.comm_period * 2) / 3,
-					    _params.spinup_start_comm_period);
-
-				if (_state.averaged_comm_period > 0) {
-					_state.averaged_comm_period =
-						(_state.comm_period + _state.averaged_comm_period * 3) / 4;
-				} else {
-					_state.averaged_comm_period = _state.comm_period;
-				}
-
-				_state.zc_detection_result = ZC_DETECTED;
-
-				motor_timer_set_relative(0);
-				motor_adc_disable_from_isr();
-
-				if (_state.averaged_comm_period <= _params.spinup_end_comm_period) {
-					if (_state.pwm_val >= _state.pwm_val_after_spinup) {
-						_state.flags &= ~FLAG_SPINUP;
-					} else {
-						// Speed up the ramp a bit in order to converge faster
-						_state.pwm_val++;
-					}
-				}
-			} else {
-				_state.spinup_bemf_integral += abs(bemf);
+			if ((_state.spinup_bemf_integral_positive == 0) &&
+			    (_state.spinup_bemf_integral_negative == 0) &&
+			    (abs(bemf) > bemf_threshold))
+			{
+			    ; // Flyback current
+			}
+			else if ((_state.spinup_bemf_integral_positive == 0) &&
+			         (_state.spinup_bemf_integral_negative == 0))
+			{
+				// Flyback current has ended, increment both in order to avoid ZC detection
+				// on this step, because we need to wait 1 cycle after the flyback has ended
+				// in order to let the BEMF stabilize.
+				// TODO: refactor this into a proper state machine.
+				_state.spinup_bemf_integral_positive++;
+				_state.spinup_bemf_integral_negative++;
+			}
+			else
+			{
+				_state.spinup_bemf_integral_positive += abs(bemf);
 			}
 		} else {
-			_state.spinup_bemf_integral -= abs(bemf);
+			_state.spinup_bemf_integral_negative += abs(bemf);
 
 			// It is ABSOLUTELY CRUCIAL to provide a correct estimate of the last zero cross timestamp
 			// when transitioning from spinup mode to normal mode, otherwise the normal mode will
 			// quickly run out of sync!
 			_state.prev_zc_timestamp = sample->timestamp;
+		}
+
+		// Advance angle should be around zero during spinup, otherwise synchronization can be
+		// lost quickly, especially if the rotor is loaded!
+		if ((_state.spinup_bemf_integral_positive > 1) &&
+		    (_state.spinup_bemf_integral_positive >= _state.spinup_bemf_integral_negative))
+		{
+			const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
+
+			// We're using 3x averaging in order to compensate for phase asymmetry
+			_state.comm_period =
+				MIN((new_comm_period + _state.comm_period * 2) / 3,
+				    _params.spinup_start_comm_period);
+
+			if (_state.averaged_comm_period > 0) {
+				_state.averaged_comm_period =
+					(_state.comm_period + _state.averaged_comm_period * 3) / 4;
+			} else {
+				_state.averaged_comm_period = _state.comm_period;
+			}
+
+			_state.zc_detection_result = ZC_DETECTED;
+
+			motor_timer_set_relative(0);
+			motor_adc_disable_from_isr();
+
+			if (_state.averaged_comm_period <= _params.spinup_end_comm_period) {
+				if (_state.pwm_val >= _state.pwm_val_after_spinup) {
+					_state.flags &= ~FLAG_SPINUP;
+				} else {
+					// Speed up the ramp a bit in order to converge faster
+					_state.pwm_val++;
+				}
+			}
 		}
 	}
 }
@@ -988,71 +1011,7 @@ void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
 
 	_diag.started_at = motor_timer_hnsec();
 
-#if 0
-	const uint64_t deadline = motor_timer_hnsec() + HNSEC_PER_SEC * 2;
-
-	while (motor_timer_hnsec() < deadline) {
-		engage_current_comm_step();
-		const uint64_t commutated_at = motor_timer_hnsec();
-		motor_timer_hndelay(HNSEC_PER_USEC * 300);       // Blanking time
-
-		// Wait for the zero crossing
-		long long integrator_pos = 0;
-		long long integrator_neg = 0;
-		const uint64_t zc_deadline = commutated_at + HNSEC_PER_MSEC * 100;
-
-		while (motor_timer_hnsec() < zc_deadline) {
-			const struct motor_adc_sample sample = motor_adc_get_last_sample();
-			update_input_voltage_current(&sample);
-			update_neutral_voltage(&sample);
-
-			const struct motor_pwm_commutation_step* const step =
-				_state.comm_table + _state.current_comm_step;
-
-			const int bemf = sample.phase_values[step->floating] - _state.neutral_voltage;
-
-			if (is_past_zc(bemf)) {
-//				const int bemf_threshold = _state.neutral_voltage * 3 / 4;
-//
-//				if ((integrator_pos == 0) &&
-//				    (integrator_neg == 0) &&
-//				    (abs(bemf) > bemf_threshold) &&
-//				    (motor_timer_hnsec() < (commutated_at + HNSEC_PER_MSEC)))
-//				{
-//					; // Flyback current
-//				}
-//				else if ((integrator_pos == 0) &&
-//				         (integrator_neg == 0))
-//				{
-//					integrator_pos++;
-//					integrator_neg++;
-//				}
-//				else
-				{
-					integrator_pos += abs(bemf);
-				}
-			} else {
-				integrator_neg += abs(bemf);
-			}
-
-			if ((integrator_pos > 1) &&
-			    (integrator_pos >= integrator_neg))
-			{
-				break;
-			}
-		}
-
-		_state.current_comm_step++;
-		if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
-			_state.current_comm_step = 0;
-		}
-	}
-
-	motor_rtctl_stop();
-	_state.flags = FLAG_ACTIVE;
-#else
 	motor_timer_set_relative(_state.comm_period / 2);
-#endif
 
 	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);  // Spin up indicator
 
