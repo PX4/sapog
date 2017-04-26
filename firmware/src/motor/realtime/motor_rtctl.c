@@ -56,7 +56,7 @@
  */
 #define MAX_BEMF_SAMPLES           8
 
-#define ABS_MIN_COMM_PERIOD_USEC   150
+#define ABS_MIN_COMM_PERIOD_USEC   100
 
 /**
  * Computes the timing advance in comm_period units
