@@ -230,7 +230,7 @@ CONFIG_PARAM_INT("mot_tim_cp_min",      600,   100,   50000)    // microsecond
 CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    300)      // microsecond
 CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)        // dimensionless
 CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)      // percent
-CONFIG_PARAM_INT("mot_zc_fails_max",    30,    6,     300)      // dimensionless
+CONFIG_PARAM_INT("mot_zc_fails_max",    20,    6,     300)      // dimensionless
 CONFIG_PARAM_INT("mot_comm_per_max",    4000,  1000,  10000)    // microsecond
 // Spinup settings
 CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
