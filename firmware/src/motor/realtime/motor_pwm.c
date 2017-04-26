@@ -103,7 +103,7 @@ static int init_constants(unsigned frequency, const float pwm_dead_time_ns)
 
 	_pwm_min = (uint16_t)pwm_min_ticks_float;
 	if (_pwm_min > _pwm_half_top) {
-		assert(!"PWM: min > half");
+		printf("Motor: Forcing PWM min = half = %u\n", (unsigned)_pwm_half_top);
 		_pwm_min = _pwm_half_top;
 	}
 
@@ -125,6 +125,20 @@ static int init_constants(unsigned frequency, const float pwm_dead_time_ns)
 
 	const float adc_sample_duration = MOTOR_ADC_SAMPLE_WINDOW_NANOSEC / 1e9f;
 	_adc_sample_duration_ticks = (uint16_t)(adc_sample_duration / pwm_clock_period);
+
+	if ((_adc_advance_ticks + _adc_blanking_ticks + _adc_sample_duration_ticks) > _pwm_min) {
+		const int new_blanking = (int)_pwm_min - (int)_adc_advance_ticks - (int)_adc_sample_duration_ticks;
+
+		if (new_blanking > 0) {
+			_adc_blanking_ticks = new_blanking;
+		} else {
+			assert(!"Zero ADC blanking");
+			_adc_blanking_ticks = 1;
+		}
+
+		printf("Motor: WARNING: ADC blanking reduced to %u ticks due to PWM frequency being too high\n",
+			(unsigned)_adc_blanking_ticks);
+	}
 
 	printf("Motor: PWM range [%u; %u], ADC: advance %u ticks, blanking %u ticks, sample %u ticks\n",
 		(unsigned)_pwm_min,
