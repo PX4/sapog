@@ -32,7 +32,7 @@
 
 PROJECT = io.px4.sapog
 
-HW_VERSION = 1
+HW_VERSION_MAJOR = 1
 FW_VERSION_MAJOR = 2
 FW_VERSION_MINOR = 0
 
@@ -57,7 +57,7 @@ UINCDIR = src           \
 
 UDEFS = -DFW_VERSION_MAJOR=$(FW_VERSION_MAJOR)           \
         -DFW_VERSION_MINOR=$(FW_VERSION_MINOR)           \
-        -DHW_VERSION=$(HW_VERSION)                       \
+        -DHW_VERSION_MAJOR=$(HW_VERSION_MAJOR)           \
         -DNODE_NAME=\"$(PROJECT)\"
 
 # MAVLink v1 compliance
@@ -116,7 +116,7 @@ DEBUG_OPT = -O2 -g3 -DDISABLE_WATCHDOG=1
 CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow -Werror
 CPPWARN = $(CWARN)
 
-HW_VERSION_MAJOR_MINOR := $(HW_VERSION).0
+HW_VERSION_MAJOR_MINOR := $(HW_VERSION_MAJOR).0
 FW_VERSION_MAJOR_MINOR_VCS_HASH := $(FW_VERSION_MAJOR).$(FW_VERSION_MINOR).$(GIT_HASH)
 COMPOUND_IMAGE_FILE := $(PROJECT)-$(HW_VERSION_MAJOR_MINOR)-$(FW_VERSION_MAJOR_MINOR_VCS_HASH).compound.bin
 BOOTLOADER_DIR := $(abspath $(SAPOG_BASE)/../bootloader)

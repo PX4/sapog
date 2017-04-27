@@ -144,7 +144,7 @@ HardwareVersion detect_hardware_version()
 {
 	auto v = HardwareVersion();
 
-	v.major = HW_VERSION;
+	v.major = HW_VERSION_MAJOR;
 	v.minor = std::uint8_t(GPIOC->IDR & 0x0F);
 
 	return v;
