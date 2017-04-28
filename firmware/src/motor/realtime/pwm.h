@@ -64,7 +64,7 @@ enum motor_pwm_phase_manip
  * Sanity constraints.
  * The maximum PWM frequency is limited by the performance of the BEMF signal conditioning circuits.
  */
-#define MOTOR_PWM_MIN_FREQUENCY   10000
+#define MOTOR_PWM_MIN_FREQUENCY   20000
 #define MOTOR_PWM_MAX_FREQUENCY   75000
 
 /**
