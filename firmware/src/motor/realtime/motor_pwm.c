@@ -352,15 +352,16 @@ __attribute__((optimize(3)))
 static inline void adjust_adc_sync(int pwm_val)
 {
 	const int min_advance = pwm_val - (int)_adc_sample_duration_ticks;
+	assert(min_advance >= 1);
 
 	int adc_trigger_value = (pwm_val / 2) - (int)_adc_advance_ticks;
 
-	if (adc_trigger_value > min_advance) {
-		adc_trigger_value = min_advance;
-	}
-
 	if (adc_trigger_value < (int)_adc_blanking_ticks) {
 		adc_trigger_value = _adc_blanking_ticks;
+	}
+
+	if (adc_trigger_value > min_advance) {
+		adc_trigger_value = min_advance;
 	}
 
 	TIM2->CCR2 = adc_trigger_value;
