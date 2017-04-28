@@ -5,6 +5,17 @@ PX4 Sapog
 
 **Please refer to the documentation page at <https://docs.zubax.com/sapog>.**
 
+## Change Log
+
+### v2.0
+
+* Completely new, more robust spin up algorithm. Supports smooth start-up from standstill as well as picking up
+the rotation if the rotor is already spinning.
+* Significantly more reliable operation during rapid acceleration and deceleration,
+especially at high advance angles.
+* Wider PWM frequency range: 20...75 kHz.
+* Raised the maximum RPM limit; the new maximum for 14 pole motor exceeds 14000 mechanical RPM.
+
 ## Firmware
 
 If you're not running Linux or OSX natively, you can download
@@ -18,7 +29,7 @@ No additional steps are needed to build the bootloader - the build system will b
 the firmware. The resulting `*.elf` file will be extended with the bootloader too, so it can be flashed directly into an
 factory fresh MCU.
 
-### Build instructions
+### Build Instructions
 
 **Prebuilt binaries are available at <https://files.zubax.com/products/io.px4.sapog/>.**
 
@@ -53,7 +64,7 @@ It's inconvenient, but unlike Eclipse it works reliably.
 When editing code, please follow the
 [PX4 coding conventions](https://github.com/PX4/Firmware/blob/master/CONTRIBUTING.md).
 
-### Hardware timer usage
+### Hardware Timer Usage
 
 * TIM1 - 3-phase FET bridge PWM
 * TIM2 - ADC synchronization, works in lockstep with TIM1
