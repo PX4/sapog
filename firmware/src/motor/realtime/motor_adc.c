@@ -47,7 +47,7 @@
 #define ADC_REF_VOLTAGE          3.3f
 #define ADC_RESOLUTION           12
 
-#define NUM_SAMPLES_PER_ADC      7
+#define NUM_SAMPLES_PER_ADC      4
 
 /**
  * One ADC sample at maximum speed takes 14 cycles; max ADC clock at 72 MHz input is 12 MHz, so one ADC sample is:
@@ -58,10 +58,15 @@
 /**
  * ADC will be triggered at this time before the PWM mid cycle.
  */
-//const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1)) / 2;
-const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = 0;
+const int MOTOR_ADC_SYNC_ADVANCE_NANOSEC = (SAMPLE_DURATION_NANOSEC * (NUM_SAMPLES_PER_ADC - 1)) / 2;
 
 const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC;
+
+/**
+ * This parameter is dictated by the phase voltage RC filters.
+ * Higher oversampling allows for a lower blanking time, due to stronger averaging.
+ */
+const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 9000;
 
 
 CONFIG_PARAM_FLOAT("mot_i_shunt_mr",         5.0,   0.1,   100.0)
@@ -76,8 +81,6 @@ static struct motor_adc_sample _sample;
 __attribute__((optimize(3)))
 CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 {
-	TESTPAD_SET(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
-
 	_sample.timestamp = motor_timer_hnsec() -
 		((SAMPLE_DURATION_NANOSEC * NUM_SAMPLES_PER_ADC) / 2) / NSEC_PER_HNSEC;
 
@@ -85,25 +88,22 @@ CH_FAST_IRQ_HANDLER(Vector88)	// ADC1 + ADC2 handler
 #define SMPLADC2(num)     (_adc1_2_dma_buffer[num] >> 16)
 	/*
 	 * ADC channel sampling:
-	 *   A B C A B C VOLT
-	 *   C A B C A B CURR
+	 *   VOLT A A C
+	 *   CURR C B B
 	 */
-	_sample.phase_values[0] = (SMPLADC1(0) + SMPLADC2(1) + SMPLADC1(3) + SMPLADC2(4)) / 4;
-	_sample.phase_values[1] = (SMPLADC1(1) + SMPLADC2(2) + SMPLADC1(4) + SMPLADC2(5)) / 4;
-	_sample.phase_values[2] = (SMPLADC2(0) + SMPLADC1(2) + SMPLADC2(3) + SMPLADC1(5)) / 4;
+	_sample.phase_values[0] = (SMPLADC1(1) + SMPLADC1(2)) / 2;
+	_sample.phase_values[1] = (SMPLADC2(2) + SMPLADC2(3)) / 2;
+	_sample.phase_values[2] = (SMPLADC2(1) + SMPLADC1(3)) / 2;
 
-	_sample.input_voltage = SMPLADC1(6);
-	_sample.input_current = SMPLADC2(6);
+	_sample.input_voltage = SMPLADC1(0);
+	_sample.input_current = SMPLADC2(0);
 
 #undef SMPLADC1
 #undef SMPLADC2
 
 	motor_adc_sample_callback(&_sample);
 
-	// TODO: check if the current/voltage/temperature channels need to be sampled
-
 	ADC1->SR = 0;         // Reset the IRQ flags
-	TESTPAD_CLEAR(GPIO_PORT_TEST_ADC, GPIO_PIN_TEST_ADC);
 }
 
 static void adc_calibrate(ADC_TypeDef* const adc)
@@ -154,28 +154,25 @@ static void enable(void)
 
 	/*
 	 * ADC channel sampling:
-	 *   A B C A B C VOLT
-	 *   C A B C A B CURR
+	 *   VOLT A A C
+	 *   CURR C B B
+	 * BEMF is sampled in the last order because the BEMF signal conditioning circuits need several
+	 * microseconds to stabilize. Moving these channels to the end of the sequence allows us to reduce
+	 * the overall sampling time.
 	 */
-	ADC1->SQR1 = ADC_SQR1_L_1 | ADC_SQR1_L_2;
+	ADC1->SQR1 = ADC_SQR1_L_0 | ADC_SQR1_L_1;
 	ADC1->SQR3 =
-		ADC_SQR3_SQ1_0 |
-		ADC_SQR3_SQ2_1 |
-		ADC_SQR3_SQ3_0 | ADC_SQR3_SQ3_1 |
-		ADC_SQR3_SQ4_0 |
-		ADC_SQR3_SQ5_1 |
-		ADC_SQR3_SQ6_0 | ADC_SQR3_SQ6_1;
-	ADC1->SQR2 = ADC_SQR2_SQ7_2;
+		ADC_SQR3_SQ1_2 |
+		ADC_SQR3_SQ2_0 |
+		ADC_SQR3_SQ3_0 |
+		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1;
 
 	ADC2->SQR1 = ADC1->SQR1;
 	ADC2->SQR3 =
-		ADC_SQR3_SQ1_0 | ADC_SQR3_SQ1_1 |
-		ADC_SQR3_SQ2_0 |
+		ADC_SQR3_SQ1_2 | ADC_SQR3_SQ1_0 |
+		ADC_SQR3_SQ2_0 | ADC_SQR3_SQ2_1 |
 		ADC_SQR3_SQ3_1 |
-		ADC_SQR3_SQ4_0 | ADC_SQR3_SQ4_1 |
-		ADC_SQR3_SQ5_0 |
-		ADC_SQR3_SQ6_1;
-	ADC2->SQR2 = ADC_SQR2_SQ7_2 | ADC_SQR2_SQ7_0;
+		ADC_SQR3_SQ4_1;
 
 	// SMPR registers are not configured because they have right values by default
 

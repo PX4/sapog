@@ -51,8 +51,8 @@
 #endif
 
 
-CONFIG_PARAM_INT("mot_pwm_hz",    30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
-CONFIG_PARAM_INT("mot_pwm_dt_ns",   700,                     200,                     800)
+CONFIG_PARAM_INT("mot_pwm_hz",    40000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_INT("mot_pwm_dt_ns",   600,                     400,                     800)
 
 /**
  * Local constants, initialized once
@@ -61,9 +61,11 @@ static uint16_t _pwm_top;
 static uint16_t _pwm_half_top;
 static uint16_t _pwm_min;
 static uint16_t _adc_advance_ticks;
+static uint16_t _adc_blanking_ticks;
+static uint16_t _adc_sample_duration_ticks;
 
 
-static int init_constants(unsigned frequency)
+static int init_constants(unsigned frequency, const float pwm_dead_time_ns)
 {
 	ASSERT_ALWAYS(_pwm_top == 0);   // Make sure it was not initialized already
 
@@ -93,17 +95,17 @@ static int init_constants(unsigned frequency)
 	 * PWM min - Limited by MOTOR_ADC_SAMPLE_WINDOW_NANOSEC
 	 */
 	const float pwm_clock_period = 1.f / PWM_TIMER_FREQUENCY;
-	const float pwm_adc_window_len = (MOTOR_ADC_SAMPLE_WINDOW_NANOSEC / 1e9f) * 2;
-	const float pwm_adc_window_ticks_float = pwm_adc_window_len / pwm_clock_period;
-	assert(pwm_adc_window_ticks_float >= 0);
+	const float pwm_min_duration =
+		(MOTOR_ADC_SAMPLE_WINDOW_NANOSEC + MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC + pwm_dead_time_ns) /
+		1e9f;
+	const float pwm_min_ticks_float = pwm_min_duration / pwm_clock_period;
+	assert(pwm_min_ticks_float >= 0);
 
-	uint16_t pwm_half_adc_window_ticks = (uint16_t)pwm_adc_window_ticks_float;
-	if (pwm_half_adc_window_ticks > _pwm_half_top) {
-		pwm_half_adc_window_ticks = _pwm_half_top;
+	_pwm_min = (uint16_t)pwm_min_ticks_float;
+	if (_pwm_min > _pwm_half_top) {
+		printf("Motor: Forcing PWM min = half = %u\n", (unsigned)_pwm_half_top);
+		_pwm_min = _pwm_half_top;
 	}
-
-	_pwm_min = pwm_half_adc_window_ticks;
-	assert(_pwm_min <= _pwm_half_top);
 
 	/*
 	 * ADC synchronization.
@@ -118,8 +120,35 @@ static int init_constants(unsigned frequency)
 	assert(adc_trigger_advance_ticks_float < (_pwm_top * 0.4f));
 	_adc_advance_ticks = (uint16_t)adc_trigger_advance_ticks_float;
 
-	printf("Motor: PWM range [%u; %u], ADC advance ticks %u\n",
-		(unsigned)_pwm_min, (unsigned)_pwm_top, (unsigned)_adc_advance_ticks);
+	const float adc_blanking = (MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC + pwm_dead_time_ns) / 1e9f;
+	_adc_blanking_ticks = (uint16_t)(adc_blanking / pwm_clock_period);
+
+	const float adc_sample_duration = MOTOR_ADC_SAMPLE_WINDOW_NANOSEC / 1e9f;
+	_adc_sample_duration_ticks = (uint16_t)(adc_sample_duration / pwm_clock_period);
+
+	if ((_adc_blanking_ticks + _adc_sample_duration_ticks) > _pwm_min) {
+		const int new_blanking = (int)_pwm_min - (int)_adc_sample_duration_ticks;
+		const uint16_t old_blanking = _adc_blanking_ticks;
+		assert(new_blanking <= (int)old_blanking);
+
+		if (new_blanking > 0) {
+			_adc_blanking_ticks = new_blanking;
+		} else {
+			assert(!"Zero ADC blanking");
+			_adc_blanking_ticks = 1;
+		}
+
+		printf("Motor: ADC blanking reduced from %u to %u ticks due to PWM frequency being too high\n",
+		        (unsigned)old_blanking,
+			(unsigned)_adc_blanking_ticks);
+	}
+
+	printf("Motor: PWM range [%u; %u], ADC: advance %u ticks, blanking %u ticks, sample %u ticks\n",
+		(unsigned)_pwm_min,
+		(unsigned)_pwm_top,
+		(unsigned)_adc_advance_ticks,
+		(unsigned)_adc_blanking_ticks,
+		(unsigned)_adc_sample_duration_ticks);
 	return 0;
 }
 
@@ -195,7 +224,7 @@ static void init_timers(const float pwm_dead_time)
 	/*
 	 * Default ADC sync config, will be adjusted dynamically
 	 */
-	TIM2->CCR2 = _pwm_top / 4;
+	TIM2->CCR2 = _adc_blanking_ticks;
 
 	// Timers are configured now but not started yet. Starting is tricky because of synchronization, see below.
 	TIM1->EGR = TIM_EGR_UG | TIM_EGR_COMG;
@@ -229,30 +258,18 @@ static void start_timers(void)
 
 int motor_pwm_init(void)
 {
-	const int ret = init_constants(configGet("mot_pwm_hz"));
+	const float dead_time_ns = configGet("mot_pwm_dt_ns");
+
+	const int ret = init_constants(configGet("mot_pwm_hz"), dead_time_ns);
 	if (ret) {
 		return ret;
 	}
 
-	init_timers(configGet("mot_pwm_dt_ns") * 1e-9F);
+	init_timers(dead_time_ns * 1e-9F);
 	start_timers();
 
 	motor_pwm_set_freewheeling();
 	return 0;
-}
-
-void motor_pwm_prepare_to_start(void)
-{
-	// High side drivers cap precharge
-	const enum motor_pwm_phase_manip cmd[3] = {
-		MOTOR_PWM_MANIP_LOW,
-		MOTOR_PWM_MANIP_LOW,
-		MOTOR_PWM_MANIP_LOW
-	};
-	motor_pwm_manip(cmd);
-	usleep(1000);
-	motor_pwm_set_freewheeling();
-	usleep(10000);
 }
 
 uint32_t motor_adc_sampling_period_hnsec(void)
@@ -269,10 +286,10 @@ static void phase_reset_all_i(void)
 {
 	TIM1->CCER = 0;                                     // Disable CC outputs
 	TIM1->CCMR1 &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_OC2M);  // Set FROZEN PWM mode
-	TIM1->CCMR2 &= ~TIM_CCMR2_OC3M_0;
-	TIM1->CCR1 = 0;                                     // Reset CC registers
-	TIM1->CCR2 = 0;
-	TIM1->CCR3 = 0;
+	TIM1->CCMR2 &= ~TIM_CCMR2_OC3M;
+	TIM1->CCR1 = _pwm_half_top;                         // Reset CC registers
+	TIM1->CCR2 = _pwm_half_top;                         // Note that we're resetting to half top, because that
+	TIM1->CCR3 = _pwm_half_top;                         // helps to avoid bumps when turning the channel on
 	TIM1->EGR = TIM_EGR_COMG;                           // Reload shadow registers
 }
 
@@ -303,7 +320,7 @@ static inline void phase_reset_i(uint_fast8_t phase)
 __attribute__((optimize(3)))
 static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool inverted)
 {
-	// Channel must be enabled in the last order when it is fully configured
+	// The channel must be enabled in the last order when it is fully configured
 	if (phase == 0) {
 		TIM1->CCR1 = pwm_val;
 		if (inverted) {
@@ -334,10 +351,19 @@ static inline void phase_set_i(uint_fast8_t phase, uint_fast16_t pwm_val, bool i
 __attribute__((optimize(3)))
 static inline void adjust_adc_sync(int pwm_val)
 {
-	register int adc_trigger_value = (int)(pwm_val / 2) - (int)_adc_advance_ticks;
-	if (adc_trigger_value < 1) {
-		adc_trigger_value = 1;
+	const int min_advance = pwm_val - (int)_adc_sample_duration_ticks;
+	assert(min_advance >= 1);
+
+	int adc_trigger_value = (pwm_val / 2) - (int)_adc_advance_ticks;
+
+	if (adc_trigger_value < (int)_adc_blanking_ticks) {
+		adc_trigger_value = _adc_blanking_ticks;
 	}
+
+	if (adc_trigger_value > min_advance) {
+		adc_trigger_value = min_advance;
+	}
+
 	TIM2->CCR2 = adc_trigger_value;
 }
 
@@ -375,26 +401,6 @@ void motor_pwm_manip(const enum motor_pwm_phase_manip command[MOTOR_NUM_PHASES])
 	}
 
 	adjust_adc_sync(_pwm_half_top);  // Default for phase manip
-}
-
-void motor_pwm_energize(const int polarity[MOTOR_NUM_PHASES])
-{
-	irq_primask_disable();
-	phase_reset_all_i();
-	irq_primask_enable();
-
-	for (int phase = 0; phase < MOTOR_NUM_PHASES; phase++) {
-		const int pol = polarity[phase];
-		if (pol == 0) {
-			continue;
-		}
-		assert(pol == 1 || pol == -1);
-		irq_primask_disable();
-		phase_set_i(phase, (pol > 0) ? _pwm_top : 0, false);
-		irq_primask_enable();
-	}
-
-	adjust_adc_sync(_pwm_top);
 }
 
 void motor_pwm_set_freewheeling(void)

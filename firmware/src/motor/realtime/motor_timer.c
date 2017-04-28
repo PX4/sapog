@@ -105,6 +105,8 @@
  * 2 MHz --> ~32ms max
  * 4 MHz --> ~16ms max
  * 5 MHz --> ~13ms max
+ * Note that we build a postscaler on top of the hardware timer that allows us to generate arbitrarily long delays
+ * regardless of the hardware capabilities.
  */
 static const int MAX_FREQUENCY = 5000000;
 
@@ -113,6 +115,7 @@ static const uint32_t TICKS_PER_OVERFLOW = 0xFFFF + 1;
 
 static uint32_t _nanosec_per_tick = 0;    // 0 means uninitialized
 static volatile uint64_t _raw_ticks = 0;
+static volatile int64_t _remaining_ticks = 0;
 
 /**
  * Event timer ISR
@@ -120,17 +123,25 @@ static volatile uint64_t _raw_ticks = 0;
 __attribute__((optimize(3)))
 CH_FAST_IRQ_HANDLER(TIMEVT_IRQHandler)
 {
-	TESTPAD_SET(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
-
 	if ((TIMEVT->SR & TIM_SR_CC1IF) && (TIMEVT->DIER & TIM_DIER_CC1IE)) {
-		TIMEVT->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
-		TIMEVT->SR = ~TIM_SR_CC1IF;
-		// Callback must be called when the IRQ has been ACKed, not other way
-		const uint64_t timestamp = motor_timer_hnsec() - 2;
-		motor_timer_callback(timestamp);
-	}
+		TIMEVT->SR = ~TIM_SR_CC1IF;              // Acknowledge IRQ ASAP (before callback)
 
-	TESTPAD_CLEAR(GPIO_PORT_TEST_MTIM, GPIO_PIN_TEST_MTIM);
+		static const int MIN_REMAINING_TICKS = MAX_FREQUENCY / 1000000;
+
+		if (_remaining_ticks <= MIN_REMAINING_TICKS) {
+			TIMEVT->DIER &= ~TIM_DIER_CC1IE; // Disable this compare match
+			const uint64_t timestamp = motor_timer_hnsec() - 2;
+			motor_timer_callback(timestamp);
+		} else {
+			if (_remaining_ticks >= TICKS_PER_OVERFLOW) {
+				// We don't need to re-configure the CCR register - the value won't change
+				_remaining_ticks -= TICKS_PER_OVERFLOW; // Go around
+			} else {
+				TIMEVT->CCR1 += _remaining_ticks;
+				_remaining_ticks = 0;                   // Go around the last time
+			}
+		}
+	}
 }
 
 /**
@@ -175,8 +186,9 @@ void motor_timer_init(void)
 
 	// Find the optimal prescaler value
 	uint32_t prescaler = (uint32_t)(TIMEVT_INPUT_CLOCK / ((float)MAX_FREQUENCY)); // Initial value
-	if (prescaler < 1)
+	if (prescaler < 1) {
 		prescaler = 1;
+	}
 
 	for (;; prescaler++) {
 		ASSERT_ALWAYS(prescaler < 0xFFFF);
@@ -217,13 +229,7 @@ void motor_timer_init(void)
 	TIMSTP->CR1 = TIM_CR1_CEN;    // Start
 }
 
-uint64_t motor_timer_get_max_delay_hnsec(void)
-{
-	ASSERT_ALWAYS(_nanosec_per_tick > 0);   // Make sure the timer was initialized
-	return (_nanosec_per_tick * TICKS_PER_OVERFLOW) / 100;
-}
-
-__attribute__((optimize(1)))          // To prevent the code reordering
+__attribute__((optimize(1)))          // To prevent code reordering
 uint64_t motor_timer_hnsec(void)
 {
 	assert(_nanosec_per_tick > 0);  // Make sure the timer was initialized
@@ -268,7 +274,7 @@ uint64_t motor_timer_hnsec(void)
 }
 
 __attribute__((optimize(3)))
-void motor_timer_set_relative(int delay_hnsec)
+void motor_timer_set_relative(int64_t delay_hnsec)
 {
 	delay_hnsec -= 1 * HNSEC_PER_USEC;
 	if (delay_hnsec < 0) {
@@ -276,12 +282,7 @@ void motor_timer_set_relative(int delay_hnsec)
 	}
 
 	assert(_nanosec_per_tick > 0);
-	int delay_ticks = (delay_hnsec * 100) / _nanosec_per_tick;
-
-	if (delay_ticks > 0xFFFF) {
-		assert(0);
-		delay_ticks = 0xFFFF;
-	}
+	int64_t delay_ticks = (delay_hnsec * 100) / _nanosec_per_tick;
 
 	/*
 	 * Interrupts must be disabled completely because the following
@@ -289,6 +290,13 @@ void motor_timer_set_relative(int delay_hnsec)
 	 * No port_*() functions are allowed here!
 	 */
 	irq_primask_disable();
+
+	if (delay_ticks <= 0xFFFF) {
+		_remaining_ticks = 0;
+	} else {
+		_remaining_ticks = delay_ticks - 0xFFFF;
+		delay_ticks = 0xFFFF;
+	}
 
 	if (delay_hnsec > HNSEC_PER_USEC) {
 		TIMEVT->CCR1 = TIMEVT->CNT + delay_ticks;

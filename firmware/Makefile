@@ -32,9 +32,9 @@
 
 PROJECT = io.px4.sapog
 
-HW_VERSION = 1
-FW_VERSION_MAJOR = 1
-FW_VERSION_MINOR = 8
+HW_VERSION_MAJOR = 1
+FW_VERSION_MAJOR = 2
+FW_VERSION_MINOR = 0
 
 export SAPOG_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 export SAPOG_SRC_DIR = $(abspath $(SAPOG_BASE)/src)
@@ -57,7 +57,7 @@ UINCDIR = src           \
 
 UDEFS = -DFW_VERSION_MAJOR=$(FW_VERSION_MAJOR)           \
         -DFW_VERSION_MINOR=$(FW_VERSION_MINOR)           \
-        -DHW_VERSION=$(HW_VERSION)                       \
+        -DHW_VERSION_MAJOR=$(HW_VERSION_MAJOR)           \
         -DNODE_NAME=\"$(PROJECT)\"
 
 # MAVLink v1 compliance
@@ -116,9 +116,10 @@ DEBUG_OPT = -O2 -g3 -DDISABLE_WATCHDOG=1
 CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow -Werror
 CPPWARN = $(CWARN)
 
-HW_VERSION_MAJOR_MINOR := $(HW_VERSION).0
+# This firmware is compatible with all versions of hardware where the major number is 1 (i.e. 1.x),
+# therefore, the minor version is not specified here.
 FW_VERSION_MAJOR_MINOR_VCS_HASH := $(FW_VERSION_MAJOR).$(FW_VERSION_MINOR).$(GIT_HASH)
-COMPOUND_IMAGE_FILE := $(PROJECT)-$(HW_VERSION_MAJOR_MINOR)-$(FW_VERSION_MAJOR_MINOR_VCS_HASH).compound.bin
+COMPOUND_IMAGE_FILE := $(PROJECT)-$(HW_VERSION_MAJOR)-$(FW_VERSION_MAJOR_MINOR_VCS_HASH).compound.bin
 BOOTLOADER_DIR := $(abspath $(SAPOG_BASE)/../bootloader)
 BOOTLOADER_IMAGE := $(BOOTLOADER_DIR)/build/bootloader.bin
 
@@ -136,7 +137,7 @@ POST_MAKE_ALL_RULE_HOOK: build/$(PROJECT).bin build/$(PROJECT).elf
 	cd build && cat padded_bootloader.tmp.bin $(PROJECT).bin >$(COMPOUND_IMAGE_FILE)
 
 	# Generating the signed image for the bootloader
-	cd build && ../zubax_chibios/tools/make_boot_descriptor.py $(PROJECT).bin $(PROJECT) $(HW_VERSION_MAJOR_MINOR) \
+	cd build && ../zubax_chibios/tools/make_boot_descriptor.py $(PROJECT).bin $(PROJECT) $(HW_VERSION_MAJOR)       \
 	                                                           --also-patch-descriptor-in=$(PROJECT).elf           \
 	                                                           --also-patch-descriptor-in=$(COMPOUND_IMAGE_FILE)
 

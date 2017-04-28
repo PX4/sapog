@@ -48,7 +48,7 @@ static const unsigned MAX_VALID_PULSE_WIDTH_USEC = 3000;
 
 static const float STOP_DUTY_CYCLE      = 0.03;
 static const float START_MIN_DUTY_CYCLE = 0.06;
-static const float START_MAX_DUTY_CYCLE = 0.20;
+static const float START_MAX_DUTY_CYCLE = 0.40;
 
 static const unsigned COMMAND_TTL_MS = 100;
 
@@ -56,6 +56,8 @@ static const unsigned COMMAND_TTL_MS = 100;
 chibios_rt::EvtSource _update_event;
 
 static volatile unsigned _last_pulse_width_usec;
+
+static os::Logger g_logger{"RCPWM"};
 
 CONFIG_PARAM_BOOL("pwm_enable", false)
 CONFIG_PARAM_INT("pwm_min_usec",  1000,  800, 1200)
@@ -85,20 +87,20 @@ static void icu_period_callback(ICUDriver* icup)
 	 */
 }
 
-static void thread(void* arg)
+static void thread(void*)
 {
-	(void)arg;
-
 	event_listener_t listener;
 	chEvtRegisterMask(&_update_event.ev_source, &listener, ALL_EVENTS);  // TODO: use C++ API
 
 	const unsigned min_pulse_width_usec = configGet("pwm_min_usec");
 	const unsigned max_pulse_width_usec = configGet("pwm_max_usec");
 
+	g_logger.println("Started");
+
 	while (!os::isRebootRequested()) {
 		if (chEvtWaitAnyTimeout(ALL_EVENTS, US2ST(65536)) == 0) {
 			if (_last_pulse_width_usec > 0) {
-				os::lowsyslog("PWMIN: Timeout\n");
+				g_logger.println("Timeout");
 				// We don't stop the motor here - it will be stopped automatically when TTL has expired
 			}
 			_last_pulse_width_usec = 0;
@@ -141,7 +143,7 @@ static void thread(void* arg)
 		}
 	}
 
-	os::lowsyslog("PWM: Going down\n");
+	g_logger.println("Going down");
 }
 
 void pwm_input_init(void)
@@ -150,6 +152,7 @@ void pwm_input_init(void)
 	assert(START_MIN_DUTY_CYCLE < START_MAX_DUTY_CYCLE);
 
 	if (!configGet("pwm_enable")) {
+		g_logger.println("Disabled");
 		return;
 	}
 

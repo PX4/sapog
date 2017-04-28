@@ -194,7 +194,7 @@ static void cmd_startstop(BaseSequentialStream *chp, int argc, char *argv[])
 		printf("Cycle %d of %d, dc %f...\n", current_cycle + 1, num_cycles, dc);
 
 		// Waiting for the motor to spin down
-		sleep(3);
+		sleep(5);
 		if (!motor_is_idle()) {
 			puts("NOT STOPPED");
 			break;

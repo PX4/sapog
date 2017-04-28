@@ -92,6 +92,7 @@ static struct params
 {
 	float dc_min_voltage;
 	float dc_spinup_voltage;
+	float spinup_voltage_ramp_duration;
 	float dc_step_max;
 	float dc_slope;
 
@@ -110,10 +111,11 @@ static struct params
 } _params;
 
 
-CONFIG_PARAM_FLOAT("mot_v_min",    2.3,    0.5,     10.0)
-CONFIG_PARAM_FLOAT("mot_v_spinup", 3.0,    0.5,     20.0)
-CONFIG_PARAM_FLOAT("mot_dc_accel", 0.09,   0.001,   0.5)
-CONFIG_PARAM_FLOAT("mot_dc_slope", 5.0,    0.1,     20.0)
+CONFIG_PARAM_FLOAT("mot_v_min",        2.5,    0.5,     10.0)
+CONFIG_PARAM_FLOAT("mot_v_spinup",     0.5,    0.01,    10.0)
+CONFIG_PARAM_FLOAT("mot_spup_vramp_t", 3.0,    0.0,     10.0)
+CONFIG_PARAM_FLOAT("mot_dc_accel",     0.09,   0.001,   0.5)
+CONFIG_PARAM_FLOAT("mot_dc_slope",     5.0,    0.1,     20.0)
 
 CONFIG_PARAM_INT("mot_num_poles",  14,     2,       100)
 CONFIG_PARAM_INT("ctl_dir",        0,      0,       1)
@@ -131,6 +133,7 @@ static void configure(void)
 {
 	_params.dc_min_voltage    = configGet("mot_v_min");
 	_params.dc_spinup_voltage = configGet("mot_v_spinup");
+	_params.spinup_voltage_ramp_duration = configGet("mot_spup_vramp_t");
 	_params.dc_step_max    = configGet("mot_dc_accel");
 	_params.dc_slope       = configGet("mot_dc_slope");
 
@@ -237,8 +240,6 @@ static void update_control_non_running(void)
 	}
 
 	// Start if necessary
-	const float spinup_dc = _params.dc_spinup_voltage / _state.input_voltage;
-
 	const bool need_start =
 		(_state.mode == MOTOR_CONTROL_MODE_OPENLOOP && (_state.dc_openloop_setpoint > 0)) ||
 		(_state.mode == MOTOR_CONTROL_MODE_RPM && (_state.rpm_setpoint > 0));
@@ -246,15 +247,17 @@ static void update_control_non_running(void)
 	if (need_start && (_state.num_unexpected_stops < _params.num_unexpected_stops_to_latch)) {
 		const uint64_t timestamp = motor_rtctl_timestamp_hnsec();
 
-		_state.dc_actual = spinup_dc;
-		motor_rtctl_start(spinup_dc, _params.reverse, _state.num_unexpected_stops);
+		_state.dc_actual = _params.dc_min_voltage / _state.input_voltage;
+
+		motor_rtctl_start(_params.dc_spinup_voltage / _state.input_voltage,
+		                  _params.dc_min_voltage    / _state.input_voltage,
+		                  _params.spinup_voltage_ramp_duration,
+		                  _params.reverse, _state.num_unexpected_stops);
+
 		_state.rtctl_state = motor_rtctl_get_state();
 
-		// This HACK prevents the setpoint TTL expiration in case of protracted startup
-		const int elapsed_ms = (motor_rtctl_timestamp_hnsec() - timestamp) / HNSEC_PER_MSEC;
-		_state.setpoint_ttl_ms += elapsed_ms;
-
-		printf("Motor: Startup %i ms, DC %f, mode %i\n", elapsed_ms, spinup_dc, _state.mode);
+		// This HACK prevents the setpoint TTL expiration in case of long startup
+		_state.setpoint_ttl_ms += (motor_rtctl_timestamp_hnsec() - timestamp) / HNSEC_PER_MSEC;
 
 		if (_state.rtctl_state == MOTOR_RTCTL_STATE_IDLE) {
 			handle_unexpected_stop();

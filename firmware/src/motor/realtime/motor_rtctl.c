@@ -56,8 +56,6 @@
  */
 #define MAX_BEMF_SAMPLES           8
 
-#define ABS_MIN_COMM_PERIOD_USEC   150
-
 /**
  * Computes the timing advance in comm_period units
  */
@@ -70,8 +68,8 @@
 #define LOWPASS(xold, xnew, alpha_rcpr) \
 	(((xold) * (alpha_rcpr) + (xnew) + (((alpha_rcpr) + 1) / 2)) / ((alpha_rcpr) + 1))
 
-#define TESTPAD_ZC_SET()           TESTPAD_SET(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
-#define TESTPAD_ZC_CLEAR()         TESTPAD_CLEAR(GPIO_PORT_TEST_MZC, GPIO_PIN_TEST_MZC)
+#define TESTPAD_ZC_SET()           TESTPAD_SET  (GPIO_PORT_TEST_ZC, GPIO_PIN_TEST_ZC)
+#define TESTPAD_ZC_CLEAR()         TESTPAD_CLEAR(GPIO_PORT_TEST_ZC, GPIO_PIN_TEST_ZC)
 
 #undef MIN
 #undef MAX
@@ -81,22 +79,42 @@
 /**
  * Commutation tables
  * Phase order: Positive, Negative, Floating
+ *
+ * FORWARD TABLE:
+ *   Step  01234501...
+ *   BEMF  -+-+-+-+...
+ *           __
+ *   A     _/  \__/
+ *         __    __
+ *   B       \__/
+ *             __
+ *   C     \__/  \_
+ *
+ * REVERSE TABLE:
+ *   Step  01234501...
+ *   BEMF  -+-+-+-+...
+ *           __
+ *   A     _/  \__/
+ *             __
+ *   B     \__/  \_
+ *         __    __
+ *   C       \__/
  */
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE_FORWARD[MOTOR_NUM_COMMUTATION_STEPS] = {
-	{1, 0, 2},
-	{1, 2, 0},
-	{0, 2, 1},
-	{0, 1, 2},
-	{2, 1, 0},
-	{2, 0, 1}
+	{1, 0, 2},      // BEMF -
+	{1, 2, 0},      // BEMF +
+	{0, 2, 1},      // BEMF -
+	{0, 1, 2},      // BEMF +
+	{2, 1, 0},      // BEMF -
+	{2, 0, 1}       // BEMF +
 };
 static const struct motor_pwm_commutation_step COMMUTATION_TABLE_REVERSE[MOTOR_NUM_COMMUTATION_STEPS] = {
-	{2, 0, 1},
-	{2, 1, 0},
-	{0, 1, 2},
-	{0, 2, 1},
-	{1, 2, 0},
-	{1, 0, 2}
+	{2, 0, 1},      // BEMF -
+	{2, 1, 0},      // BEMF +
+	{0, 1, 2},      // BEMF -
+	{0, 2, 1},      // BEMF +
+	{1, 2, 0},      // BEMF -
+	{1, 0, 2}       // BEMF +
 };
 
 enum flags
@@ -145,7 +163,13 @@ static struct control_state            /// Control state
 
 	uint64_t blank_time_deadline;
 	uint64_t prev_zc_timestamp;
+	uint64_t prev_comm_timestamp;
 	uint32_t comm_period;
+	uint32_t averaged_comm_period;
+
+	int64_t spinup_bemf_integral_positive;
+	int64_t spinup_bemf_integral_negative;
+	bool spinup_prev_zc_timestamp_set;
 
 	int current_comm_step;
 	const struct motor_pwm_commutation_step* comm_table;
@@ -153,7 +177,6 @@ static struct control_state            /// Control state
 	unsigned immediate_zc_failures;
 	unsigned immediate_zc_detects;
 	unsigned immediate_desaturations;
-	unsigned zc_detects_during_spinup;
 
 	int zc_bemf_samples[MAX_BEMF_SAMPLES];
 	uint64_t zc_bemf_timestamps[MAX_BEMF_SAMPLES];
@@ -161,6 +184,7 @@ static struct control_state            /// Control state
 	int zc_bemf_samples_optimal_past_zc;
 	int zc_bemf_samples_acquired;
 	int zc_bemf_samples_acquired_past_zc;
+	bool zc_bemf_seen_before_zc;
 
 	int neutral_voltage;
 
@@ -168,7 +192,10 @@ static struct control_state            /// Control state
 	int input_current;
 
 	int pwm_val;
+	int pwm_val_before_spinup;
 	int pwm_val_after_spinup;
+
+	uint64_t spinup_ramp_duration_hnsec;
 } _state;
 
 static struct precomputed_params       /// Parameters are read only
@@ -181,16 +208,12 @@ static struct precomputed_params       /// Parameters are read only
 	int motor_bemf_window_len_denom;
 	int bemf_valid_range_pct128;
 	unsigned zc_failures_max;
-	unsigned zc_detects_min;
 	uint32_t comm_period_max;
 	int comm_blank_hnsec;
 
-	uint32_t spinup_timeout;
 	uint32_t spinup_start_comm_period;
-	uint32_t spinup_end_comm_period;
-	unsigned spinup_num_good_comms;
-	unsigned spinup_comm_period_lowpass;
-	float spinup_duty_cycle_increment;
+	uint32_t spinup_timeout;
+	uint32_t spinup_blanking_time_permil;
 
 	uint32_t adc_sampling_period;
 } _params;
@@ -198,25 +221,20 @@ static struct precomputed_params       /// Parameters are read only
 static bool _initialization_confirmed = false;
 
 // Timing advance settings
-CONFIG_PARAM_INT("mot_tim_adv_min",     5,     0,     20)
-CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     29)
-CONFIG_PARAM_INT("mot_tim_cp_max",      300,   100,   50000)
-CONFIG_PARAM_INT("mot_tim_cp_min",      600,   100,   50000)
+CONFIG_PARAM_INT("mot_tim_adv_min",     5,     0,     20)       // electrical degree
+CONFIG_PARAM_INT("mot_tim_adv_max",     15,    0,     29)       // electrical degree
+CONFIG_PARAM_INT("mot_tim_cp_max",      300,   100,   50000)    // microsecond
+CONFIG_PARAM_INT("mot_tim_cp_min",      600,   100,   50000)    // microsecond
 // Most important parameters
-CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    100)
-CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)
-CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)
-CONFIG_PARAM_INT("mot_zc_fails_max",    40,    6,     300)
-CONFIG_PARAM_INT("mot_zc_dets_min",     200,   6,     1000)
-CONFIG_PARAM_INT("mot_comm_per_max",    12000, 1000,  50000)
+CONFIG_PARAM_INT("mot_blank_usec",      40,    10,    300)      // microsecond
+CONFIG_PARAM_INT("mot_bemf_win_den",    4,     3,     8)        // dimensionless
+CONFIG_PARAM_INT("mot_bemf_range",      90,    10,    100)      // percent
+CONFIG_PARAM_INT("mot_zc_fails_max",    20,    6,     300)      // dimensionless
+CONFIG_PARAM_INT("mot_comm_per_max",    4000,  1000,  10000)    // microsecond
 // Spinup settings
-CONFIG_PARAM_INT("mot_spup_to_ms",      3000,  100,   9500)
-CONFIG_PARAM_INT("mot_spup_st_cp",      50000, 10000, 200000)
-CONFIG_PARAM_INT("mot_spup_en_cp",      1000,  500,   10000)
-CONFIG_PARAM_INT("mot_spup_gcomms",     200,   6,     1000)
-CONFIG_PARAM_INT("mot_spup_cp_flt",     2,     1,     30)
-CONFIG_PARAM_FLOAT("mot_spup_dc_inc",   0.01,  0.001, 0.1)
-
+CONFIG_PARAM_INT("mot_spup_st_cp",      100000,10000, 300000)   // microsecond
+CONFIG_PARAM_INT("mot_spup_to_ms",      5000,  100,   9000)     // millisecond (sic!)
+CONFIG_PARAM_INT("mot_spup_blnk_pm",    100,   1,     300)      // permill
 
 static void configure(void)
 {
@@ -228,16 +246,12 @@ static void configure(void)
 	_params.motor_bemf_window_len_denom = configGet("mot_bemf_win_den");
 	_params.bemf_valid_range_pct128     = configGet("mot_bemf_range") * 128 / 100;
 	_params.zc_failures_max  = configGet("mot_zc_fails_max");
-	_params.zc_detects_min   = configGet("mot_zc_dets_min");
 	_params.comm_period_max  = configGet("mot_comm_per_max") * HNSEC_PER_USEC;
 	_params.comm_blank_hnsec = configGet("mot_blank_usec") * HNSEC_PER_USEC;
 
-	_params.spinup_timeout              = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
-	_params.spinup_start_comm_period    = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
-	_params.spinup_end_comm_period      = configGet("mot_spup_en_cp") * HNSEC_PER_USEC;
-	_params.spinup_num_good_comms       = configGet("mot_spup_gcomms");
-	_params.spinup_comm_period_lowpass  = configGet("mot_spup_cp_flt");
-	_params.spinup_duty_cycle_increment = configGet("mot_spup_dc_inc");
+	_params.spinup_start_comm_period = configGet("mot_spup_st_cp") * HNSEC_PER_USEC;
+	_params.spinup_timeout           = configGet("mot_spup_to_ms") * HNSEC_PER_MSEC;
+	_params.spinup_blanking_time_permil = configGet("mot_spup_blnk_pm");
 
 	/*
 	 * Validation
@@ -252,12 +266,8 @@ static void configure(void)
 	}
 	assert(_params.max_comm_period_for_max_timing_advance <= _params.max_comm_period_for_min_timing_advance);
 
-	if (_params.comm_period_max > motor_timer_get_max_delay_hnsec()) {
-		_params.comm_period_max = motor_timer_get_max_delay_hnsec();
-	}
-
-	if (_params.spinup_end_comm_period > _params.comm_period_max) {
-		_params.spinup_end_comm_period = _params.comm_period_max;
+	if (_params.spinup_start_comm_period < _params.comm_period_max) {
+		_params.spinup_start_comm_period = _params.comm_period_max;
 	}
 
 	_params.adc_sampling_period = motor_adc_sampling_period_hnsec();
@@ -294,19 +304,6 @@ static void register_good_step(void)
 
 	if (_state.immediate_desaturations > 0) {
 		_state.immediate_desaturations--;
-	}
-
-	if (_state.flags & FLAG_SPINUP) {
-		_state.zc_detects_during_spinup++;
-
-		const bool is_stable =
-			_state.immediate_zc_failures == 0 &&
-			_state.zc_detects_during_spinup > _params.zc_detects_min;
-
-		if (is_stable) {
-			_state.flags &= ~FLAG_SPINUP;
-			_state.pwm_val = _state.pwm_val_after_spinup;
-		}
 	}
 }
 
@@ -358,18 +355,11 @@ static inline int get_effective_timing_advance_deg64(void)
 	return result;
 }
 
-static void fake_missed_zc_detection(uint64_t timestamp_hnsec)
-{
-	const uint32_t leeway = _state.comm_period / 2 +
-		TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64());
-
-	_state.prev_zc_timestamp = timestamp_hnsec - leeway;
-}
-
 static void prepare_zc_detector_for_next_step(void)
 {
 	_state.zc_bemf_samples_acquired = 0;
 	_state.zc_bemf_samples_acquired_past_zc = 0;
+	_state.zc_bemf_seen_before_zc = false;
 
 	const int advance = get_effective_timing_advance_deg64();
 
@@ -386,9 +376,7 @@ static void prepare_zc_detector_for_next_step(void)
 		_state.zc_bemf_samples_optimal = MAX_BEMF_SAMPLES;
 	}
 
-	/*
-	 * Number of samples past ZC should reduce proportional to the advance angle.
-	 */
+	// Number of samples past ZC should reduce proportionally to the advance angle.
 	_state.zc_bemf_samples_optimal_past_zc = _state.zc_bemf_samples_optimal * (32 - advance) / 64;
 }
 
@@ -398,9 +386,34 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		return;
 	}
 
-	motor_timer_set_relative(_state.comm_period);
+	if ((_state.flags & FLAG_SPINUP) == 0) {
+		/*
+		 * Missing a step drops the advance angle back to negative 15 degrees temporarily,
+		 * in order to account for possible rapid deceleration.
+		 * We also pick the greater value among the real measured comm period and its average,
+		 * which greatly helps during very intensive deceleration if the motor has severe phase asymmetry,
+		 * or the load varies highly. The reason it helps with asymmetry is because during deceleration,
+		 * a short comm period phase can be followed by a long comm period phase; if, during this transition,
+		 * the commutation period drops due to deceleration, the zero cross detection deadline may occur
+		 * before the real zero cross happens. Since during deceleration the average comm period is
+		 * always greater than the real comm period, this problem can be avoided.
+		 */
+		const uint32_t cp = MAX(_state.comm_period, _state.averaged_comm_period);
+
+		const uint32_t zc_detection_timeout = cp +
+			TIMING_ADVANCE64(cp, get_effective_timing_advance_deg64()) +
+			TIMING_ADVANCE64(cp, 16);
+
+		motor_timer_set_relative(zc_detection_timeout);
+	} else {
+		motor_timer_set_relative(_params.spinup_start_comm_period);
+		_state.spinup_bemf_integral_positive = 0;
+		_state.spinup_bemf_integral_negative = 0;
+		_state.spinup_prev_zc_timestamp_set = false;
+	}
 
 	// Next comm step
+	_state.prev_comm_timestamp = timestamp_hnsec;
 	_state.current_comm_step++;
 	if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
 		_state.current_comm_step = 0;
@@ -416,8 +429,9 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 		break;
 	}
 	case ZC_DESATURATION: {
+		assert((_state.flags & FLAG_SPINUP) == 0);
 		engage_current_comm_step();
-		fake_missed_zc_detection(timestamp_hnsec);
+		_state.prev_zc_timestamp = timestamp_hnsec - _state.comm_period / 2;
 		_state.flags |= FLAG_SYNC_RECOVERY;
 		_state.immediate_desaturations++;
 		if (_state.immediate_desaturations >= _params.zc_failures_max) {
@@ -427,14 +441,20 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 	}
 	case ZC_NOT_DETECTED:
 	case ZC_FAILED: {
-		if ((_state.flags & FLAG_SPINUP) && !(_state.flags & FLAG_SYNC_RECOVERY)) {
+		if (_state.flags & FLAG_SPINUP) {
 			engage_current_comm_step();
 		} else {
-			motor_pwm_set_freewheeling();
+			if ((_state.flags & FLAG_SYNC_RECOVERY) == 0) {
+				// Try to run one more step in powered mode...
+				engage_current_comm_step();
+			} else {
+				// Disable power as a last resort - we're probably too much out of sync already
+				motor_pwm_set_freewheeling();
+			}
+			_state.flags |= FLAG_SYNC_RECOVERY;
 		}
-		fake_missed_zc_detection(timestamp_hnsec);
+		_state.prev_zc_timestamp = timestamp_hnsec - _state.comm_period / 2;
 		register_bad_step(&stop_now);
-		_state.flags |= FLAG_SYNC_RECOVERY;
 		break;
 	}
 	default: {
@@ -453,6 +473,43 @@ void motor_timer_callback(uint64_t timestamp_hnsec)
 
 	prepare_zc_detector_for_next_step();
 	motor_adc_enable_from_isr();
+
+	// Special spinup processing
+	if ((_state.flags & FLAG_SPINUP) != 0) {
+		// Spinup blanking time override
+		const uint64_t blanking_time =
+			((uint64_t)_state.comm_period * (uint64_t)_params.spinup_blanking_time_permil) / 1000U;
+
+		const uint64_t new_blanking_deadline = timestamp_hnsec + blanking_time;
+
+		if (new_blanking_deadline > _state.blank_time_deadline) {
+			_state.blank_time_deadline = new_blanking_deadline;
+		}
+
+		// Spinup voltage ramp handling
+		const uint64_t delta = timestamp_hnsec - _diag.started_at;
+		if (delta >= _state.spinup_ramp_duration_hnsec) {
+			_state.pwm_val = _state.pwm_val_after_spinup;
+		} else {
+			_state.immediate_zc_failures = 0;
+
+			const int new_pwm_val = _state.pwm_val_before_spinup +
+				(((uint64_t)(_state.pwm_val_after_spinup - _state.pwm_val_before_spinup)) * delta) /
+				_state.spinup_ramp_duration_hnsec;
+
+			assert(new_pwm_val >= _state.pwm_val_before_spinup);
+			assert(new_pwm_val <= _state.pwm_val_after_spinup);
+
+			if (new_pwm_val > _state.pwm_val) {
+				_state.pwm_val = new_pwm_val;
+			}
+		}
+
+		// Spinup timeout
+		if ((_diag.started_at + _params.spinup_timeout) <= timestamp_hnsec) {
+			stop_from_isr();
+		}
+	}
 }
 
 static void handle_detected_zc(uint64_t zc_timestamp)
@@ -461,6 +518,7 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	assert(zc_timestamp < _state.prev_zc_timestamp * 10);
 
 	if (_state.flags & FLAG_SYNC_RECOVERY) {
+		assert((_state.flags & FLAG_SPINUP) == 0);
 		/*
 		 * TODO: Proper sync recovery:
 		 * - Disable PWM
@@ -471,11 +529,6 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 		 */
 		_state.comm_period = zc_timestamp - _state.prev_zc_timestamp;
 		engage_current_comm_step();
-
-	} else if (_state.flags & FLAG_SPINUP) {
-		const uint32_t new_cp = zc_timestamp - _state.prev_zc_timestamp;
-		_state.comm_period = (_state.comm_period * 3U + new_cp + 4U) / 4U;
-
 	} else {
 		const uint64_t predicted_zc_ts = _state.prev_zc_timestamp + _state.comm_period;
 		zc_timestamp = (predicted_zc_ts + zc_timestamp + 2ULL) / 2ULL;
@@ -484,12 +537,10 @@ static void handle_detected_zc(uint64_t zc_timestamp)
 	}
 
 	_state.prev_zc_timestamp = zc_timestamp;
-
-	if (_state.comm_period > _params.comm_period_max) {
-		_state.comm_period = _params.comm_period_max;
-	}
-
+	_state.comm_period = MIN(_state.comm_period, _params.comm_period_max);
 	_state.zc_detection_result = ZC_DETECTED;
+
+	_state.averaged_comm_period = (_state.comm_period + _state.averaged_comm_period * 3) / 4;
 
 	const uint32_t advance =
 		_state.comm_period / 2 - TIMING_ADVANCE64(_state.comm_period, get_effective_timing_advance_deg64());
@@ -542,6 +593,8 @@ static void add_bemf_sample(const int bemf, const uint64_t timestamp)
 
 static void update_neutral_voltage(const struct motor_adc_sample* sample)
 {
+	// Computing mean from all three phases (including the floating phase) has adverse effects on stability at
+	// high advance angles.
 	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
 	_state.neutral_voltage = (sample->phase_values[step->positive] + sample->phase_values[step->negative]) / 2;
 }
@@ -555,7 +608,7 @@ static bool is_bemf_slope_positive(void)
 static bool is_past_zc(const int bemf)
 {
 	const bool bemf_slope_positive = is_bemf_slope_positive();
-	return (bemf_slope_positive && (bemf >= 0)) || (!bemf_slope_positive && (bemf <= 0));
+	return (bemf_slope_positive && (bemf > 0)) || (!bemf_slope_positive && (bemf < 0));
 }
 
 /// Fixed point multiplier
@@ -625,17 +678,19 @@ static uint64_t solve_zc_approximation(void)
 	if (valid) {
 		if (_state.zc_bemf_samples_acquired_past_zc > 0) {
 			// In normal mode, expect the solution close to the first sample
-			valid = abs(x) <= (int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2);
+			valid = abs(x) <=
+				(int)(_params.adc_sampling_period * _state.zc_bemf_samples_acquired * 2);
 		} else {
 			/*
 			 * In extrapolation mode, expect the solution strictly ahead of the first sample.
-			 * Note that we must not invalidate the solution in extrapolation mode if it is too far
-			 * in the future, because it would break a special case when the obtained samples happen
-			 * to be on the part of the BEMF curve when it is almost at zero slope, which happens
-			 * typically in the beginning of the commutation step (up to the zero cross under high
-			 * saturation). In the case of near zero slope, the calling code will detect that the
-			 * solution is too far in the future, and it will just continue collecting more samples,
-			 * which will naturally resolve the zero slope problem.
+			 * Note that we must not invalidate the solution in extrapolation mode if it is
+			 * too far in the future, because it would break a special case when the obtained
+			 * samples happen to be on the part of the BEMF curve when it is almost at zero
+			 * slope, which happens typically in the beginning of the commutation step (up to
+			 * the zero cross under high saturation). In the case of near zero slope, the
+			 * calling code will detect that the solution is too far in the future, and it
+			 * will just continue collecting more samples, which will naturally resolve the
+			 * zero slope problem.
 			 */
 			valid = x > 0;
 		}
@@ -672,117 +727,198 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 
 	const bool past_zc = is_past_zc(bemf);
 
-	/*
-	 * BEMF/ZC validation
-	 */
-	const int bemf_threshold = _state.neutral_voltage * _params.bemf_valid_range_pct128 / 128;
-	if (!past_zc && (abs(bemf) > bemf_threshold)) {
-		_diag.bemf_samples_out_of_range++;
-		_state.zc_bemf_samples_acquired = 0;
-		_state.zc_bemf_samples_acquired_past_zc = 0;
-		return;
-	}
-
-	if (past_zc && (_state.zc_bemf_samples_acquired == 0) && !(_state.flags & FLAG_SPINUP)) {
-		_diag.bemf_samples_premature_zc++;
-		/*
-		 * BEMF signal may be affected by extreme saturation, which we can detect
-		 * as BEMF readings on the wrong side of neutral voltage past 30 degrees since
-		 * the last commutation. In this case we simply turn off the light and freewheel
-		 * towards the next scheduled commutation.
-		 * Usually, saturation occurs under low RPM with very high duty cycle
-		 * (because of large W * sec), as in case of rapid acceleration or high constant load.
-		 * In both cases the powerskipping naturally keeps the power within acceptable range for
-		 * the given motor.
-		 */
-		const uint64_t deadline =
-			_state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period / 2;
-		if (sample->timestamp >= deadline) {
-			motor_pwm_set_freewheeling();
-			_state.zc_detection_result = ZC_DESATURATION;
-			_diag.desaturations++;
-		}
-		return;
-	}
-
-	/*
-	 * Checking if BEMF goes in the right direction.
-	 * This check is only performed for the first sample.
-	 */
-	if (_state.zc_bemf_samples_acquired == 1) {
-		bool correct_slope = false;
-		if (is_bemf_slope_positive()) {
-			correct_slope = bemf > _state.zc_bemf_samples[0];
+	if ((_state.flags & FLAG_SPINUP) == 0) {
+#ifndef NDEBUG
+		if (past_zc) {
+			TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		} else {
-			correct_slope = bemf < _state.zc_bemf_samples[0];
+			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		}
+#endif
+		_state.zc_bemf_seen_before_zc = _state.zc_bemf_seen_before_zc || !past_zc;
 
-		if (!correct_slope) {
-			_diag.bemf_wrong_slope++;
-			// Discarding all samples, they are invalid
-			_state.zc_bemf_samples_acquired = 0;
-			// Continuing regardless - this new sample could be correct
-		}
-	}
-
-	/*
-	 * Here the BEMF sample is considered to be valid, and can be added to the solution.
-	 */
-	add_bemf_sample(bemf, sample->timestamp);
-
-	if (past_zc) {
-		_state.zc_bemf_samples_acquired_past_zc++;
-
-		if (_state.zc_bemf_samples_acquired_past_zc > _state.zc_bemf_samples_optimal_past_zc) {
-			// This may indicate that we're trying to cramp too many samples in the commutation period!
-			_diag.extra_bemf_samples_past_zc++;
-		}
-	}
-
-	/*
-	 * Deciding if we have enough data to resolve the ZC timestamp.
-	 */
-	if ((_state.zc_bemf_samples_acquired_past_zc < _state.zc_bemf_samples_optimal_past_zc) ||
-	    (_state.zc_bemf_samples_acquired < 2)) {
-		// We don't update voltage/current in the same cycle where we solve the ZC approximation,
-		// in order to distribute the IRQ load more evenly.
-		update_input_voltage_current(sample);
-		return;
-	}
-
-	if (step->floating == 0) {
-		TESTPAD_ZC_SET();
-	}
-
-	/*
-	 * Find the exact ZC timestamp using the collected samples
-	 */
-	const uint64_t zc_timestamp = solve_zc_approximation();
-
-	TESTPAD_ZC_CLEAR();
-
-	if (zc_timestamp == 0) {
-		// Abort only if there's no chance to get more data
-		if (_state.zc_bemf_samples_acquired >= _state.zc_bemf_samples_optimal) {
-			// Sorry Mario
-			motor_pwm_set_freewheeling();
-			_state.zc_detection_result = ZC_FAILED;
-		}
-		// Otherwise just exit and try again with the next sample
-		return;
-	}
-
-	if (zc_timestamp > (sample->timestamp + _params.adc_sampling_period * 2)) {
 		/*
-		 * We will have at least one more ADC sample before the projected ZC, let's procrastinate one more
-		 * cycle. Note that we also add some extra time to ensure that there will be enough time to process
-		 * the next sample and arm the step switching timer afterwards.
+		 * BEMF/ZC validation
 		 */
-		_diag.zc_solution_extrapolation_discarded++;
-		return;
-	}
+		const int bemf_threshold = _state.neutral_voltage * _params.bemf_valid_range_pct128 / 128;
+		if (!past_zc && (abs(bemf) > bemf_threshold)) {
+			_diag.bemf_samples_out_of_range++;
+			_state.zc_bemf_samples_acquired = 0;
+			_state.zc_bemf_samples_acquired_past_zc = 0;
+			return;
+		}
 
-	handle_detected_zc(zc_timestamp);
+		if (past_zc && !_state.zc_bemf_seen_before_zc) {
+			_diag.bemf_samples_premature_zc++;
+			/*
+			 * BEMF signal may be affected by extreme saturation, which we can detect
+			 * as BEMF readings on the wrong side of neutral voltage past 30 degrees since
+			 * the last commutation. In this case we simply turn off the light and freewheel
+			 * towards the next scheduled commutation.
+			 * Usually, saturation occurs under low RPM with very high duty cycle
+			 * (because of large W * sec), as in case of rapid acceleration or high constant load.
+			 * In both cases the powerskipping naturally keeps the power within acceptable range for
+			 * the given motor.
+			 */
+			const uint64_t deadline =
+				_state.prev_zc_timestamp + _state.comm_period - _params.adc_sampling_period / 2;
+			if (sample->timestamp >= deadline) {
+				motor_pwm_set_freewheeling();
+				_state.zc_detection_result = ZC_DESATURATION;
+				_diag.desaturations++;
+			}
+			return;
+		}
+
+		/*
+		 * Checking if BEMF goes in the right direction.
+		 * This check is only performed for the first sample.
+		 */
+		if (_state.zc_bemf_samples_acquired == 1) {
+			bool correct_slope = false;
+			if (is_bemf_slope_positive()) {
+				correct_slope = bemf > _state.zc_bemf_samples[0];
+			} else {
+				correct_slope = bemf < _state.zc_bemf_samples[0];
+			}
+
+			if (!correct_slope) {
+				_diag.bemf_wrong_slope++;
+				// Discarding all samples, they are invalid
+				_state.zc_bemf_samples_acquired = 0;
+				// Continuing regardless - this new sample could be correct
+			}
+		}
+
+		/*
+		 * Here the BEMF sample is considered to be valid, and can be added to the solution.
+		 */
+		add_bemf_sample(bemf, sample->timestamp);
+
+		if (past_zc) {
+			_state.zc_bemf_samples_acquired_past_zc++;
+
+			if (_state.zc_bemf_samples_acquired_past_zc > _state.zc_bemf_samples_optimal_past_zc) {
+				// This may indicate that we're trying to cramp too many samples in the
+				// commutation period!
+				_diag.extra_bemf_samples_past_zc++;
+			}
+		}
+
+		/*
+		 * Deciding if we have enough data to resolve the ZC timestamp.
+		 */
+		if ((_state.zc_bemf_samples_acquired_past_zc < _state.zc_bemf_samples_optimal_past_zc) ||
+		    (_state.zc_bemf_samples_acquired < 2)) {
+			// We don't update voltage/current in the same cycle where we solve the ZC approximation,
+			// in order to distribute the IRQ load more evenly.
+			update_input_voltage_current(sample);
+			return;
+		}
+
+		/*
+		 * Find the exact ZC timestamp using the collected samples
+		 */
+		const uint64_t zc_timestamp = solve_zc_approximation();
+
+		if (zc_timestamp == 0) {
+			// Abort only if there's no chance to get more data
+			if (_state.zc_bemf_samples_acquired >= _state.zc_bemf_samples_optimal) {
+				// Sorry Mario
+				motor_pwm_set_freewheeling();
+				_state.zc_detection_result = ZC_FAILED;
+			}
+			// Otherwise just exit and try again with the next sample
+			return;
+		}
+
+		if (zc_timestamp > (sample->timestamp + _params.adc_sampling_period * 2)) {
+			/*
+			 * We will have at least one more ADC sample before the projected ZC, let's procrastinate
+			 * one more cycle. Note that we also add some extra time to ensure that there will be
+			 * enough time to process the next sample and arm the step switching timer afterwards.
+			 */
+			_diag.zc_solution_extrapolation_discarded++;
+			return;
+		}
+
+		TESTPAD_ZC_SET();
+		handle_detected_zc(zc_timestamp);
+		TESTPAD_ZC_CLEAR();
+	} else {
+		if (past_zc) {
+			const int bemf_threshold = _state.neutral_voltage * 15 / 16;
+
+			if ((_state.spinup_bemf_integral_positive == 0) &&
+			    (_state.spinup_bemf_integral_negative == 0) &&
+			    (abs(bemf) > bemf_threshold))
+			{
+			    ; // Flyback current
+			}
+			else if ((_state.spinup_bemf_integral_positive == 0) &&
+			         (_state.spinup_bemf_integral_negative == 0))
+			{
+				// Flyback current has ended, increment both in order to avoid ZC detection
+				// on this step, because we need to wait 1 cycle after the flyback has ended
+				// in order to let the BEMF stabilize.
+				// TODO: refactor this into a proper state machine.
+				_state.spinup_bemf_integral_positive++;
+				_state.spinup_bemf_integral_negative++;
+			}
+			else
+			{
+				_state.spinup_bemf_integral_positive += abs(bemf);
+			}
+		} else {
+			_state.spinup_bemf_integral_negative += abs(bemf);
+
+			// It is ABSOLUTELY CRUCIAL to provide a correct estimate of the last zero cross timestamp
+			// when transitioning from spinup mode to normal mode, otherwise the normal mode will
+			// quickly run out of sync!
+			_state.prev_zc_timestamp = sample->timestamp;
+			_state.spinup_prev_zc_timestamp_set = true;
+		}
+
+		// Advance angle should be around zero during spinup, otherwise synchronization can be
+		// lost quickly, especially if the rotor is loaded!
+		if ((_state.spinup_bemf_integral_positive > 1) &&
+		    (_state.spinup_bemf_integral_positive >= _state.spinup_bemf_integral_negative))
+		{
+			if (!_state.spinup_prev_zc_timestamp_set) {
+				// We didn't have a chance to detect ZC properly, so we speculate
+				_state.prev_zc_timestamp = sample->timestamp;
+				_state.spinup_prev_zc_timestamp_set = true;
+			}
+
+			const uint32_t new_comm_period = sample->timestamp - _state.prev_comm_timestamp;
+
+			// We're using 3x averaging in order to compensate for phase asymmetry
+			_state.comm_period =
+				MIN((new_comm_period + _state.comm_period * 2) / 3,
+				    _params.spinup_start_comm_period);
+
+			if (_state.averaged_comm_period > 0) {
+				_state.averaged_comm_period =
+					(_state.comm_period + _state.averaged_comm_period * 3) / 4;
+			} else {
+				_state.averaged_comm_period = _state.comm_period;
+			}
+
+			_state.zc_detection_result = ZC_DETECTED;
+
+			motor_timer_set_relative(0);
+			motor_adc_disable_from_isr();
+
+			if (_state.averaged_comm_period <= _params.comm_period_max) {
+				if (_state.pwm_val >= _state.pwm_val_after_spinup) {
+					_state.flags &= ~FLAG_SPINUP;
+				} else {
+					// Speed up the ramp a bit in order to converge faster
+					_state.pwm_val++;
+				}
+			}
+		}
+	}
 }
 
 // --- End of hard real time code ---
@@ -817,181 +953,23 @@ void motor_rtctl_confirm_initialization(void)
 
 static void init_adc_filters(void)
 {
-	struct motor_adc_sample smpl;
-	enum motor_pwm_phase_manip manip_cmd[3];
-
-	// Low phase
-	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
-		manip_cmd[i] = MOTOR_PWM_MANIP_LOW;
-	}
-	motor_pwm_manip(manip_cmd);
-	smpl = motor_adc_get_last_sample();
-	const int low = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
-
-	// High phase
-	for (int i = 0 ; i < MOTOR_NUM_PHASES; i++) {
-		manip_cmd[i] = MOTOR_PWM_MANIP_HIGH;
-	}
-	motor_pwm_manip(manip_cmd);
-	smpl = motor_adc_get_last_sample();
-	const int high = (smpl.phase_values[0] + smpl.phase_values[1] + smpl.phase_values[2]) / 3;
-
-	// Phase neutral
-	motor_pwm_set_freewheeling();
-	_state.neutral_voltage = (low + high) / 2;
-
-	// Supply voltage and current
+	struct motor_adc_sample smpl = motor_adc_get_last_sample();
 	_state.input_voltage = smpl.input_voltage;
 	_state.input_current = smpl.input_current;
 }
 
-static int spinup_sample_bemf(void)
+void motor_rtctl_start(float initial_duty_cycle, float target_duty_cycle,
+                       float spinup_ramp_duration, bool reverse, unsigned num_prior_attempts)
 {
-	static uint64_t prev_timestamp = 0;
+	(void) num_prior_attempts;
 
-	struct motor_adc_sample sample;
-	while (true) {
-		sample = motor_adc_get_last_sample();
-		if (sample.timestamp != prev_timestamp) {
-			prev_timestamp = sample.timestamp;
-			break;
-		}
-	}
-
-	const struct motor_pwm_commutation_step* const step = _state.comm_table + _state.current_comm_step;
-	_state.neutral_voltage = (sample.phase_values[0] + sample.phase_values[1] + sample.phase_values[2]) / 3;
-	return sample.phase_values[step->floating] - _state.neutral_voltage;
-}
-
-static uint64_t spinup_wait_zc(const uint64_t step_deadline)
-{
-	const int min_samples_past_zc = (_state.comm_period / _params.adc_sampling_period) / 64 + 1;
-
-	int num_samples_past_zc = 0;
-	uint64_t zc_timestamp = 0;
-
-	while (motor_timer_hnsec() <= step_deadline) {
-		const bool past_zc = is_past_zc(spinup_sample_bemf());
-
-		if (past_zc) {
-			if (zc_timestamp == 0) {
-				zc_timestamp = motor_timer_hnsec();
-			}
-
-			num_samples_past_zc++;
-			if (num_samples_past_zc >= min_samples_past_zc) {
-				break;
-			}
-		} else {
-			zc_timestamp = 0;
-			if (num_samples_past_zc > 0) {
-				num_samples_past_zc--;
-			}
-		}
-	}
-
-	return zc_timestamp;
-}
-
-static bool do_bemf_spinup(const float max_duty_cycle, const unsigned num_prior_attempts)
-{
-	assert(chThdGetPriorityX() == HIGHPRIO);  // Mandatory
-
-	static const unsigned POWER_MULT_MAX = 5;
-	unsigned power_multiplier = (num_prior_attempts / 3) + 1;   // So much hardcode!
-	if (power_multiplier > POWER_MULT_MAX) {
-		power_multiplier = POWER_MULT_MAX;
-	}
-	assert(power_multiplier >= 1);
-	assert(power_multiplier <= POWER_MULT_MAX);
-
-	const unsigned comm_period_lowpass =
-		_params.spinup_comm_period_lowpass + MIN(num_prior_attempts / 2, 5);  // Make limits configurable?
-
-	// Make sure we're not going to underflow during time calculations
-	while (motor_timer_hnsec() < _params.spinup_start_comm_period) {
-		;
-	}
-
-	const uint64_t deadline = motor_timer_hnsec() + _params.spinup_timeout;
-	float dc = _params.spinup_duty_cycle_increment;
-	unsigned num_comms = 0;
-	unsigned num_good_comms = 0;
-
-	_state.comm_period = _params.spinup_start_comm_period;
-	_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
-	_state.pwm_val = motor_pwm_compute_pwm_val(dc);
-
-	while (motor_timer_hnsec() <= deadline) {
-		num_comms++;
-
-		// Engage the current comm step
-		irq_primask_disable();
-		motor_pwm_set_step_from_isr(_state.comm_table + _state.current_comm_step, _state.pwm_val);
-		irq_primask_enable();
-
-		uint64_t step_deadline = motor_timer_hnsec() + _state.comm_period;
-		motor_timer_hndelay(_params.comm_blank_hnsec);
-
-		// Wait for the next zero crossing
-		const uint64_t zc_timestamp = spinup_wait_zc(step_deadline);
-		num_good_comms = (zc_timestamp > 0) ? (num_good_comms + 1) : 0;
-
-		// Compute the next duty cycle
-		dc += _params.spinup_duty_cycle_increment;
-		if (dc > max_duty_cycle * power_multiplier) {
-			dc = max_duty_cycle * power_multiplier;
-		}
-		_state.pwm_val = motor_pwm_compute_pwm_val(dc);
-
-		if (zc_timestamp > 0) {
-			assert(zc_timestamp > _state.prev_zc_timestamp);
-
-			// Update comm period
-			const uint32_t new_comm_period = zc_timestamp - _state.prev_zc_timestamp;
-			_state.prev_zc_timestamp = zc_timestamp;
-			_state.comm_period =
-				LOWPASS(_state.comm_period, new_comm_period, comm_period_lowpass);
-			step_deadline = zc_timestamp + _state.comm_period / 2;
-
-			// Check the termination condition
-			const bool enough_good_comms = num_good_comms > _params.spinup_num_good_comms;
-			const bool fast_enough = _state.comm_period <= _params.spinup_end_comm_period;
-			if (enough_good_comms || fast_enough) {
-				break;
-			}
-		} else {
-			// If ZC was not detected, we need to fake the previous ZC timestamp now
-			_state.prev_zc_timestamp = step_deadline - _state.comm_period / 2;
-		}
-
-		// Wait till the end of the current step
-		while (motor_timer_hnsec() <= step_deadline) {
-			;
-		}
-
-		// Next step
-		_state.current_comm_step++;
-		if (_state.current_comm_step >= MOTOR_NUM_COMMUTATION_STEPS) {
-			_state.current_comm_step = 0;
-		}
-	}
-
-	printf("Motor: Spinup end; dc: %f, comms: %d, good comms: %d\n",
-		dc, num_comms, num_good_comms);
-
-	return _state.comm_period < _params.comm_period_max;
-}
-
-void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attempts)
-{
 	motor_rtctl_stop();                    // Just in case
 
 	if (!_initialization_confirmed) {
-		return; // Go home you're drunk
+		return;
 	}
 
-	if (duty_cycle <= 0) {
+	if ((initial_duty_cycle <= 0) || (target_duty_cycle <= 0)) {
 		assert(0);
 		return;
 	}
@@ -1004,39 +982,46 @@ void motor_rtctl_start(float duty_cycle, bool reverse, unsigned num_prior_attemp
 
 	motor_forced_rotation_detector_reset();
 
-	_diag.started_at = motor_timer_hnsec();
-
-	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
-
-	_state.pwm_val_after_spinup = motor_pwm_compute_pwm_val(duty_cycle);
-
 	init_adc_filters();
 
 	/*
-	 * Initial spinup.
+	 * Start the background IRQ-driven process
 	 */
-	const tprio_t orig_priority = chThdSetPriority(HIGHPRIO);
+	chSysSuspend();
 
-	motor_pwm_prepare_to_start();
+	TESTPAD_SET(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);   // Spin up indicator
 
-	const bool started = do_bemf_spinup(duty_cycle, num_prior_attempts);
+	if ((spinup_ramp_duration > 0.0F) && (initial_duty_cycle < target_duty_cycle)) {
+		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(initial_duty_cycle);
+		_state.pwm_val_after_spinup  = motor_pwm_compute_pwm_val(target_duty_cycle);
 
-	/*
-	 * Engage the normal mode if started
-	 * At this point, if the spinup was OK, we're sutiated RIGHT AFTER THE DETECTED ZERO CROSS, engaged.
-	 */
-	if (started) {
-		_state.blank_time_deadline = motor_timer_hnsec() + _params.comm_blank_hnsec;
-		_state.zc_detection_result = ZC_DETECTED;
-		_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
-		motor_timer_set_relative(_state.comm_period / 3);
-		printf("Motor: Spinup OK, comm period: %u usec\n", (unsigned)(_state.comm_period / HNSEC_PER_USEC));
+		_state.spinup_ramp_duration_hnsec = (uint32_t)(spinup_ramp_duration * ((float)HNSEC_PER_SEC) + 0.5F);
 	} else {
-		printf("Motor: Spinup failed\n");
-		motor_rtctl_stop();
+		_state.pwm_val_before_spinup = motor_pwm_compute_pwm_val(target_duty_cycle);  // no ramp
+		_state.pwm_val_after_spinup  = _state.pwm_val_before_spinup;
+
+		_state.spinup_ramp_duration_hnsec = 0;
 	}
 
-	chThdSetPriority(orig_priority);
+	_state.pwm_val = _state.pwm_val_before_spinup;
+
+	_state.comm_table = reverse ? COMMUTATION_TABLE_REVERSE : COMMUTATION_TABLE_FORWARD;
+	_state.comm_period = _params.spinup_start_comm_period;
+
+	_state.prev_zc_timestamp = motor_timer_hnsec() - _state.comm_period / 2;
+	_state.zc_detection_result = ZC_DETECTED;
+	_state.flags = FLAG_ACTIVE | FLAG_SPINUP;
+
+	_diag.started_at = motor_timer_hnsec();
+
+	motor_timer_set_relative(_state.comm_period / 2);
+
+	TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);  // Spin up indicator
+
+	chSysEnable();
+
+	printf("Motor: RTCTL Spinup: PWM val %d --> %d\n",
+	       _state.pwm_val_before_spinup, _state.pwm_val_after_spinup);
 }
 
 void motor_rtctl_stop(void)
@@ -1145,11 +1130,7 @@ void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_curren
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
 {
 	// Ensure some number of ADC samples per comm period
-	uint32_t retval = motor_adc_sampling_period_hnsec() * 5;
-	if (retval < ABS_MIN_COMM_PERIOD_USEC * HNSEC_PER_USEC) {
-		retval = ABS_MIN_COMM_PERIOD_USEC * HNSEC_PER_USEC;
-	}
-	return retval;
+	return motor_adc_sampling_period_hnsec() * 7;
 }
 
 enum motor_rtctl_forced_rotation motor_rtctl_get_forced_rotation_state(void)

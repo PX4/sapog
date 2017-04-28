@@ -54,17 +54,11 @@
 #define GPIO_PIN_I2C_SDA        9
 
 // Testpoints
-#define GPIO_PORT_TEST_A        GPIOB
-#define GPIO_PIN_TEST_A         15
+#define GPIO_PORT_TEST_A        GPIOC
+#define GPIO_PIN_TEST_A         11
 
-#define GPIO_PORT_TEST_ADC      GPIOC
-#define GPIO_PIN_TEST_ADC       11
-
-#define GPIO_PORT_TEST_MTIM     GPIOC
-#define GPIO_PIN_TEST_MTIM      12
-
-#define GPIO_PORT_TEST_MZC      GPIOA
-#define GPIO_PIN_TEST_MZC       15
+#define GPIO_PORT_TEST_ZC       GPIOC
+#define GPIO_PIN_TEST_ZC        12
 
 /*
  * I/O ports initial setup, this configuration is established soon after reset
