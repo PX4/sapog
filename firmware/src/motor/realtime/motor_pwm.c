@@ -51,7 +51,7 @@
 #endif
 
 
-CONFIG_PARAM_INT("mot_pwm_hz",    30000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
+CONFIG_PARAM_INT("mot_pwm_hz",    35000, MOTOR_PWM_MIN_FREQUENCY, MOTOR_PWM_MAX_FREQUENCY)
 CONFIG_PARAM_INT("mot_pwm_dt_ns",   600,                     200,                     800)
 
 /**
