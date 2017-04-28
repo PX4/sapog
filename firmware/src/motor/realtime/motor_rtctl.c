@@ -184,6 +184,7 @@ static struct control_state            /// Control state
 	int zc_bemf_samples_optimal_past_zc;
 	int zc_bemf_samples_acquired;
 	int zc_bemf_samples_acquired_past_zc;
+	bool zc_bemf_seen_before_zc;
 
 	int neutral_voltage;
 
@@ -358,6 +359,7 @@ static void prepare_zc_detector_for_next_step(void)
 {
 	_state.zc_bemf_samples_acquired = 0;
 	_state.zc_bemf_samples_acquired_past_zc = 0;
+	_state.zc_bemf_seen_before_zc = false;
 
 	const int advance = get_effective_timing_advance_deg64();
 
@@ -733,6 +735,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			TESTPAD_CLEAR(GPIO_PORT_TEST_A, GPIO_PIN_TEST_A);
 		}
 #endif
+		_state.zc_bemf_seen_before_zc = _state.zc_bemf_seen_before_zc || !past_zc;
 
 		/*
 		 * BEMF/ZC validation
@@ -745,7 +748,7 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 			return;
 		}
 
-		if (past_zc && (_state.zc_bemf_samples_acquired == 0)) {
+		if (past_zc && !_state.zc_bemf_seen_before_zc) {
 			_diag.bemf_samples_premature_zc++;
 			/*
 			 * BEMF signal may be affected by extreme saturation, which we can detect
