@@ -34,7 +34,7 @@ PROJECT = io.px4.sapog
 
 HW_VERSION_MAJOR = 1
 FW_VERSION_MAJOR = 2
-FW_VERSION_MINOR = 0
+FW_VERSION_MINOR = 1
 
 export SAPOG_BASE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 export SAPOG_SRC_DIR = $(abspath $(SAPOG_BASE)/src)
