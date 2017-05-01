@@ -281,7 +281,7 @@ static float update_control_open_loop(uint32_t comm_period)
 	if (comm_period < cp_limit2) {
 		// Simple P controller
 		const float c1 = cp_limit2;                    		// Begin limiting at this comm period
-		const float c0 = _params.comm_period_limit / 2;         // Reach zero dcyc at this comm period
+		const float c0 = _params.comm_period_limit / 4;         // Reach zero dcyc at this comm period
 		const float dc = (comm_period - c0) / (c1 - c0);
 
 		if (dc < _state.dc_openloop_setpoint) {
