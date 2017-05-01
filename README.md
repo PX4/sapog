@@ -7,6 +7,11 @@ PX4 Sapog
 
 ## Change Log
 
+### v2.1
+
+* Fixed stability issues at extremely high RPM (>10k mechanical RPM for 14 pole motor).
+* Default PWM frequency set to 60 kHz.
+
 ### v2.0
 
 * Completely new, more robust spin up algorithm. Supports smooth start-up from standstill as well as picking up
