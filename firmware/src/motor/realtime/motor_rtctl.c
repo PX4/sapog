@@ -1130,7 +1130,7 @@ void motor_rtctl_get_input_voltage_current(float* out_voltage, float* out_curren
 uint32_t motor_rtctl_get_min_comm_period_hnsec(void)
 {
 	// Ensure some number of ADC samples per comm period
-	return motor_adc_sampling_period_hnsec() * 7;
+	return motor_adc_sampling_period_hnsec() * 6;
 }
 
 enum motor_rtctl_forced_rotation motor_rtctl_get_forced_rotation_state(void)
