@@ -1085,7 +1085,7 @@ uint32_t motor_rtctl_get_comm_period_hnsec(void)
 		return 0;
 	}
 
-	const uint32_t val = _state.comm_period;
+	const uint32_t val = _state.averaged_comm_period;
 	return val;
 }
 
