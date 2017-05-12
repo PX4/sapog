@@ -12,8 +12,43 @@
 
 \begin{titlepage}
 \section*{Overview}
-\section*{Features}
+
+Sapog is an advanced open source sensorless BLDC motor controller firmware designed for
+use in propulsion systems of electric unmanned aircraft and watercraft.
+
+The source repository and the public bug tracker are located at
+\url{https://github.com/PX4/sapog}.
+
+This document focuses only on the firmware.
+Please refer to your product documentation for relevant information about the hardware.
+
+\section*{Applications}
+\begin{itemize}
+    \item Propeller drives of unmanned aerial vehicles.
+    \item Watercraft propulsion systems.
+    \item General purpose sensorless BLDC drives.
+\end{itemize}
+
 \BeginRightColumn
+\section*{Features}
+\begin{itemize}
+    \item Robust motor control and resilience to synchronization losses in all operating modes.
+    \item Fast response. This feature is especially critical for multirotor aircraft.
+    \item Regenerative braking and active freewheeling.
+    \item Optional RPM control loop (RPM governor).
+    \item Current limiting.
+    \item Self diagnostics and extensive real-time status reporting.
+    \item Compatible with most BLDC motors with very little tuning.
+    \item Highly configurable.
+    \item Automatic firmware update over UAVCAN in the field.
+    \item Supported communication interfaces:
+    \begin{itemize}
+        \item UAVCAN interface with optional double redundancy.
+        \item Command line interface over UART, suitable for M2M communications.
+        \item RCPWM (analog PWM interface widely used in robotics).
+    \end{itemize}
+\end{itemize}
+
 \end{titlepage}
 
 \tableofcontents
@@ -21,5 +56,9 @@
 \listoftables
 
 \mainmatter
+
+\chapter{Principles of operation}
+
+
 
 \end{document}
