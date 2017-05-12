@@ -4,3 +4,6 @@
 [submodule "firmware/libuavcan"]
 	path = firmware/libuavcan
 	url = https://github.com/UAVCAN/libuavcan
+[submodule "docs/reference_manual/document_templates"]
+	path = docs/reference_manual/document_templates
+	url = https://github.com/Zubax/document_templates
