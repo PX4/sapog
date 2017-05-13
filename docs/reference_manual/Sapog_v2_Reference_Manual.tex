@@ -5,7 +5,38 @@
 \documentclass{zubaxdoc}
 \graphicspath{{document_templates/documentation_template_latex/}}
 
+\usepackage{xstring}
+
 \title{Sapog v2 Reference Manual}
+
+%
+% Use this macro to define configuration parameter names.
+% It automatically creates parameter references that can be accessed later using the respective macro.
+% Note that underscores in the parameter name must be replaced with +, e.g.:
+%   \CfgDef{mot+abc+def}
+% Expands to:
+%   mot_abc_def
+%
+% TODO: We may want to add an index of configuration parameters at the end of the document?
+%       It would be quite easy to do with this macro.
+%
+\newcommand{\CfgDef}[1]{
+    \StrSubstitute{#1}{+}{\textunderscore}[\temp]
+    \texttt{\temp}\label{#1}
+}
+
+%
+% Use this macro to refer to configuration parameter definition from other parts of the document.
+% Note that underscores in the parameter name must be replaced with +, e.g.:
+%   \CfgRef{mot+abc+def}
+% Expands to:
+%   mot_abc_def
+%
+\newcommand{\CfgRef}[1]{
+    \StrSubstitute{#1}{+}{\textunderscore}[\temp]
+    % It is also possible to create a reference with custom text using \hyperref[]{}, but that seems excessive.
+    \texttt{\temp} {\footnotesize (page \pageref{#1})}
+}
 
 \begin{document}
 \frontmatter
@@ -59,6 +90,10 @@ Please refer to your product documentation for relevant information about the ha
 
 \chapter{Principles of operation}
 
+\section{Dummy}
 
+\CfgDef{mot+abc+def}
+
+\CfgRef{mot+abc+def}
 
 \end{document}
