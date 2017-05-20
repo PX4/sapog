@@ -284,9 +284,9 @@ increased.
 These parameters may need adjustment to make Sapog compatible with a specific motor.
 For example, if the motor cannot keep stable operation at low speed,
 the minimum source voltage should be increased,
-and/or the maximum commutation period should be shortened.
+and/or the maximum commutation period should be made longer.
 The minimum voltage limit does not apply to RPM loop mode,
-where the minimum speed is governed by a dedicated configuration parameter.
+where the minimum speed is governed by the dedicated configuration parameter shown above.
 
 The following equation can be used to convert between commutation period $T_\text{comm}$
 and electrical angular velocity $\omega_e$:
@@ -561,11 +561,19 @@ value as the current operating mode permits.
 
 
 
+\subsection{Open loop operation}
+
+
+
 \subsection{RPM control loop}
 
-
+TODO provide exact units of the configuration parameters.
 
 \subsection{Current measurement}
+
+
+
+\section{Self diagnostics}
 
 
 
