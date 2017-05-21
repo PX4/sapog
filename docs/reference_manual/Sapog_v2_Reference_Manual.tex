@@ -277,9 +277,11 @@ restrict the minimum operating speed, such as the following:
 The estimated commutation period will be artificially constrained to not exceed this value.
 \item \CfgRef{mot+rpm+min} - minimum RPM that can be demanded in RPM governor mode.
 If the demanded RPM is lower, the setpoint will be artificially increased.
+Reduce this parameter to make the minimum speed lower; increase it to improve stability.
 \item \CfgRef{mot+v+min} - minimum source voltage when operating in open loop mode, in volts.
 If the demanded duty cycle amounts to a lower source voltage than this, the setpoint will be artificially
 increased.
+Reduce this parameter to make the minimum speed lower; increase it to improve stability.
 \end{itemize}
 
 These parameters may need adjustment to make Sapog compatible with a specific motor.
@@ -741,7 +743,43 @@ This is also the initial commutation period.
 
 \subsection{Open loop operation}
 
+While operating in the open loop mode, Sapog accepts setpoints in the range from 0\% to 100\%,
+and treats that as the fraction of the inverter supply voltage $V_\text{inv}$ to
+deliver to the motor $E_s$:
+\begin{equation}
+E_s = V_\text{inv}\cdot{}\mathrm{ramp}\left(S\right) \qquad\text{for open loop mode}, S \in \left(0, 1\right]
+\end{equation}
+where $S$ is the setpoint, and $\mathrm{ramp}$ is the setpoint ramp function.
 
+The ramp function replaces abrupt changes in the setpoint with gradual changes.
+Abrupt changes that are small enough to not be a hazard to stability of the drive are
+accepted by the controller directly, bypassing the ramp.
+The following configuration parameters govern the open loop setpoint ramp:
+
+\begin{itemize}
+\item \CfgRef{mot+dc+slope} - the slope of the setpoint ramp, in full ranges per second.
+For example, the value of 1 allows the controller to sweep the setpoint from 0\% to 100\% in 1 second.
+The value of 10 allows the controller to sweep the setpoint from 0\% to 100\% in 0.1 seconds.
+\item \CfgRef{mot+dc+accel} - the maximum change in setpoint that will be propagated directly,
+bypassing the ramp.
+For example, the value of 0.1 allows the controller to apply step changes up to 10\% large directly.
+\end{itemize}
+
+Increase the parameters (either one or both) to improve the response characteristics of the drive.
+Reduce them if rapid setpoint changes cause stability issues.
+
+Note that the minimum acceptable setpoint is constrained by the minimum duty cycle deduced from
+the parameter \CfgRef{mot+v+min}.
+If the setpoint falls into $\left(0, S_\text{min}\right]$, where $S_\text{min}$ is the minimum
+duty cycle deduced from the parameter \CfgRef{mot+v+min},
+it will be silently overridden to $S_\text{min}$.
+
+The maximum acceptable setpoint will be automatically limited if the motor approaches the maximum
+operating speed permitted by the current PWM carrier frequency,
+as shown on the figure \ref{pwm_maximum_speed}.
+
+A zero setpoint is treated as the command to stop the motor.
+While the motor is stopped, the VSI is disabled, allowing the shaft to rotate freely.
 
 \subsection{RPM control loop}
 
