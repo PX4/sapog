@@ -8,6 +8,7 @@
 \usepackage{xstring}
 \usepackage{multirow}
 \usepackage{diagbox}
+\usepackage{amsmath}
 
 \title{Sapog v2 Reference Manual}
 
@@ -46,7 +47,7 @@
 \begin{titlepage}
 \section*{Overview}
 
-Sapog is an advanced open source sensorless PMSM/BLDC motor controller firmware designed for
+Sapog is an advanced open source sensorless PMSM\slash{}BLDC motor controller firmware designed for
 use in propulsion systems of electric unmanned aircraft and watercraft.
 
 The source repository and the public bug tracker are located at
@@ -381,7 +382,7 @@ As the controller ceases to suppress the field, the flux linkage of the motor re
 which, given that the speed is sufficiently high, may significantly exceed the inverter supply
 voltage $V_\text{inv}$, possibly causing damage to the controller, the power supply, the motor, etc.
 
-\subsection{Rotor position observer}
+\subsection{Rotor state observer}
 
 \subsubsection{BEMF processing}
 
@@ -422,10 +423,10 @@ The number of BEMF samples $N_\text{samples}$ included in the linear regression 
 the configuration parameter \CfgRef{mot+bemf+win+den} (dimensionless) as follows:
 \begin{equation}
 N_\text{samples} =
-\frac{T_{\text{comm}} F_{\text{pwm}}}{\frac{\alpha\cdot\text{BWD}}{15} + \text{BWD}} + 2
+\frac{T_{\text{comm}} F_{\text{pwm}}}{\frac{\alpha\cdot{}\Pi_\text{bemfwinden}}{15} + \Pi_\text{bemfwinden}} + 2
 \end{equation}
 where $T_{\text{comm}}$ is the current commutation period,
-$\text{BWD}$ is the value of the configuration parameter,
+$\Pi_\text{bemfwinden}$ is the value of the configuration parameter,
 $\alpha$ is the current commutation advance angle in electrical rotor position degrees,
 and $F_{\text{pwm}}$ is the PWM carrier frequency.
 
@@ -614,11 +615,22 @@ because the state estimation methods that work well when the rotor is moving bre
 stationary or nearly so.
 
 From the above follows that a different method of state estimation is needed to start the motor
-from standstill, especially so if the rotor is attached to a mechanical/inertial load.
+from standstill, especially so if the shaft is attached to a mechanical/inertial load.
 
+\subsubsection{Algorithm}
 
+When starting the motor, Sapog sets the source voltage $E_s$ to the value specified in the
+configuration parameter \CfgRef{mot+v+spinup}, and activates the commutation step at the index 1.
+Having done so, Sapog begins to wait for the zero crossing detector to report that it is time to
+begin the next commutation period; until the amount of time specified by the configuration parameter
+\CfgRef{mot+spup+st+cp} expires, whichever happens first.
+Afterwards, Sapog switches to the next commutation step, and the process repeats again.
 
-Restart while running considerations.
+While in spin-up mode, Sapog will slowly increase the voltage from the initial value specified
+by \CfgRef{mot+v+spinup} until the minimal operating voltage \CfgRef{mot+v+min} is reached.
+The duration of the spin-up voltage ramp is specified by the parameter \CfgRef{mot+spup+vramp+t},
+in seconds.
+The ramp is graphically illustrated on the image \ref{spinup_voltage_ramp}.
 
 \begin{figure}[hbt]
     \centering
@@ -627,6 +639,52 @@ Restart while running considerations.
 	\label{spinup_voltage_ramp}}
 \end{figure}
 
+It should be noted that high initial voltages and/or steep voltage ramps need to be avoided,
+because they may lead to severe instabilities in the beginning of the spin-up sequence.
+Keep in mind that it is virtually impossible for any synchronous sensorless drive to create stable
+torque at low speeds, and especially at standstill.
+
+While spin-up is in progress, Sapog always operates at the zero advance angle
+(field weakening disabled) for the reasons explained earlier,
+regardless of the configured advance angle settings.
+
+\subsubsection{Spin-up rotor state observer}
+
+The zero crossing detector mentioned above operates in a very different way compared to the
+normal rotor state observer used in the normal operating mode.
+
+While operating in spin-up mode, the observable behavior of the induced BEMF may be very erratic,
+mainly due to the low magnitude of the signal and irregular rotation of the rotor caused by
+imprecise synchronization of the modulated field with the field of the rotor.
+In order to combat these difficulties, Sapog employs a different kind of observer, which provides
+more robust operation at low speeds.
+
+Immediately after commutation Sapog inserts a blanking delay $T_\text{blank}$
+defined by the following equation:
+\begin{equation}
+T_{\text{blank}}=
+\max \left(\frac{\Pi_{\text{blankusec}}}{10^6},
+\frac{\Pi_{\text{spupblnkpm}} T_{\text{comm}}}{1000}\right)
+\end{equation}
+where $\Pi_{\text{spupblnkpm}}$ is the value of the configuration parameter \CfgRef{mot+spup+blnk+pm}
+(permill of the commutation period),
+$T_{\text{comm}}$ is the duration of the last commutation period,
+$\Pi_{\text{blankusec}}$ is the value of the configuration parameter \CfgRef{mot+blank+usec}
+(in microseconds).
+
+Upon expiration of the blanking delay, Sapog watches the BEMF waiting for the flyback current to cease.
+Afterwards, Sapog starts to integrate the sampled BEMF voltages relative to the neutral voltage.
+Once the integrated voltage changes the sign, Sapog switches to the next commutation period.
+A more formal definition of the commutation condition is shown below:
+\begin{equation}
+\begin{aligned}
+&\sum_{n} E_{s_n} - E_{\text{neutral}_n} > 0 \qquad\text{for rising BEMF}\\
+&\sum_{n} E_{s_n} - E_{\text{neutral}_n} < 0 \qquad\text{for falling BEMF}
+\end{aligned}
+\end{equation}
+
+The principle is illustrated on the oscillogram \ref{spinup_phase_voltages}.
+
 \begin{figure}[hbt]
     \centering
 	\includegraphics[width=\textwidth]{spinup_phase_voltages}
@@ -634,12 +692,51 @@ Restart while running considerations.
 	\label{spinup_phase_voltages}}
 \end{figure}
 
+\subsubsection{Termination conditions}
+
+Spin-up will be considered finished once the maximum commutation period defined by the parameter
+\CfgRef{mot+comm+per+max} \emph{and} the minimum voltage \CfgRef{mot+v+min} are reached.
+Should the target commutation period be reached earlier than the voltage ramp comes to the final
+voltage level, the controller will significantly accelerate the ramp in order to converge to
+the minimum operating voltage faster.
+Once spin-up is finished, the controller will abandon the spin-up mode and switch into normal mode.
+
+If the target commutation period could not be reached in the amount of time specified by
+the parameter \CfgRef{mot+spup+to+ms}, in seconds, the controller will abort spin-up,
+shut down the VSI and register it as a normal rotor stall event.
+
+\subsubsection{Spin-up from non-stationary state}
+
+Sapog assumes that the rotor is (nearly) stationary in the beginning of the spin-up process.
+If this assumption is violated, there may be brief transient processes involving abnormal currents,
+high vibrations and high EMI.
+
+The transient currents can be either forward or regenerative, depending on whether the desired
+and the actual directions of rotation match, and whether the initial guess of the current
+commutation step was correct.
+
+Typically Sapog can establish adequate synchronization in a few steps.
+If the rotor was rotating in the same direction but at a higher speed,
+it will be rapidly decelerated until the speed defined by the load and the source voltage is
+reached.
+If it is expected that the motor will be frequently started from non-stationary state,
+it is recommended to either shorten the initial voltage ramp, or increase the initial
+spin-up voltage, in order to reduce the stresses caused by initial braking.
+
+\subsubsection{Configuration parameters}
+
+This section summarizes information about the configuration parameters pertaining to the spin-up mode.
+Read the preceding sections for a more detailed review.
+
 \begin{itemize}
-\item \CfgRef{mot+spup+blnk+pm} - .
-\item \CfgRef{mot+spup+to+ms} - .
-\item \CfgRef{mot+spup+st+cp} - .
-\item \CfgRef{mot+spup+vramp+t} - .
-\item \CfgRef{mot+v+spinup} - .
+\item \CfgRef{mot+spup+blnk+pm} - duration of the extended blanking time during spin-up in permill
+(i.e. one-thousands; $10\text{\space{}permill} = 1\% $) of the current commutation period.
+\item \CfgRef{mot+spup+to+ms} - overall spin-up timeout, in milliseconds.
+If spin-up could not be completed in this amount of time, the rotor will be considered stalled.
+\item \CfgRef{mot+spup+st+cp} - maximum commutation period for spin-up mode, in microseconds.
+This is also the initial commutation period.
+\item \CfgRef{mot+spup+vramp+t} - duration of the initial voltage ramp, in seconds.
+\item \CfgRef{mot+v+spinup} - initial source voltage $E_s$ in the beginning of the voltage ramp, in volts.
 \end{itemize}
 
 \subsection{Open loop operation}
