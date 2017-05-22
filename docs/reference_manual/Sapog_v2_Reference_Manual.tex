@@ -911,9 +911,32 @@ See equation \ref{eq:rpm_pid_control_loop_period}.
 \item $\Pi_{\text{rpmctld}}$ - derivative term of the PID controller.
 \end{itemize}
 
-\subsection{Current measurement}
+\subsection{Current and voltage measurements}
 
+\subsubsection{Measurement}
 
+Sapog measures the DC inverter current $I_\text{inv}$ by means of a current shunt installed on the ground path,
+the output of which is connected to the ADC via a current amplifier with a fixed gain coefficient of 10.
+
+The resistance of the current shunt is specified via the configuration parameter \CfgRef{mot+i+shunt+mr},
+in milliohms.
+
+The inverter supply voltage $V_\text{inv}$ is measured through a resistor divider with the same
+division ratio as that of the BEMF feedback circuits.
+This division ratio is hard-coded per every supported hardware design and cannot be changed by the user.
+
+Measurements of the inverter DC current $I_\text{inv}$ and voltage $V_\text{inv}$
+are filtered with a first-order low-pass filter.
+The corner frequency of the filter is specified by the parameter \CfgRef{mot+lpf+freq}, in hertz.
+
+\subsubsection{Current limiting}
+
+Sapog can limit the maximum DC bus current with the help of a simple P-controller
+that activates when the instant current exceeds the limit.
+The gain of the current limiting P-controller is specified via the configuration parameter
+\CfgRef{mot+i+max+p}, in $\frac{\text{DC}}{ampere}$, where $\text{DC}$ is the duty cycle units
+ranging in $\left[-1, 1\right]$.
+The maximum current is specified via the configuration parameter \CfgRef{mot+i+max}, in amperes.
 
 \section{Self diagnostics}
 
@@ -932,35 +955,35 @@ See equation \ref{eq:rpm_pid_control_loop_period}.
 \CfgDef{enum+max+step}
 \CfgDef{enum+steps}
 \CfgDef{enum+bemf}
-\CfgDef{mot+pwm+dt+ns}
-\CfgDef{mot+pwm+hz}
-\CfgDef{mot+spup+blnk+pm}
-\CfgDef{mot+spup+to+ms}
-\CfgDef{mot+spup+st+cp}
-\CfgDef{mot+comm+per+max}
-\CfgDef{mot+zc+fails+max}
-\CfgDef{mot+bemf+range}
-\CfgDef{mot+bemf+win+den}
-\CfgDef{mot+blank+usec}
-\CfgDef{mot+tim+cp+min}
-\CfgDef{mot+tim+cp+max}
-\CfgDef{mot+tim+adv+max}
-\CfgDef{mot+tim+adv+min}
-\CfgDef{mot+i+shunt+mr}
-\CfgDef{rpmctl+i}
-\CfgDef{rpmctl+d}
-\CfgDef{rpmctl+p}
-\CfgDef{mot+stop+thres}
-\CfgDef{mot+lpf+freq}
-\CfgDef{mot+i+max+p}
-\CfgDef{mot+i+max}
-\CfgDef{mot+rpm+min}
-\CfgDef{ctl+dir}
-\CfgDef{mot+num+poles}
-\CfgDef{mot+dc+slope}
-\CfgDef{mot+dc+accel}
-\CfgDef{mot+spup+vramp+t}
-\CfgDef{mot+v+spinup}
-\CfgDef{mot+v+min}
+\CfgDef{mot+pwm+dt+ns}            +
+\CfgDef{mot+pwm+hz}               +
+\CfgDef{mot+spup+blnk+pm}         +
+\CfgDef{mot+spup+to+ms}           +
+\CfgDef{mot+spup+st+cp}           +
+\CfgDef{mot+comm+per+max}         +
+\CfgDef{mot+zc+fails+max}         +
+\CfgDef{mot+bemf+range}           +
+\CfgDef{mot+bemf+win+den}         +
+\CfgDef{mot+blank+usec}           +
+\CfgDef{mot+tim+cp+min}           +
+\CfgDef{mot+tim+cp+max}           +
+\CfgDef{mot+tim+adv+max}          +
+\CfgDef{mot+tim+adv+min}          +
+\CfgDef{mot+i+shunt+mr}           +
+\CfgDef{rpmctl+i}                 +
+\CfgDef{rpmctl+d}                 +
+\CfgDef{rpmctl+p}                 +
+\CfgDef{mot+stop+thres}           +
+\CfgDef{mot+lpf+freq}             +
+\CfgDef{mot+i+max+p}              +
+\CfgDef{mot+i+max}                +
+\CfgDef{mot+rpm+min}              +
+\CfgDef{ctl+dir}                  +
+\CfgDef{mot+num+poles}            +
+\CfgDef{mot+dc+slope}             +
+\CfgDef{mot+dc+accel}             +
+\CfgDef{mot+spup+vramp+t}         +
+\CfgDef{mot+v+spinup}             +
+\CfgDef{mot+v+min}                +
 
 \end{document}
