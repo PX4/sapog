@@ -132,7 +132,7 @@ and $\omega_e$ is the electrical angular velocity.
 
 Electrical angular velocity $\omega_e$ is a function of the mechanical angular velocity $\omega_m$
 and the number of rotor magnetic poles $N_p$:
-\begin{equation}
+\begin{equation}\label{eq:speed_electrical_mechanical}
 \omega_e = \frac{\omega_m N_p}{2}\qquad
 N_p \geq 2, N_p\text{\ is even}
 \end{equation}
@@ -704,8 +704,8 @@ the minimum operating voltage faster.
 Once spin-up is finished, the controller will abandon the spin-up mode and switch into normal mode.
 
 If the target commutation period could not be reached in the amount of time specified by
-the parameter \CfgRef{mot+spup+to+ms}, in seconds, the controller will abort spin-up,
-shut down the VSI and register it as a normal rotor stall event.
+the parameter \CfgRef{mot+spup+to+ms}, in milliseconds, the controller will abort spin-up,
+shut down the VSI and register it as a regular rotor stall event.
 
 \subsubsection{Spin-up from non-stationary state}
 
@@ -741,15 +741,18 @@ This is also the initial commutation period.
 \item \CfgRef{mot+v+spinup} - initial source voltage $E_s$ in the beginning of the voltage ramp, in volts.
 \end{itemize}
 
-\subsection{Open loop operation}
+\subsection{Open loop operation}\label{sec:open_loop}
 
 While operating in the open loop mode, Sapog accepts setpoints in the range from 0\% to 100\%,
 and treats that as the fraction of the inverter supply voltage $V_\text{inv}$ to
 deliver to the motor $E_s$:
 \begin{equation}
-E_s = V_\text{inv}\cdot{}\mathrm{ramp}\left(S\right) \qquad\text{for open loop mode}, S \in \left(0, 1\right]
+E_s = V_\text{inv}\cdot{}\mathrm{ramp}\left(\mathrm{limit}\left(S_\text{DC}\right)\right)
+\qquad\text{for open loop mode}, S_\text{DC} \in \left(0, 1\right]
 \end{equation}
-where $S$ is the setpoint, and $\mathrm{ramp}$ is the setpoint ramp function.
+where $S_\text{DC}$ is the setpoint (DC stands for \emph{duty cycle}),
+$\mathrm{ramp}$ is the setpoint ramp function,
+and $\mathrm{limit}$ is the speed limiting P-controller, reviewed below.
 
 The ramp function replaces abrupt changes in the setpoint with gradual changes.
 Abrupt changes that are small enough to not be a hazard to stability of the drive are
@@ -770,20 +773,98 @@ Reduce them if rapid setpoint changes cause stability issues.
 
 Note that the minimum acceptable setpoint is constrained by the minimum duty cycle deduced from
 the parameter \CfgRef{mot+v+min}.
-If the setpoint falls into $\left(0, S_\text{min}\right]$, where $S_\text{min}$ is the minimum
+If the setpoint falls into $\left(0, S_{\text{DC}_\text{min}}\right]$,
+where $S_{\text{DC}_\text{min}}$ is the minimum
 duty cycle deduced from the parameter \CfgRef{mot+v+min},
-it will be silently overridden to $S_\text{min}$.
+it will be silently overridden to $S_{\text{DC}_\text{min}}$.
 
-The maximum acceptable setpoint will be automatically limited if the motor approaches the maximum
-operating speed permitted by the current PWM carrier frequency,
-as shown on the figure \ref{pwm_maximum_speed}.
+The maximum acceptable setpoint will be automatically limited by means of a simple
+P-controller\footnote{Proportional controller, i.e. only P term of a PID controller is implemented.}
+if the motor approaches the maximum operating speed permitted by the
+current PWM carrier frequency, as shown on the figure \ref{pwm_maximum_speed}.
 
 A zero setpoint is treated as the command to stop the motor.
 While the motor is stopped, the VSI is disabled, allowing the shaft to rotate freely.
 
 \subsection{RPM control loop}
 
-TODO provide exact units of the configuration parameters.
+When operating in the RPM control mode, also known as RPM governor mode,
+Sapog will try to maintain a specified mechanical speed.
+Speed control is implemented by means of a parallel PID controller
+that takes the current mechanical RPM as input and
+produces the duty cycle setpoint at the output.
+
+The nominal update rate of the PID controller $T_{\text{RPMPID}}$ is defined as follows:
+\begin{equation}\label{eq:rpm_pid_control_loop_period}
+T_{\text{RPMPID}} \approx \max \left(10^{-3},T_{\text{comm}}\right)
+\end{equation}
+where $T_\text{comm}$ is the current commutation period.
+Update of the RPM control loop is not a hard real time process, and the software is allowed to
+deviate.
+
+RPM control loop relies on the duty cycle slope control function defined in the section \ref{sec:open_loop},
+so the related configuration parameters are still applicable.
+The speed limiting P-controller that is used in the open loop mode, however,
+is entirely bypassed in RPM mode.
+The maximum supported speed is dependent on the PWM carrier frequency;
+see the figure \ref{pwm_maximum_speed} for details.
+Equation \ref{eq:speed_electrical_mechanical} defines the relation between electrical
+and mechanical angular rates.
+
+If the commanded setpoint is lower than the value specified by the parameter \mbox{\CfgRef{mot+rpm+min},}
+the actual setpoint will be silently increased to match this value.
+A zero setpoint is treated as the command to stop the motor.
+While the motor is stopped, the VSI is disabled, allowing the shaft to rotate freely.
+
+The RPM PID controller does not wind up the integral term if the output is constrained by external factors,
+such as:
+\begin{itemize}
+\item Duty cycle ramp.
+\item Current limiting controller.
+\item Maximum RPM limit.
+\end{itemize}
+
+The configuration parameters listed below govern operation of the RPM control loop.
+The symbol $\text{DC}$ refers to the duty cycle unit ranging in $\left[-1, 1\right]$,
+where negative values correspond to negative inverter source voltage $E_s$.
+
+\begin{itemize}
+\item \CfgRef{mot+num+poles} - the number of magnetic poles on the rotor, always even, always $\geq 2$.
+This parameter is needed for the controller to convert the electrical speed $\text{RPM}_e$
+into mechanical $\text{RPM}_m$.
+\item \CfgRef{rpmctl+p} - proportional term of the RPM PID controller,
+in $\frac{\text{DC}}{\text{RPM}_m}$.
+\item \CfgRef{rpmctl+i} - integral term of the RPM PID controller,
+in $\frac{\text{DC}}{\text{second}\cdot{}\text{RPM}_m}$.
+\item \CfgRef{rpmctl+d} - derivative term of the RPM PID controller,
+in $\frac{\text{second}\cdot{}\text{DC}}{\text{RPM}_m}$.
+\item \CfgRef{mot+rpm+min} - minimum mechanical RPM at which stable operation is guaranteed.
+\end{itemize}
+
+The overall RPM control loop output for time step $n$ can be approximated with the following equations:
+\begin{equation}
+e(n) = \omega_{m_{n}} - S_{\omega_{m_{n}}}
+\end{equation}
+\begin{equation}
+E_{s_n} = V_{\text{inv}_n}\cdot\mathrm{ramp}
+\left[
+\underbrace{\frac{e\left(n\right) - e\left(n-1\right)}{T_{\text{RPMPID}}} \Pi_{\text{rpmctld}}}_\text{derivative} +
+\mathrm{clamp}\left(\underbrace{\sum_{i=0}^n e\left(i\right) \Pi_{\text{rpmctli}}}_\text{integral}\right) +
+\underbrace{e\left(n\right) \Pi_{\text{rpmctlp}}}_\text{proportional}
+\right]
+\end{equation}
+where:
+\begin{itemize}
+\item $\mathrm{ramp}$ - slope control function defined in the section \ref{sec:open_loop}.
+\item $\mathrm{clamp}$ - integrator wind-up control function described in this section.
+\item $\omega_{m}$ - current speed, in mechanical RPM.
+\item $S_{\omega_{m}}$ - target speed setpoint, in mechanical RPM.
+\item $T_{\text{RPMPID}}$ - instant control loop update period.
+See equation \ref{eq:rpm_pid_control_loop_period}.
+\item $\Pi_{\text{rpmctlp}}$ - proportional term of the PID controller.
+\item $\Pi_{\text{rpmctli}}$ - integral term of the PID controller.
+\item $\Pi_{\text{rpmctld}}$ - derivative term of the PID controller.
+\end{itemize}
 
 \subsection{Current measurement}
 
