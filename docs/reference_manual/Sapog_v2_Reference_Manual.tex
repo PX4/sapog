@@ -940,6 +940,135 @@ The maximum current is specified via the configuration parameter \CfgRef{mot+i+m
 
 \section{Self diagnostics}
 
+Sapog contains a set of diagnostic routines that can detect problems with the hardware.
+The diagnostic routines are executed automatically at start up.
+Additionally they can be run by external request.
+
+While tests are executed, their progress and status information are printed to the CLI.
+The user can understand the nature of detected failures by reading the printed test reports.
+
+If at least one test fails at start-up, the controller will enter panic mode,
+where it will remain until power cycled.
+Learn more about this in the chapter \ref{sec:indication}.
+
+\subsection{Power stage test}
+
+During the power stage test, Sapog modulates a voltage sequence shown on the table below
+and then validates the acquired BEMF samples.
+The following legend applies:
+\begin{itemize}
+\item L - low voltage level. The low side transistor is constantly turned on.
+\item H - high voltage level. A high duty cycle PWM is modulated on the phase.
+\item F - the phase is floating. Both high and low transistors are turned off.
+\end{itemize}
+
+\begin{ZubaxCompactTable}{|c|c|c|c|}
+    Step    & Phase A & Phase B & Phase C \\
+    1       & L       & F       & F       \\
+    2       & H       & F       & F       \\
+    3       & F       & L       & F       \\
+    4       & F       & H       & F       \\
+    5       & F       & F       & L       \\
+    6       & F       & F       & H       \\
+\end{ZubaxCompactTable}
+
+The voltage at the output of the BEMF feedback circuits is sampled once for each non-floating phase;
+which produces six samples $Q_1 \ldots Q_6$.
+Then the following assertions are verified:
+\begin{equation}
+\begin{aligned}
+&Q_1 < L \\
+&Q_3 < L \\
+&Q_5 < L \\
+&Q_2 \approx Q_4 \approx Q_6
+\end{aligned}
+\end{equation}
+where $L$ is a specific lower threshold defined by the hardware implementation,
+typically at the level corresponding to 5\% of the dynamic range of BEMF.
+
+The test is considered passed only of all assertions are true.
+It is easy to see that this test is invariant to the fact whether the motor is connected or not.
+
+Malfunctions in the following components may cause this test to fail:
+\begin{itemize}
+\item VSI transistors.
+\item VSI transistor drivers.
+\item PWM module of the microcontroller.
+\item BEMF feedback circuits.
+\item ADC module of the microcontroller.
+\end{itemize}
+
+\subsection{Phase cross-conductivity test}
+
+The cross-conductivity test allows the controller to detect short-circuits between any of the three
+phases or their BEMF feedback circuits.
+During this test, the sequence shown in the table below is modulated at the output of the VSI.
+The following legend applies:
+\begin{itemize}
+\item H - high voltage level. A high duty cycle PWM is modulated on the phase.
+\item F - the phase is floating. Both high and low transistors are turned off.
+\end{itemize}
+
+\begin{ZubaxCompactTable}{|c|c|c|c|}
+    Step    & Phase A & Phase B & Phase C \\
+    1       & H       & F       & F       \\
+    2       & F       & H       & F       \\
+    3       & F       & F       & H       \\
+\end{ZubaxCompactTable}
+
+At each step, voltages of all three phases are sampled, which yields the set of samples shown in the next table.
+It is assumed that phases that are floating will be pulled down by the resistor dividers in the BEMF feedback
+circuits.
+
+\begin{ZubaxCompactTable}{|c|c|c|c|}
+    Step    & Phase A & Phase B & Phase C \\
+    1       &$Q_{1A}$ &$Q_{1B}$ &$Q_{1C}$  \\
+    2       &$Q_{2A}$ &$Q_{2B}$ &$Q_{2C}$  \\
+    3       &$Q_{3A}$ &$Q_{3B}$ &$Q_{3C}$  \\
+\end{ZubaxCompactTable}
+
+The following assertions are then validated:
+\begin{equation}
+\begin{aligned}
+&Q_{1A} > H \qquad{} Q_{1B} < L \qquad{} Q_{1C} < L \\
+&Q_{2A} < L \qquad{} Q_{2B} > H \qquad{} Q_{2C} < L \\
+&Q_{3A} < L \qquad{} Q_{3B} < L \qquad{} Q_{3C} > H \\
+\end{aligned}
+\end{equation}
+where $H$ and $L$ are arbitrary hardware-defined thresholds, high and low, respectively.
+
+Failure of at least one assertion against $H$ indicates that the corresponding phase
+or its BEMF feedback circuits are not functioning correctly.
+Failure of at least one assertion against $L$ indicates that there is a short circuit between
+the current high phase and the phase of the column of the failed assertion.
+
+It is easy to see that the test will always be failing if the motor is connected.
+Sapog can recognize that the motor is connected by observing all phases shorted,
+in which case the results of this test will be discarded and the test will be considered passed.
+
+\subsection{Inverter voltage and current feedback test}
+
+Over the course of this test, Sapog merely verifies that the measurements reported by the
+current and voltage measurement blocks are sane and fall within the expected ranges,
+which are hardware-defined.
+
+This test can detect issues with the respective measurement circuits,
+ADC, and the power supply of the microcontroller.
+
+\chapter{Indication}\label{sec:indication}
+
+\section{RGB LED}
+
+\section{Sound}
+
+
+\chapter{Communication interfaces}
+
+\section{UAVCAN}
+
+\section{CLI}
+
+\section{RCPWM}
 
 
 \chapter{Configuration parameters}
