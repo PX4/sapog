@@ -10,6 +10,11 @@
 \usepackage{diagbox}
 \usepackage{amsmath}
 
+% Draft watermark
+\usepackage{draftwatermark}
+\SetWatermarkLightness{0.85}
+\SetWatermarkText{DRAFT}
+
 \title{Sapog v2 Reference Manual}
 
 %
@@ -88,15 +93,31 @@ Please refer to your product documentation for relevant information about the ha
 \end{titlepage}
 
 \tableofcontents
+\BeginRightColumn
 \listoffigures
 \listoftables
 
 \mainmatter
 
-\chapter{Principles of operation}
+\chapter{Introduction}
 
-This chapter provides a brief overview of the basic operating principles of electric permanent magnet
-synchronous motors, and the relevant approaches and solutions implemented in Sapog.
+\section{Overview}
+
+This document provides detailed information about the basic operating principles and
+implementation details of the Sapog BLDC motor controller firmware.
+
+This document is focused exclusively on the aspects pertaining to the firmware itself.
+All questions related to particular hardware implementations are intentionally left out;
+that information should be gathered from the hardware datasheets distributed by
+hardware vendors.
+
+\section{Conventions}
+
+Unless specifically stated otherwise, all units of measurements used in this document are assumed to be SI.
+
+Within equations, references to configuration parameter values are made through the symbol $\Pi$
+with the name of the configuration parameter in the subscript;
+for example: $\Pi_\text{parametername}$.
 
 \section{Definitions}
 
@@ -111,6 +132,11 @@ synchronous motors, and the relevant approaches and solutions implemented in Sap
     \item[ADC] Analog to digital converter.
     \item[VSI] Voltage source inverter.
 \end{description}
+
+\chapter{Principles of operation}
+
+This chapter provides a brief overview of the basic operating principles of electric permanent magnet
+synchronous motors, and the relevant approaches and solutions implemented in Sapog.
 
 \section{PMSM and BLDC motors}
 
