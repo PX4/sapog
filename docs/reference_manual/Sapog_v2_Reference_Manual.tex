@@ -113,6 +113,7 @@ hardware vendors.
 \section{Conventions}
 
 Unless specifically stated otherwise, all units of measurements used in this document are assumed to be SI.
+Units of measurements are shown in square brackets, e.g. $\left[\text{unit}\right]$.
 
 Within equations, references to configuration parameter values are made through the symbol $\Pi$
 with the name of the configuration parameter in the subscript;
@@ -126,8 +127,6 @@ for example: $\Pi_\text{parametername}$.
     \item[RPM] Revolutions per minute.
     \item[EMF] Electromotive force.
     \item[BEMF] Back electromotive force.
-    \item[$K_V$] Motor velocity constant. Sometimes written as KV, although
-    this form is discouraged because it can be confused with kilovolt.
     \item[ADC] Analog to digital converter.
     \item[VSI] Voltage source inverter.
 \end{description}
@@ -152,10 +151,12 @@ of the rotor, and the magnetic flux linkage of the motor. The dependency can be 
 \begin{equation}
 E_b = \phi \omega_e
 \end{equation}
-where $E_b$ is the induced back electromotive force, $\phi$ is the magnetic flux linkage,
-and $\omega_e$ is the electrical angular velocity.
+where $E_b$ $\left[\text{volt}\right]$ is the induced back electromotive force,
+$\phi$ $\left[\text{weber}\right]$ is the magnetic flux linkage,
+and $\omega_e$ $\left[\frac{\text{radian}}{\text{second}}\right]$ is the electrical angular velocity.
 
-Electrical angular velocity $\omega_e$ is a function of the mechanical angular velocity $\omega_m$
+Electrical angular velocity is a function of the mechanical angular velocity
+$\omega_m$ $\left[\frac{\text{radian}}{\text{second}}\right]$
 and the number of rotor magnetic poles $N_p$:
 \begin{equation}\label{eq:speed_electrical_mechanical}
 \omega_e = \frac{\omega_m N_p}{2}\qquad
@@ -168,27 +169,35 @@ respectively, as follows:
 \text{RPM} = \frac{30 \omega }{\pi }
 \end{equation}
 
-Motor velocity constant $K_V$ can be expressed via the magnetic flux linkage $\phi$ as follows:
-\begin{equation}
-K_V = \frac{20 \sqrt{3}}{\pi  N_p \phi }
-\end{equation}
-
-The armature current $I_a$ is proportional to the voltage difference between the induced back EMF and
-the source voltage $E_s$:
+The armature current $I_a$ $\left[\text{ampere}\right]$ is proportional to
+the voltage difference between the induced back EMF and
+the source voltage $E_s$ $\left[\text{volt}\right]$:
 \begin{equation}
 I_a = \frac{E_s - E_b}{R}
 \end{equation}
-where $R$ is the internal resistance of the stator.
+where $R$ $\left[\text{ohm}\right]$ is the internal resistance of the stator.
 
-Torque $\tau$ observed on the shaft is dependent on the torque-generating current and the velocity constant
-as follows:
+Torque $\tau$ $\left[\text{newton}\cdot{}\text{meter}\right]$ observed on the shaft is dependent on the
+torque-generating current, flux linkage, and the number of rotor magnetic poles as follows:
 \begin{equation}
-\tau = \frac{30 I_a}{\pi K_V}
+\tau = \frac{\sqrt{3}}{2} I_a N_p \phi
 \end{equation}
 
-The mechanical power output $P$ is the product of the torque and the mechanical angular velocity:
+Mechanical power output $P$ $\left[\text{watt}\right]$
+is the product of torque and mechanical angular velocity:
 \begin{equation}
 P = \tau \omega_m
+\end{equation}
+
+Motor velocity constant $K_V$ $\left[\frac{\text{RPM}_m}{\text{volt}}\right]$
+is sometimes used in marketing materials and motor specifications
+instead of magnetic flux linkage.\footnote{Sometimes $K_V$ is written as KV, although
+this form is discouraged because it can be confused with kilovolt (kV).}
+This is not a SI quantity, so its use is generally discouraged.
+It can be expressed via the magnetic flux linkage $\phi$
+and the number of rotor magnetic poles $N_p$ as follows:
+\begin{equation}
+K_V = \frac{20 \sqrt{3}}{\pi  N_p \phi }
 \end{equation}
 
 \subsection{BEMF shape}
@@ -317,7 +326,8 @@ The minimum voltage limit does not apply to RPM loop mode,
 where the minimum speed is governed by the dedicated configuration parameter shown above.
 
 The following equation can be used to convert between commutation period $T_\text{comm}$
-and electrical angular velocity $\omega_e$:
+$\left[\text{second}\right]$
+and electrical angular velocity $\omega_e$ $\left[\frac{\text{radian}}{\text{second}}\right]$:
 \begin{equation}
 \omega_e = \frac{\pi}{3 T_\text{comm}}
 \end{equation}
@@ -474,7 +484,7 @@ N_\text{samples} =
 where $T_{\text{comm}}$ is the current commutation period,
 $\Pi_\text{bemfwinden}$ is the value of the configuration parameter,
 $\alpha$ is the current commutation advance angle in electrical rotor position degrees,
-and $F_{\text{pwm}}$ is the PWM carrier frequency.
+and $F_{\text{pwm}}$ $\left[\text{hertz}\right]$ is the PWM carrier frequency.
 
 An attentive reader might point out that the assumption of linear BEMF that the described method rests
 upon does not hold for BLAC motors, since the induced BEMF of a floating phase will be sinusoidal rather
@@ -1067,11 +1077,15 @@ In the latter case, the status indication output is overridden in favor of the e
 received indication commands.
 
 \newcommand{\ShowSolidColor}[1]{%
-{\color{#1}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}}
+{\color{#1}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}\rule{0.4em}{0.8em}}%
 }
-\newcommand{\ShowBlinkingColor}[1]{%
-{\color{#1}\rule{0.4em}{0.8em}\rule{0.4em}{0.0em}\rule{0.4em}{0.8em}\rule{0.4em}{0.0em}\rule{0.4em}{0.8em}}
-}
+\newcommand{\ShowBlinkingColor}[1]{{%
+\color{#1}\rule{0.4em}{0.8em}%
+\color{black}\rule{0.4em}{0.8em}%
+\color{#1}\rule{0.4em}{0.8em}%
+\color{black}\rule{0.4em}{0.8em}%
+\color{#1}\rule{0.4em}{0.8em}%
+}}
 
 \subsection{Firmware status indication}
 
