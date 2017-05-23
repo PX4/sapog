@@ -668,7 +668,7 @@ from standstill, especially so if the shaft is attached to a mechanical/inertial
 When starting the motor, Sapog sets the source voltage $E_s$ to the value specified in the
 configuration parameter \CfgRef{mot+v+spinup}, and activates the commutation step at the index 1.
 Having done so, Sapog begins to wait for the zero crossing detector to report that it is time to
-begin the next commutation period; until the amount of time specified by the configuration parameter
+begin the next commutation period, or until the amount of time specified by the configuration parameter
 \CfgRef{mot+spup+st+cp} expires, whichever happens first.
 Afterwards, Sapog switches to the next commutation step, and the process repeats again.
 
