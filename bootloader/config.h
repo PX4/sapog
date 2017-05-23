@@ -200,25 +200,25 @@
 
 
 #define GPIO_FET_A_L_LOW (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                          GPIO_PORTA | GPIO_PIN7)
+                          GPIO_MODE_2MHz | GPIO_PORTA | GPIO_PIN7)
 #define GPIO_FET_B_L_LOW (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                          GPIO_PORTB | GPIO_PIN0)
+                          GPIO_MODE_2MHz | GPIO_PORTB | GPIO_PIN0)
 #define GPIO_FET_C_L_LOW (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                          GPIO_PORTB | GPIO_PIN1)
+                          GPIO_MODE_2MHz | GPIO_PORTB | GPIO_PIN1)
 
 #define GPIO_FET_A_H_LOW (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                          GPIO_PORTA | GPIO_PIN8)
+                          GPIO_MODE_2MHz | GPIO_PORTA | GPIO_PIN8)
 #define GPIO_FET_B_H_LOW (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                          GPIO_PORTA | GPIO_PIN9)
+                          GPIO_MODE_2MHz | GPIO_PORTA | GPIO_PIN9)
 #define GPIO_FET_C_H_LOW (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                          GPIO_PORTA | GPIO_PIN10)
+                          GPIO_MODE_2MHz | GPIO_PORTA | GPIO_PIN10)
 
 #define GPIO_LED_R (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                    GPIO_PORTC | GPIO_PIN6)
+                    GPIO_MODE_2MHz | GPIO_PORTC | GPIO_PIN6)
 #define GPIO_LED_G (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                    GPIO_PORTC | GPIO_PIN7)
+                    GPIO_MODE_2MHz | GPIO_PORTC | GPIO_PIN7)
 #define GPIO_LED_B (GPIO_OUTPUT | GPIO_CNF_OUTPP | GPIO_OUTPUT_CLEAR | \
-                    GPIO_PORTC | GPIO_PIN8)
+                    GPIO_MODE_2MHz | GPIO_PORTC | GPIO_PIN8)
 
 #define GPIO_HWID_0 (GPIO_INPUT | GPIO_CNF_INPULLUP | GPIO_PORTC | GPIO_PIN0)
 #define GPIO_HWID_1 (GPIO_INPUT | GPIO_CNF_INPULLUP | GPIO_PORTC | GPIO_PIN1)
@@ -282,8 +282,6 @@ inline static void board_initialize(void)
     stm32_configgpio(GPIO_HWID_1);
     stm32_configgpio(GPIO_HWID_2);
     stm32_configgpio(GPIO_HWID_3);
-
-    stm32_gpiowrite(GPIO_LED_R, true);
 }
 
 /************************************************************************************
@@ -368,7 +366,6 @@ inline static void board_get_hardware_version(uint8_t *major, uint8_t *minor,
  ****************************************************************************/
 
 typedef enum {
-    off,
     reset,
     autobaud_start,
     autobaud_end,
@@ -384,43 +381,42 @@ typedef enum {
 
 inline static void board_indicate(uiindication_t indication)
 {
-    stm32_gpiowrite(GPIO_LED_R, false);
-    stm32_gpiowrite(GPIO_LED_G, false);
-    stm32_gpiowrite(GPIO_LED_B, false);
+    stm32_gpiowrite(GPIO_LED_R, true); // the logic is inverted
+    stm32_gpiowrite(GPIO_LED_G, true);
+    stm32_gpiowrite(GPIO_LED_B, true);
 
     switch (indication) {
-        case off:
         case reset:
-            stm32_gpiowrite(GPIO_LED_R, true);
+            stm32_gpiowrite(GPIO_LED_R, false);
+            stm32_gpiowrite(GPIO_LED_G, false);
+            stm32_gpiowrite(GPIO_LED_B, false);
             break;
         case autobaud_start:
-            stm32_gpiowrite(GPIO_LED_R, true);
-            stm32_gpiowrite(GPIO_LED_G, true);
+            stm32_gpiowrite(GPIO_LED_R, false);
+            stm32_gpiowrite(GPIO_LED_G, false);
             break;
         case autobaud_end:
-            stm32_gpiowrite(GPIO_LED_G, true);
+            stm32_gpiowrite(GPIO_LED_G, false);
             break;
         case allocation_start:
-            stm32_gpiowrite(GPIO_LED_R, true);
-            stm32_gpiowrite(GPIO_LED_B, true);
+            stm32_gpiowrite(GPIO_LED_R, false);
+            stm32_gpiowrite(GPIO_LED_B, false);
             break;
         case allocation_end:
-            stm32_gpiowrite(GPIO_LED_B, true);
+            stm32_gpiowrite(GPIO_LED_B, false);
             break;
         case fw_update_start:
-            stm32_gpiowrite(GPIO_LED_G, true);
-            stm32_gpiowrite(GPIO_LED_B, true);
+            stm32_gpiowrite(GPIO_LED_G, false);
+            stm32_gpiowrite(GPIO_LED_B, false);
             break;
         case fw_update_erase_fail:
         case fw_update_invalid_response:
         case fw_update_timeout:
         case fw_update_invalid_crc:
+            stm32_gpiowrite(GPIO_LED_R, false);
             break;
         case jump_to_app:
         default:
-            stm32_gpiowrite(GPIO_LED_R, true);
-            stm32_gpiowrite(GPIO_LED_G, true);
-            stm32_gpiowrite(GPIO_LED_B, true);
             break;
     }
 }

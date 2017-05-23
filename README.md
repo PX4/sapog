@@ -7,6 +7,12 @@ PX4 Sapog
 
 ## Change Log
 
+### v2.2
+
+* Added a low-pass filter on the estimated angular speed output.
+This change led to improved performance on motors with severe phase asummetry.
+* Improved RGB LED indication in the bootloader.
+
 ### v2.1
 
 * Fixed stability issues at extremely high RPM (>10k mechanical RPM for 14 pole motor).
