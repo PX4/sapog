@@ -1093,6 +1093,8 @@ While the firmware is running, the following LED colors can be used to reflect i
 The bootloader is started immediately after the device is powered on.
 It runs for several seconds, and then, unless there is no valid firmware image
 or update of the firmware is requested, the bootloader starts the firmware.
+More information on the bootloader is available in the section \ref{sec:bootloader}.
+
 While the bootloader is running, the following LED behaviors are defined.
 
 \begin{ZubaxSimpleTable}{Bootloader status indication via RGB LED}{|l l|X|}
@@ -1119,6 +1121,23 @@ External control overrides the state indication capabilities of the LED.
 
 \section{Sound}
 
+Sapog can modulate arbitrary sounds by applying specific low-power voltage patterns on the motor windings.
+Induced currents cause the windings to vibrate, which produces audible sounds at the frequency of the
+applied voltage.
+
+This feature can be invoked by external command via communication interfaces.
+
+At start up, Sapog generates two short beeps with the following parameters:
+frequency 1 kHz, duration 100 ms each, spacing 200 ms.
+
+\begin{ZubaxSimpleTable}{Sound modulation capabilities}{|X|c c|l|}
+    Parameter                            & Min & Max  & Unit \\
+    Audio frequency                      & 100 & 5000 & Hz \\
+    Duration of modulated sound          & 1   & 100  & ms \\
+\end{ZubaxSimpleTable}
+
+If the requested parameters fall outside the limits specified in the table,
+Sapog will automatically constrain the parameters in order to produce the closest achievable results.
 
 \chapter{Communication interfaces}
 
@@ -1173,7 +1192,7 @@ External control overrides the state indication capabilities of the LED.
 \CfgDef{mot+v+spinup}             +
 \CfgDef{mot+v+min}                +
 
-\chapter{Firmware upgrade}
+\chapter{Embedded bootloader}\label{sec:bootloader}
 
 \chapter{Tuning guide}
 
