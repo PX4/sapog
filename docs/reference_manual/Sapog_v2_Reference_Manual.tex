@@ -1064,6 +1064,12 @@ which are hardware-defined.
 This test can detect issues with the respective measurement circuits,
 ADC, and the power supply of the microcontroller.
 
+\subsection{Temperature monitoring}
+
+Sapog periodically queries a digital temperature sensor installed on the power stage.
+This information is reported outside via communication interfaces, but not used
+by Sapog itself.
+
 \chapter{Indication}\label{sec:indication}
 
 Sapog is equipped with means of visual and audial indication that are reviewed in this chapter.
