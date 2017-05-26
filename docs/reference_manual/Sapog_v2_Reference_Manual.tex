@@ -25,9 +25,6 @@
 % Expands to:
 %   mot_abc_def
 %
-% TODO: We may want to add an index of configuration parameters at the end of the document?
-%       It would be quite easy to do with this macro.
-%
 \newcommand{\CfgDef}[1]{
     \StrSubstitute{#1}{+}{\textunderscore}[\temp]
     \texttt{\temp}\label{#1}
@@ -35,6 +32,10 @@
 
 %
 % Use this macro to refer to configuration parameter definition from other parts of the document.
+%
+% NEVER MENTION CONFIGURATION PARAMETERS DIRECTLY BY NAME IN THE TEXT OF THE DOCUMENT.
+% The only acceptable way to refer to a configuration parameter is though this macro.
+%
 % Note that underscores in the parameter name must be replaced with +, e.g.:
 %   \CfgRef{mot+abc+def}
 % Expands to:
@@ -42,9 +43,18 @@
 %
 \newcommand{\CfgRef}[1]{
     \StrSubstitute{#1}{+}{\textunderscore}[\temp]
-    % It is also possible to create a reference with custom text using \hyperref[]{}, but that seems excessive.
     \texttt{\temp} {\footnotesize (page \pageref{#1})}
+    \listcsxadd{#1}{\thepage}   % This macro comes from the etoolbox package
 }
+
+%
+% This command generates a list of references to the specified parameter made from within the document.
+%
+\newcommand{\CfgListReferences}[1]{
+    \renewcommand*{\do}[1]{\hyperlink{page.##1}{##1}\space}
+    \dolistcsloop{#1}
+}
+
 
 \begin{document}
 \frontmatter
@@ -1170,47 +1180,85 @@ Sapog will automatically constrain the parameters in order to produce the closes
 
 \chapter{Configuration parameters}
 
-\CfgDef{esc+index}
-\CfgDef{cmd+ttl+ms}
-\CfgDef{cmd+start+dc}
-\CfgDef{uavcan+node+id}
-\CfgDef{light+index}
-\CfgDef{pwm+max+usec}
-\CfgDef{pwm+min+usec}
-\CfgDef{pwm+enable}
-\CfgDef{enum+max+step}
-\CfgDef{enum+steps}
-\CfgDef{enum+bemf}
-\CfgDef{mot+pwm+dt+ns}            +
-\CfgDef{mot+pwm+hz}               +
-\CfgDef{mot+spup+blnk+pm}         +
-\CfgDef{mot+spup+to+ms}           +
-\CfgDef{mot+spup+st+cp}           +
-\CfgDef{mot+comm+per+max}         +
-\CfgDef{mot+zc+fails+max}         +
-\CfgDef{mot+bemf+range}           +
-\CfgDef{mot+bemf+win+den}         +
-\CfgDef{mot+blank+usec}           +
-\CfgDef{mot+tim+cp+min}           +
-\CfgDef{mot+tim+cp+max}           +
-\CfgDef{mot+tim+adv+max}          +
-\CfgDef{mot+tim+adv+min}          +
-\CfgDef{mot+i+shunt+mr}           +
-\CfgDef{rpmctl+i}                 +
-\CfgDef{rpmctl+d}                 +
-\CfgDef{rpmctl+p}                 +
-\CfgDef{mot+stop+thres}           +
-\CfgDef{mot+lpf+freq}             +
-\CfgDef{mot+i+max+p}              +
-\CfgDef{mot+i+max}                +
-\CfgDef{mot+rpm+min}              +
-\CfgDef{ctl+dir}                  +
-\CfgDef{mot+num+poles}            +
-\CfgDef{mot+dc+slope}             +
-\CfgDef{mot+dc+accel}             +
-\CfgDef{mot+spup+vramp+t}         +
-\CfgDef{mot+v+spinup}             +
-\CfgDef{mot+v+min}                +
+This chapter summarizes all configuration parameters available in Sapog.
+
+\section{Non-volatile configuration storage}
+
+All configuration parameters are stored in a non-volatile memory
+that retains its contents across power cycles.
+
+Modification of any single parameter will trigger Sapog to commit all of them into the non-volatile
+memory one second after the last modification has taken place.
+The one second delay ensures that no excessive modifications of the non-volatile memory will be carried out.
+
+Sapog will not write or erase the non-volatile memory as long as the motor is running, in order to
+avoid interference with the hard real time motor control algorithms.
+If configuration was changed while the motor is running,
+a write operation will be scheduled and postponed until the motor is stopped.
+
+\section{Configuration parameter index}
+
+The minimum, maximum, and default values provided in the table are shown for exemplary purposes only,
+and they are \emph{not expected to be exactly correct} for all firmware revisions that this document applies to.
+
+% name, unit, takes effect at, min, max, default, note
+\newcommand\CfgParamIndexEntry[7]{%
+    \CfgDef{#1} & \CfgListReferences{#1} & #2 & #3 &
+    \footnotesize{#4} & \footnotesize{#5} & \footnotesize{#6} & #7 \tabularnewline
+}%
+
+\newenvironment{CfgParamIndex}[1]{%
+    \begin{ZubaxTableWrapper}{#1}
+    \begin{ZubaxWrappedTable}{|l l l|l|c c c|X|}
+    Name  &  References  &  Unit  &  Eff. at  &  Min  &  Max  &  Def. & Note \\
+}{%
+    \end{ZubaxWrappedTable}
+    \end{ZubaxTableWrapper}
+}
+
+\begin{CfgParamIndex}{Configuration parameters 1}
+\CfgParamIndexEntry{esc+index}{}{boot}{0}{15}{0}{}
+\CfgParamIndexEntry{cmd+ttl+ms}{}{boot}{100}{5000}{200}{}
+\CfgParamIndexEntry{cmd+start+dc}{}{boot}{0.01}{1}{1}{}
+\CfgParamIndexEntry{uavcan+node+id}{}{boot}{0}{125}{0}{}
+\CfgParamIndexEntry{light+index}{}{boot}{0}{255}{0}{}
+\CfgParamIndexEntry{pwm+max+usec}{}{boot}{1800}{2200}{2000}{}
+\CfgParamIndexEntry{pwm+min+usec}{}{boot}{800}{1200}{1000}{}
+\CfgParamIndexEntry{pwm+enable}{}{boot}{0}{1}{0}{}
+\CfgParamIndexEntry{enum+max+step}{}{boot}{2000}{100000}{50000}{}
+\CfgParamIndexEntry{enum+steps}{}{boot}{6}{200}{20}{}
+\CfgParamIndexEntry{enum+bemf}{}{boot}{5}{500}{20}{}
+\CfgParamIndexEntry{mot+pwm+dt+ns}{}{boot}{400}{800}{600}{}
+\CfgParamIndexEntry{mot+pwm+hz}{}{boot}{20000}{75000}{60000}{}
+\CfgParamIndexEntry{mot+spup+blnk+pm}{}{boot}{1}{300}{100}{}
+\CfgParamIndexEntry{mot+spup+to+ms}{}{boot}{100}{9000}{5000}{}
+\CfgParamIndexEntry{mot+spup+st+cp}{}{boot}{10000}{300000}{100000}{}
+\CfgParamIndexEntry{mot+comm+per+max}{}{boot}{1000}{10000}{4000}{}
+\CfgParamIndexEntry{mot+zc+fails+max}{}{boot}{6}{300}{20}{}
+\CfgParamIndexEntry{mot+bemf+range}{}{boot}{10}{100}{90}{}
+\CfgParamIndexEntry{mot+bemf+win+den}{}{boot}{3}{8}{4}{}
+\CfgParamIndexEntry{mot+blank+usec}{}{boot}{10}{300}{40}{}
+\CfgParamIndexEntry{mot+tim+cp+min}{}{boot}{100}{50000}{600}{}
+\CfgParamIndexEntry{mot+tim+cp+max}{}{boot}{100}{50000}{300}{}
+\CfgParamIndexEntry{mot+tim+adv+max}{}{boot}{0}{29}{15}{}
+\CfgParamIndexEntry{mot+tim+adv+min}{}{boot}{0}{20}{5}{}
+\CfgParamIndexEntry{mot+i+shunt+mr}{}{boot}{0.1}{100}{5}{}
+\CfgParamIndexEntry{rpmctl+i}{}{boot}{0}{10}{0.001}{}
+\CfgParamIndexEntry{rpmctl+d}{}{boot}{0}{1}{0}{}
+\CfgParamIndexEntry{rpmctl+p}{}{boot}{0}{1}{0.0001}{}
+\CfgParamIndexEntry{mot+stop+thres}{}{boot}{1}{100}{7}{}
+\CfgParamIndexEntry{mot+lpf+freq}{}{boot}{1}{200}{20}{}
+\CfgParamIndexEntry{mot+i+max+p}{}{boot}{0.01}{2}{0.2}{}
+\CfgParamIndexEntry{mot+i+max}{}{boot}{1}{60}{20}{}
+\CfgParamIndexEntry{mot+rpm+min}{}{boot}{50}{5000}{1000}{}
+\CfgParamIndexEntry{ctl+dir}{}{boot}{0}{1}{0}{}
+\CfgParamIndexEntry{mot+num+poles}{}{boot}{2}{100}{14}{}
+\CfgParamIndexEntry{mot+dc+slope}{}{boot}{0.1}{20}{5}{}
+\CfgParamIndexEntry{mot+dc+accel}{}{boot}{0.001}{0.5}{0.09}{}
+\CfgParamIndexEntry{mot+spup+vramp+t}{}{boot}{0}{10}{3}{}
+\CfgParamIndexEntry{mot+v+spinup}{}{boot}{0.01}{10}{0.5}{}
+\CfgParamIndexEntry{mot+v+min}{}{boot}{0.5}{10}{2.5}{}
+\end{CfgParamIndex}
 
 \chapter{Embedded bootloader}\label{sec:bootloader}
 
