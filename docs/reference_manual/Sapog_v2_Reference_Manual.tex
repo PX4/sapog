@@ -25,9 +25,9 @@
 % Expands to:
 %   mot_abc_def
 %
-\newcommand{\CfgDef}[1]{
-    \StrSubstitute{#1}{+}{\textunderscore}[\temp]
-    \texttt{\temp}\label{#1}
+\newcommand{\CfgDef}[1]{%
+    \StrSubstitute{#1}{+}{\textunderscore}[\temp]%
+    \texttt{\temp}\label{#1}%
 }
 
 %
@@ -41,20 +41,30 @@
 % Expands to:
 %   mot_abc_def
 %
-\newcommand{\CfgRef}[1]{
-    \StrSubstitute{#1}{+}{\textunderscore}[\temp]
-    \texttt{\temp} {\footnotesize (page \pageref{#1})}
-    \listcsxadd{#1}{\thepage}   % This macro comes from the etoolbox package
+\newcommand{\CfgRef}[1]{%
+    \StrSubstitute{#1}{+}{\textunderscore}[\temp]%
+    \texttt{\temp} {\footnotesize (page \pageref{#1})}%
+    % The stuff below comes from the etoolbox package
+    \xifinlistcs{\thepage}{#1}% Is this page number already in the list?
+    {}% Yes, no need to add it again.
+    {\listcsxadd{#1}{\thepage}} % No, it is not, add it now.
 }
 
 %
 % This command generates a list of references to the specified parameter made from within the document.
 %
-\newcommand{\CfgListReferences}[1]{
-    \renewcommand*{\do}[1]{\hyperlink{page.##1}{##1}\space}
-    \dolistcsloop{#1}
+\newcounter{CfgReferenceScratchpad}
+\newcommand{\CfgListReferences}[1]{%
+    \renewcommand*{\do}[1]{%
+        \ifnum\theCfgReferenceScratchpad=0%
+            \stepcounter{CfgReferenceScratchpad}%
+            \else{,\ }%
+        \fi%
+        \hyperlink{page.##1}{##1}%
+    }%
+    \dolistcsloop{#1}%
+    \setcounter{CfgReferenceScratchpad}{0}%
 }
-
 
 \begin{document}
 \frontmatter
@@ -953,7 +963,7 @@ The corner frequency of the filter is specified by the parameter \CfgRef{mot+lpf
 Sapog can limit the maximum DC bus current with the help of a simple P-controller
 that activates when the instant current exceeds the limit.
 The gain of the current limiting P-controller is specified via the configuration parameter
-\CfgRef{mot+i+max+p}, in $\frac{\text{DC}}{ampere}$, where $\text{DC}$ is the duty cycle units
+\CfgRef{mot+i+max+p}, in $\frac{\text{DC}}{\text{ampere}}$, where $\text{DC}$ is the duty cycle units
 ranging in $\left[-1, 1\right]$.
 The maximum current is specified via the configuration parameter \CfgRef{mot+i+max}, in amperes.
 
@@ -1189,75 +1199,130 @@ that retains its contents across power cycles.
 
 Modification of any single parameter will trigger Sapog to commit all of them into the non-volatile
 memory one second after the last modification has taken place.
-The one second delay ensures that no excessive modifications of the non-volatile memory will be carried out.
+The one second delay ensures that no excessive modifications of the non-volatile memory will be carried out
+when multiple configuration parameters are changed at the same time.
 
 Sapog will not write or erase the non-volatile memory as long as the motor is running, in order to
 avoid interference with the hard real time motor control algorithms.
 If configuration was changed while the motor is running,
-a write operation will be scheduled and postponed until the motor is stopped.
+a write operation will be postponed until the motor is stopped.
+
+If the device is turned off while the configuration storage was being updated,
+the stored configuration data may get damaged.
+
+The stored configuration is read from the non-volatile memory once upon boot-up.
+If Sapog detects that the stored configuration data has been damaged,
+it will automatically revert to the factory default configuration.
+Sapog can always reliably detect damage of the stored configuration data,
+so it is guaranteed that invalid configuration can never be loaded.
+
+\section{Firmware upgrade considerations}
+
+Configuration parameters of different revisions of the firmware may be incompatible with each other.
+For instance, some configuration parameters may be added, removed, or their value intervals may be changed.
+
+Sapog always checks whether the stored configuration data is compatible with the current firmware revision.
+If it is detected that the stored configuration cannot be applied to the current version of the firmware,
+Sapog will automatically revert to the factory default configuration.
+
+Keep these considerations in mind when upgrading the firmware.
 
 \section{Configuration parameter index}
 
 The minimum, maximum, and default values provided in the table are shown for exemplary purposes only,
 and they are \emph{not expected to be exactly correct} for all firmware revisions that this document applies to.
 
+The following abbreviations are adopted for the tables below:
+\begin{description}
+\item[TEA] Short for ``takes effect at''. This field specifies when the newly specified parameter value will
+take effect.
+\item[Def.] Short for ``default value''.
+\end{description}
+
 % name, unit, takes effect at, min, max, default, note
 \newcommand\CfgParamIndexEntry[7]{%
-    \CfgDef{#1} & \CfgListReferences{#1} & #2 & #3 &
-    \footnotesize{#4} & \footnotesize{#5} & \footnotesize{#6} & #7 \tabularnewline
+    \CfgDef{#1} & \footnotesize{#2} & \footnotesize{\CfgListReferences{#1}} & \footnotesize{#3} &
+    \footnotesize{#4} & \footnotesize{#5} & \footnotesize{#6} &
+    \footnotesize{#7} \tabularnewline
 }%
 
 \newenvironment{CfgParamIndex}[1]{%
     \begin{ZubaxTableWrapper}{#1}
-    \begin{ZubaxWrappedTable}{|l l l|l|c c c|X|}
-    Name  &  References  &  Unit  &  Eff. at  &  Min  &  Max  &  Def. & Note \\
+    \setlength\tabcolsep{2.5pt}
+    \begin{ZubaxWrappedTable}{@{} l l l l | c c c | X @{}}
+    Name & Unit & Pages & TEA & Min & Max & Def. & Note \\
 }{%
     \end{ZubaxWrappedTable}
     \end{ZubaxTableWrapper}
 }
 
-\begin{CfgParamIndex}{Configuration parameters 1}
-\CfgParamIndexEntry{esc+index}{}{boot}{0}{15}{0}{}
-\CfgParamIndexEntry{cmd+ttl+ms}{}{boot}{100}{5000}{200}{}
-\CfgParamIndexEntry{cmd+start+dc}{}{boot}{0.01}{1}{1}{}
-\CfgParamIndexEntry{uavcan+node+id}{}{boot}{0}{125}{0}{}
-\CfgParamIndexEntry{light+index}{}{boot}{0}{255}{0}{}
-\CfgParamIndexEntry{pwm+max+usec}{}{boot}{1800}{2200}{2000}{}
-\CfgParamIndexEntry{pwm+min+usec}{}{boot}{800}{1200}{1000}{}
-\CfgParamIndexEntry{pwm+enable}{}{boot}{0}{1}{0}{}
-\CfgParamIndexEntry{enum+max+step}{}{boot}{2000}{100000}{50000}{}
-\CfgParamIndexEntry{enum+steps}{}{boot}{6}{200}{20}{}
-\CfgParamIndexEntry{enum+bemf}{}{boot}{5}{500}{20}{}
-\CfgParamIndexEntry{mot+pwm+dt+ns}{}{boot}{400}{800}{600}{}
-\CfgParamIndexEntry{mot+pwm+hz}{}{boot}{20000}{75000}{60000}{}
-\CfgParamIndexEntry{mot+spup+blnk+pm}{}{boot}{1}{300}{100}{}
-\CfgParamIndexEntry{mot+spup+to+ms}{}{boot}{100}{9000}{5000}{}
-\CfgParamIndexEntry{mot+spup+st+cp}{}{boot}{10000}{300000}{100000}{}
-\CfgParamIndexEntry{mot+comm+per+max}{}{boot}{1000}{10000}{4000}{}
-\CfgParamIndexEntry{mot+zc+fails+max}{}{boot}{6}{300}{20}{}
-\CfgParamIndexEntry{mot+bemf+range}{}{boot}{10}{100}{90}{}
-\CfgParamIndexEntry{mot+bemf+win+den}{}{boot}{3}{8}{4}{}
-\CfgParamIndexEntry{mot+blank+usec}{}{boot}{10}{300}{40}{}
-\CfgParamIndexEntry{mot+tim+cp+min}{}{boot}{100}{50000}{600}{}
-\CfgParamIndexEntry{mot+tim+cp+max}{}{boot}{100}{50000}{300}{}
-\CfgParamIndexEntry{mot+tim+adv+max}{}{boot}{0}{29}{15}{}
-\CfgParamIndexEntry{mot+tim+adv+min}{}{boot}{0}{20}{5}{}
-\CfgParamIndexEntry{mot+i+shunt+mr}{}{boot}{0.1}{100}{5}{}
-\CfgParamIndexEntry{rpmctl+i}{}{boot}{0}{10}{0.001}{}
-\CfgParamIndexEntry{rpmctl+d}{}{boot}{0}{1}{0}{}
-\CfgParamIndexEntry{rpmctl+p}{}{boot}{0}{1}{0.0001}{}
-\CfgParamIndexEntry{mot+stop+thres}{}{boot}{1}{100}{7}{}
-\CfgParamIndexEntry{mot+lpf+freq}{}{boot}{1}{200}{20}{}
-\CfgParamIndexEntry{mot+i+max+p}{}{boot}{0.01}{2}{0.2}{}
-\CfgParamIndexEntry{mot+i+max}{}{boot}{1}{60}{20}{}
-\CfgParamIndexEntry{mot+rpm+min}{}{boot}{50}{5000}{1000}{}
-\CfgParamIndexEntry{ctl+dir}{}{boot}{0}{1}{0}{}
-\CfgParamIndexEntry{mot+num+poles}{}{boot}{2}{100}{14}{}
-\CfgParamIndexEntry{mot+dc+slope}{}{boot}{0.1}{20}{5}{}
-\CfgParamIndexEntry{mot+dc+accel}{}{boot}{0.001}{0.5}{0.09}{}
-\CfgParamIndexEntry{mot+spup+vramp+t}{}{boot}{0}{10}{3}{}
-\CfgParamIndexEntry{mot+v+spinup}{}{boot}{0.01}{10}{0.5}{}
-\CfgParamIndexEntry{mot+v+min}{}{boot}{0.5}{10}{2.5}{}
+\subsection{Motor control configuration parameters}
+
+\begin{CfgParamIndex}{Motor control configuration parameters}
+\CfgParamIndexEntry{mot+pwm+dt+ns}{nanosecond}{boot}{400}{800}{600}{PWM dead time}
+\CfgParamIndexEntry{mot+pwm+hz}{hertz}{boot}{20000}{75000}{60000}{PWM carrier frequency}
+\CfgParamIndexEntry{mot+spup+blnk+pm}{permill}{boot}{1}{300}{100}{Min blanking time during spin-up}
+\CfgParamIndexEntry{mot+spup+to+ms}{millisecond}{boot}{100}{9000}{5000}{Spin-up timeout}
+\CfgParamIndexEntry{mot+spup+st+cp}{microsecond}{boot}{10000}{300000}{100000}{Spin-up max/initial comm. period}
+\CfgParamIndexEntry{mot+comm+per+max}{microsecond}{boot}{1000}{10000}{4000}{Max comm. period for normal mode}
+\CfgParamIndexEntry{mot+zc+fails+max}{}{boot}{6}{300}{20}{Stall detection threshold}
+\CfgParamIndexEntry{mot+bemf+range}{percent}{boot}{10}{100}{90}{Valid BEMF magnitude}
+\CfgParamIndexEntry{mot+bemf+win+den}{}{boot}{3}{8}{4}{BEMF sampling window length denominator}
+\CfgParamIndexEntry{mot+blank+usec}{microsecond}{boot}{10}{300}{40}{Comm. blanking time for normal mode}
+\CfgParamIndexEntry{mot+tim+cp+min}{microsecond}{boot}{100}{50000}{600}{Advance angle interpolation point}
+\CfgParamIndexEntry{mot+tim+cp+max}{microsecond}{boot}{100}{50000}{300}{Advance angle interpolation point}
+\CfgParamIndexEntry{mot+tim+adv+max}{angular degree}{boot}{0}{29}{15}{Advance angle interpolation point}
+\CfgParamIndexEntry{mot+tim+adv+min}{angular degree}{boot}{0}{20}{5}{Advance angle interpolation point}
+\CfgParamIndexEntry{mot+i+shunt+mr}{milliohm}{boot}{0.1}{100}{5}{Resistance of the current measurement shunt}
+\CfgParamIndexEntry{rpmctl+p}{$\frac{\text{dutycycle}}{\text{RPM}_m}$}{boot}{0}{1}{0.0001}%
+{RPM loop PID proportional gain}
+\CfgParamIndexEntry{rpmctl+i}{$\frac{\text{dutycycle}}{\text{second}\cdot\text{RPM}_m}$}{boot}{0}{10}{0.001}%
+{RPM loop PID integral gain}
+\CfgParamIndexEntry{rpmctl+d}{$\frac{\text{second}\cdot\text{dutycycle}}{\text{RPM}_m}$}{boot}{0}{1}{0}%
+{RPM loop PID derivative gain}
+\CfgParamIndexEntry{mot+stop+thres}{}{boot}{1}{100}{7}{Lock-up threshold}
+\CfgParamIndexEntry{mot+lpf+freq}{hertz}{boot}{1}{200}{20}{Current/voltage low-pass filter corner frequency}
+\CfgParamIndexEntry{mot+i+max}{ampere}{boot}{1}{60}{20}{Maximum inverter current}
+\CfgParamIndexEntry{mot+i+max+p}{$\frac{\text{dutycycle}}{\text{ampere}}$}{boot}{0.01}{2}{0.2}%
+{Current limiter proportional gain}
+\CfgParamIndexEntry{mot+rpm+min}{RPM}{boot}{50}{5000}{1000}{Minimum setpoint for RPM control loop}
+\CfgParamIndexEntry{ctl+dir}{}{boot}{0}{1}{0}{Direction of rotation: 0 - forward, 1 - reverse}
+\CfgParamIndexEntry{mot+num+poles}{}{boot}{2}{100}{14}{Number of magnetic poles on the rotor}
+\CfgParamIndexEntry{mot+dc+slope}{$\frac{\text{dutycycle}}{\text{second}}$}{boot}{0.1}{20}{5}%
+{Duty cycle ramp steepness}
+\CfgParamIndexEntry{mot+dc+accel}{duty cycle}{boot}{0.001}{0.5}{0.09}{Duty cycle ramp bypass threshold}
+\CfgParamIndexEntry{mot+spup+vramp+t}{second}{boot}{0}{10}{3}{Duration of spin-up voltage ramp}
+\CfgParamIndexEntry{mot+v+spinup}{volt}{boot}{0.01}{10}{0.5}{Initial voltage of spin-up voltage ramp}
+\CfgParamIndexEntry{mot+v+min}{volt}{boot}{0.5}{10}{2.5}{Min inverter source voltage for normal mode}
+\end{CfgParamIndex}
+
+\subsection{UAVCAN interface configuration parameters}
+
+\begin{CfgParamIndex}{UAVCAN interface configuration parameters}
+\CfgParamIndexEntry{esc+index}{}{boot}{0}{15}{0}{UAVCAN index of this ESC}
+\CfgParamIndexEntry{cmd+ttl+ms}{millisecond}{boot}{100}{5000}{200}{Setpoint timeout}
+\CfgParamIndexEntry{cmd+start+dc}{duty cycle}{boot}{0.01}{1}{1}{Spin-up safety threshold}
+\CfgParamIndexEntry{uavcan+node+id}{}{boot}{0}{125}{0}{Node ID, zero for dynamic alloc.}
+\CfgParamIndexEntry{light+index}{}{boot}{0}{255}{0}{UAVCAN index of the RGB LED}
+\end{CfgParamIndex}
+
+\subsection{RCPWM interface configuration parameters}
+
+\begin{CfgParamIndex}{RCPWM interface configuration parameters}
+\CfgParamIndexEntry{pwm+max+usec}{microsecond}{boot}{1800}{2200}{2000}{Full throttle pulse duration}
+\CfgParamIndexEntry{pwm+min+usec}{microsecond}{boot}{800}{1200}{1000}{Zero throttle pulse duration}
+\CfgParamIndexEntry{pwm+enable}{}{boot}{0}{1}{0}{Enable this interface}
+\end{CfgParamIndex}
+
+\subsection{Forced rotation detection configuration parameters}
+
+The configuration parameters listed in this group are deprecated and scheduled for removal in one
+of the future revisions of the firmware.
+
+\begin{CfgParamIndex}{Forced rotation detection configuration parameters}
+\CfgParamIndexEntry{enum+max+step}{implementation defined}{undefined}{2000}{100000}{50000}{Not for production use}
+\CfgParamIndexEntry{enum+steps}{implementation defined}{undefined}{6}{200}{20}{Not for production use}
+\CfgParamIndexEntry{enum+bemf}{implementation defined}{undefined}{5}{500}{20}{Not for production use}
 \end{CfgParamIndex}
 
 \chapter{Embedded bootloader}\label{sec:bootloader}
