@@ -1261,7 +1261,7 @@ take effect.
 \subsection{Motor control configuration parameters}
 
 \begin{CfgParamIndex}{Motor control configuration parameters}
-\CfgParamIndexEntry{mot+pwm+dt+ns}{nanosecond}{boot}{400}{800}{600}{PWM dead time}
+\CfgParamIndexEntry{mot+pwm+dt+ns}{nanosecond}{boot}{400}{800}{}{PWM dead time}
 \CfgParamIndexEntry{mot+pwm+hz}{hertz}{boot}{20000}{75000}{60000}{PWM carrier frequency}
 \CfgParamIndexEntry{mot+spup+blnk+pm}{permill}{boot}{1}{300}{100}{Min blanking time during spin-up}
 \CfgParamIndexEntry{mot+spup+to+ms}{millisecond}{boot}{100}{9000}{5000}{Spin-up timeout}
@@ -1275,7 +1275,7 @@ take effect.
 \CfgParamIndexEntry{mot+tim+cp+max}{microsecond}{boot}{100}{50000}{300}{Advance angle interpolation point}
 \CfgParamIndexEntry{mot+tim+adv+max}{angular degree}{boot}{0}{29}{15}{Advance angle interpolation point}
 \CfgParamIndexEntry{mot+tim+adv+min}{angular degree}{boot}{0}{20}{5}{Advance angle interpolation point}
-\CfgParamIndexEntry{mot+i+shunt+mr}{milliohm}{boot}{0.1}{100}{5}{Resistance of the current measurement shunt}
+\CfgParamIndexEntry{mot+i+shunt+mr}{milliohm}{boot}{0.1}{100}{}{Resistance of the current measurement shunt}
 \CfgParamIndexEntry{rpmctl+p}{$\frac{\text{dutycycle}}{\text{RPM}_m}$}{boot}{0}{1}{0.0001}%
 {RPM loop PID proportional gain}
 \CfgParamIndexEntry{rpmctl+i}{$\frac{\text{dutycycle}}{\text{second}\cdot\text{RPM}_m}$}{boot}{0}{10}{0.001}%
@@ -1304,7 +1304,7 @@ take effect.
 \CfgParamIndexEntry{esc+index}{}{boot}{0}{15}{0}{UAVCAN index of this ESC}
 \CfgParamIndexEntry{cmd+ttl+ms}{millisecond}{boot}{100}{5000}{200}{Setpoint timeout}
 \CfgParamIndexEntry{cmd+start+dc}{duty cycle}{boot}{0.01}{1}{1}{Spin-up safety threshold}
-\CfgParamIndexEntry{uavcan+node+id}{}{boot}{0}{125}{0}{Node ID, zero for dynamic alloc.}
+\CfgParamIndexEntry{uavcan+node+id}{}{boot}{0}{125}{0}{Node ID, zero for dynamic allocation}
 \CfgParamIndexEntry{light+index}{}{boot}{0}{255}{0}{UAVCAN index of the RGB LED}
 \end{CfgParamIndex}
 
