@@ -149,6 +149,7 @@ for example: $\Pi_\text{parametername}$.
     \item[BEMF] Back electromotive force.
     \item[ADC] Analog to digital converter.
     \item[VSI] Voltage source inverter.
+    \item[ESC] Electronic speed controller, synonymous to PMSM controller in the context of electric vehicles.
 \end{description}
 
 \chapter{Principles of operation}
@@ -1181,9 +1182,87 @@ Sapog will automatically constrain the parameters in order to produce the closes
 
 \chapter{Communication interfaces}
 
+Sapog is equipped with multiple communication interfaces.
+Not all communication interfaces can be disabled,
+and therefore, more than one interface can be active at the same time.
+
+It is easy to see that this arrangement may lead to issues if more than one
+interface is used to command the controller.
+Sapog does not attempt to resolve such ambiguity, simply accepting every command
+without regard to what interface it was received from.
+This trait should be kept in mind when using multiple interfaces concurrently.
+For example, a common cause of confusion is encountered when Sapog is connected to a
+UAVCAN bus which commands zero setpoint periodically,
+and some other interface at the same time is commanding to start the motor.
+The controller would appear to behave erratically,
+which is caused by alternating conflicting commands.
+
 \section{UAVCAN}
 
+\subsection{Overview}
+
+This section provides documentation for the UAVCAN interface implemented in Sapog.
+A general overview and specification of the UAVCAN protocol is provided on the official website at
+\url{http://uavcan.org}.
+
+The UAVCAN interface enables access to all features of Sapog.
+It is possible to control the motor in all operating modes via UAVCAN,
+change the configuration parameters, emit audial and visual indications,
+upgrade the firmware, and perform automated ESC enumeration.
+
+This section documents the UAVCAN interface that is available in the firmware itself,
+omitting the logic specific to the bootloader, which is documented separately in the chapter
+\ref{sec:bootloader}.
+
+Sapog employs Libuavcan - an open source implementation of the UAVCAN protocol stack in C++ distributed under
+the MIT software license.
+
+\subsection{Node status reporting}
+
+The standard node status message \verb|uavcan.protocol.NodeStatus| is broadcast at 1 hertz.
+The mode and health codes are summarized below.
+
+\begin{ZubaxSimpleTable}{UAVCAN node health code interpretation}{|l|X|}
+Node health & Meaning  \\
+OK        & Operating normally. \\
+WARNING   & Not used. \\
+ERROR     & Not used. \\
+CRITICAL  & The controller is locked up (see section \ref{sec:stall_detection}),
+            or the temperature sensor is malfunctioning.\\
+\end{ZubaxSimpleTable}
+
+\begin{ZubaxSimpleTable}{UAVCAN node mode code interpretation}{|l|X|}
+Node mode & Meaning  \\
+OPERATIONAL        & Operating normally. \\
+INITIALIZATION     & The firmware has just started and is not ready to begin normal operation yet. \\
+MAINTENANCE        & See the chapter \ref{sec:bootloader} about the bootloader. \\
+SOFTWARE\_{}UPDATE & See the chapter \ref{sec:bootloader} about the bootloader. \\
+OFFLINE            & Not applicable. \\
+\end{ZubaxSimpleTable}
+
+\subsection{Motor control}
+
+\subsection{Configuration management}
+
+\subsection{Audial and visual indication}
+
+\subsection{Firmware upgrade}
+
+\subsection{Automated ESC enumeration}
+
+\subsection{Data type index}
+
+\subsubsection{Broadcast messages}
+
+\subsubsection{Subscribed messages}
+
+\subsubsection{Provided services}
+
+\subsubsection{Invoked services}
+
+
 \section{CLI}
+
 
 \section{RCPWM}
 
@@ -1252,7 +1331,7 @@ take effect.
     \begin{ZubaxTableWrapper}{#1}
     \setlength\tabcolsep{2.5pt}
     \begin{ZubaxWrappedTable}{@{} l l l l | c c c | X @{}}
-    Name & Unit & Pages & TEA & Min & Max & Def. & Note \\
+    Name & Unit & Pages & TEA & Min & Max & Def. & Description \\
 }{%
     \end{ZubaxWrappedTable}
     \end{ZubaxTableWrapper}
