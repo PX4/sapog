@@ -861,7 +861,7 @@ current PWM carrier frequency, as shown on the figure \ref{pwm_maximum_speed}.
 A zero setpoint is treated as the command to stop the motor.
 While the motor is stopped, the VSI is disabled, allowing the shaft to rotate freely.
 
-\subsection{RPM control loop}
+\subsection{RPM control loop}\label{sec:rpm_loop}
 
 When operating in the RPM control mode, also known as RPM governor mode,
 Sapog will try to maintain a specified mechanical speed.
@@ -1217,7 +1217,9 @@ omitting the logic specific to the bootloader, which is documented separately in
 Sapog employs Libuavcan - an open source implementation of the UAVCAN protocol stack in C++ distributed under
 the MIT software license.
 
-\subsection{Node status reporting}
+\subsection{Basic functions}
+
+\subsubsection{Node status reporting}
 
 The standard node status message \verb|uavcan.protocol.NodeStatus| is broadcast at 1 hertz.
 The mode and health codes are summarized below.
@@ -1240,13 +1242,114 @@ SOFTWARE\_{}UPDATE & See the chapter \ref{sec:bootloader} about the bootloader. 
 OFFLINE            & Not applicable. \\
 \end{ZubaxSimpleTable}
 
+The vendor-specific status code field is not used by Sapog.
+
+Node uptime is reported from the moment when the firmware is started.
+The time while the bootloader was running is not included in the reported uptime value.
+
+\subsubsection{Node identification}
+
+The service \verb|uavcan.protocol.GetNodeInfo| is responded to as follows.
+
+All fields of the nested structure \verb|uavcan.protocol.SoftwareVersion|
+are populated, which are \verb|major|, \verb|minor|, \verb|vcs_commit|, and \verb|image_crc|.
+The VCS commit field is assigned the most significant bits of the git commit hash
+of the running revision of the firmware.
+The image CRC is computed for the entire firmware image padded to 8 bytes,
+with the value of the image CRC value set to zero during CRC computation.
+
+The following fields of the nested structure \verb|uavcan.protocol.HardwareVersion|
+are always populated: \verb|major|, \verb|minor|, and \verb|unique_id|.
+The values of the fields \verb|major| and \verb|minor| are specific
+to the particular hardware model that Sapog is running on.
+Please refer to the documentation supplied with your hardware for the specific values.
+The field \verb|certificate_of_authenticity| is populated only if any certificate of authenticity
+is provided by the vendor.
+
+The field \verb|name| is set to the string \verb|io.px4.sapog|.
+
+\subsubsection{Node restarting}
+
+The service \verb|uavcan.protocol.RestartNode|, if the provided magic number is correct,
+unconditionally stops the motor and reboots the controller.
+If the provided magic number is incorrect, Sapog returns a response with the field \verb|ok|
+set to zero (false).
+
+\subsubsection{Interface statistics}
+
+The service \verb|uavcan.protocol.GetTransportStats| returns the current statistic counters
+for both supported CAN interfaces, even if the hardware uses only one of them.
+All fields of all nested structures are populated.
+
+\subsubsection{Data type information}
+
+The service \verb|uavcan.protocol.GetDataTypeInfo| provides extensive information about the
+supported UAVCAN data types.
+No special cases apply.
+
 \subsection{Motor control}
+
+\subsubsection{Setpoint input}
+
+Motor control is performed by means of two standard message types that Sapog subscribes to.
+The message \verb|uavcan.equipment.esc.RawCommand| puts Sapog into the open loop control mode
+(section \ref{sec:open_loop}).
+The message \verb|uavcan.equipment.esc.RPMCommand| puts Sapog into the RPM loop control mode
+(section \ref{sec:rpm_loop}).
+
+Both messages carry arrays of commands for multiple motors.
+Sapog selects a single command from the array at the index specified by the configuration
+parameter \CfgRef{esc+index}.
+If the specified index points out of the range of the array,
+Sapog assumes that the commanded setpoint is zero, and stops the motor.
+
+Sapog does not perform any additional processing of the received command message,
+does not prioritize between the supported types of messages
+and between different broadcasters.
+This means that the drive will not operate properly if there are multiple types of control
+messages being received, or if multiple nodes are broadcasting conflicting setpoints.
+Direct execution of received commands without additional processing allows Sapog to achieve
+minimal response latency and high throughput.
+
+Setpoints received via UAVCAN are assigned a fixed lifetime, which is specified by the
+configuration parameter \CfgRef{cmd+ttl+ms}.
+
+\subsubsection{Status reporting}
+
+The standard message type \verb|uavcan.equipment.esc.Status| is used to report status of the
+motor control system.
+The message is broadcast at 1 hertz if the motor is not running,
+and 10 hertz if the motor is starting or running.
+All fields of the message are populated.
+
+The field \verb|error_count| carries the number of failures to detect a valid zero crossing
+point since the motor has started.
+The error counter may overflow if the motor is running without stopping for a very long time,
+although this will never happen as long as the drive is functioning correctly.
+
+The field \verb|esc_index| contains the value of the configuration parameter \CfgRef{esc+index}.
 
 \subsection{Configuration management}
 
+
+
 \subsection{Audial and visual indication}
 
+
+
 \subsection{Firmware upgrade}
+
+The service \verb|uavcan.protocol.file.BeginFirmwareUpdate| reboots the device into the bootloader
+mode.
+The bootloader mode is documented in the chapter \ref{sec:bootloader}.
+
+If the motor is running at the time of reception of this request, it is stopped unconditionally.
+
+Note that the request argument \verb|image_file_remote_path| is always ignored.
+It is therefore required to invoke this service again after the firmware has entered the bootloader
+(i.e. about $3\pm{}1$ seconds after the first invocation),
+otherwise the upgrade process will not begin.
+This requirement may be removed in the future.
 
 \subsection{Automated ESC enumeration}
 
