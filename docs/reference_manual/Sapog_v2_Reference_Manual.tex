@@ -1538,6 +1538,22 @@ for accessing the CLI from the user's PC.
                                              of Windows should be avoided. \\
 \end{ZubaxSimpleTable}
 
+\subsection{Boot logging}
+
+While in the process of booting, Sapog prints human-readable diagnostic messages via the serial port interface.
+The printed messages, among other things, include the reports of the start-up self-test procedures
+described in the section \ref{sec:self_diagnostics}.
+
+Normally the boot-up messages should only be of interest for troubleshooting purposes.
+
+\subsection{Panic reporting}
+
+If Sapog encounters a catastrophic failure that renders it dysfunctional
+(e.g. a memory access violation, stack overflow, failure of the computing hardware, etc),
+it uses the serial interface as a last resort status reporting option.
+In this case, Sapog will dump as much status information as possible into the serial port,
+after which it will lock up and wait for the watchdog timer to reset it.
+
 \subsection{CLI commands}
 
 This section documents the CLI commands that can be of interest to the end user.
