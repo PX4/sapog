@@ -1480,7 +1480,7 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
                                                              in the bootloader. \\
     \texttt{uavcan.equipment.esc.RawCommand}               & Open loop setpoint. \\
     \texttt{uavcan.equipment.esc.RPMCommand}               & RPM control loop setpoint. \\
-    \texttt{uavcan.equipment.indication.BeepCommand}       & Ignored if running. \\
+    \texttt{uavcan.equipment.indication.BeepCommand}       & Ignored if the motor is running. \\
     \texttt{uavcan.equipment.indication.LightsCommand}     & Overrides the RGB LED state indication. \\
 \end{ZubaxSimpleTable}
 
@@ -1490,7 +1490,7 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
     \texttt{uavcan.protocol.GetDataTypeInfo}               & \\
     \texttt{uavcan.protocol.GetTransportStats}             & \\
     \texttt{uavcan.protocol.RestartNode}                   & \\
-    \texttt{uavcan.protocol.enumeration.Begin}             & Ignored if running. \\
+    \texttt{uavcan.protocol.enumeration.Begin}             & Ignored if the motor is running. \\
     \texttt{uavcan.protocol.file.BeginFirmwareUpdate}      & Stops the motor and reboots into the bootloader. \\
     \texttt{uavcan.protocol.param.ExecuteOpcode}           & \\
     \texttt{uavcan.protocol.param.GetSet}                  & \\
