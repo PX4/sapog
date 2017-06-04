@@ -1430,6 +1430,33 @@ This requirement may be removed in the future.
 
 \subsection{Automated ESC enumeration}
 
+Sapog allows the user to configure the ESC index (parameter \CfgRef{esc+index})
+and the direction of rotation (parameter \CfgRef{ctl+dir}) intuitively,
+by means of manual rotation of the rotors in a specific order and direction.
+This feature is only useful for multi-motor vehicles, such as multirotor UAV,
+and is entirely optional.
+The respective configuration parameters can be equally well configured manually
+by the user, instead of resorting to this more sophisticated method.
+
+The UAVCAN namespace \verb|uavcan.protocol.enumeration| contains the data type definitions that
+this feature is based upon.
+
+When invoking the automated enumeration sequence, the field \verb|parameter_name|
+of the service type \verb|uavcan.protocol.enumeration.Begin| should be left empty
+(which means ``parameter name auto-detect'' according to the UAVCAN specification).
+
+The user indication input is provided by means of turning the rotor manually in the normal
+direction of rotation.
+Sapog will memorize the direction of rotation and reflect it in the corresponding configuration
+parameter.
+
+The user can benefit from this feature only if there is an adequate support from the
+controlling hardware installed on the vehicle (e.g. autopilot).
+Therefore, the full description of this feature falls outside of the scope of this
+manual.
+For reference, the process of automated ESC enumeration performed with the PX4 autopilot
+is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
+
 \subsection{Data type index}
 
 \subsubsection{Broadcast messages}
