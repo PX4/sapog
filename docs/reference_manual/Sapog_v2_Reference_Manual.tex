@@ -1450,7 +1450,7 @@ direction of rotation.
 Sapog will memorize the direction of rotation and reflect it in the corresponding configuration
 parameter.
 
-Enumeration requests are ignored if the motor is not stopped.
+Enumeration request will return error \verb|ERROR_INVALID_MODE| if the motor is not stopped.
 
 The user can benefit from this feature only if there is an adequate support from the
 controlling hardware installed on the vehicle (e.g. autopilot).
