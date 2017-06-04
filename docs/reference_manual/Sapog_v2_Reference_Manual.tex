@@ -1155,12 +1155,12 @@ While the bootloader is running, the following LED behaviors are defined.
     Off              & \ShowSolidColor{black}  & The application is being started. \\
 \end{ZubaxSimpleTable}
 
-\subsection{External control}
+\subsection{External control}\label{sec:visual_indication_external_control}
 
 The RGB LED can be controlled by external commands via the available communication interfaces.
 External control overrides the state indication capabilities of the LED.
 
-\section{Sound}
+\section{Sound}\label{sec:audial_indication}
 
 Sapog can modulate arbitrary sounds by applying specific low-power voltage patterns on the motor windings.
 Induced currents cause the windings to vibrate, which produces audible sounds at the frequency of the
@@ -1179,6 +1179,9 @@ frequency 1 kHz, duration 100 ms each, spacing 200 ms.
 
 If the requested parameters fall outside the limits specified in the table,
 Sapog will automatically constrain the parameters in order to produce the closest achievable results.
+
+Sound modulation requests are only processed if the controller is idle and the motor is stopped.
+Otherwise, sound modulation requests will be silently ignored.
 
 \chapter{Communication interfaces}
 
@@ -1287,39 +1290,88 @@ The service \verb|uavcan.protocol.GetDataTypeInfo| provides extensive informatio
 supported UAVCAN data types.
 No special cases apply.
 
+\subsection{Initialization}
+
+Sapog is a full plug-and-play UAVCAN node that requires no mandatory initial configuration prior to use.
+
+\subsubsection{CAN bus bit rate detection}
+
+Once started, Sapog will automatically detect the bit rate of the CAN bus it is connected to
+(if connected to any at all), and remember the detected bit rate until the next boot up.
+There is no detection timeout, which means that Sapog can be connected to a CAN bus at
+any moment after powering up, and it will configure itself immediately.
+
+It is not possible to specify the bit rate manually.
+
+Sapog requires up to approximately 4 seconds to perform the bit rate detection on a properly
+functioning CAN bus.
+If the bus is exhibiting erroneous behavior, Sapog may need a longer time to complete the bit rate
+detection procedure.
+
+The following bit rates can be detected by Sapog automatically:
+\begin{itemize}
+\item 1 Mbit/s
+\item 500 kbit/s
+\item 250 kbit/s
+\item 125 kbit/s
+\end{itemize}
+Sapog cannot be interfaced with a CAN bus that operates at a different bit rate.
+
+\subsubsection{Node ID allocation}
+
+The configuration parameter \CfgRef{uavcan+node+id}, when set to a non-zero value,
+defines the node ID of the local UAVCAN node.
+
+If this parameter is set to zero, Sapog will request a dynamic UAVCAN node ID from the bus,
+which is the default behavior.
+
+Until there is a valid node ID available for the local UAVCAN node (either specified
+statically via the configuration parameter, or provided dynamically),
+no other functions of the UAVCAN interface will work.
+This implies, for example, that it is not possible to control the motor via UAVCAN
+until the local node is fully configured.
+
 \subsection{Motor control}
 
 \subsubsection{Setpoint input}
 
-Motor control is performed by means of two standard message types that Sapog subscribes to.
+Motor control is governed by means of two standard message types that Sapog subscribes to.
 The message \verb|uavcan.equipment.esc.RawCommand| puts Sapog into the open loop control mode
 (section \ref{sec:open_loop}).
 The message \verb|uavcan.equipment.esc.RPMCommand| puts Sapog into the RPM loop control mode
 (section \ref{sec:rpm_loop}).
 
 Both messages carry arrays of commands for multiple motors.
-Sapog selects a single command from the array at the index specified by the configuration
+Sapog selects the single command from the array at the index specified by the configuration
 parameter \CfgRef{esc+index}.
 If the specified index points out of the range of the array,
 Sapog assumes that the commanded setpoint is zero, and stops the motor.
 
 Sapog does not perform any additional processing of the received command message,
-does not prioritize between the supported types of messages
+and does not prioritize between the supported types of messages
 and between different broadcasters.
 This means that the drive will not operate properly if there are multiple types of control
 messages being received, or if multiple nodes are broadcasting conflicting setpoints.
 Direct execution of received commands without additional processing allows Sapog to achieve
-minimal response latency and high throughput.
+minimal response latency and high command throughput.
 
 Setpoints received via UAVCAN are assigned a fixed lifetime, which is specified by the
 configuration parameter \CfgRef{cmd+ttl+ms}.
+
+As a safety precaution, when the motor is stopped and a non-zero open loop setpoint is received,
+Sapog will refuse to start the motor if the received non-zero open loop setpoint exceeds the
+threshold value specified by the configuration parameter \CfgRef{cmd+start+dc},
+in the duty cycle units.
+This feature helps the user to avoid starting the motor accidentally to a high power level,
+for example, due to a failure in the system that controls Sapog.
+This feature is only available for the open loop control mode.
 
 \subsubsection{Status reporting}
 
 The standard message type \verb|uavcan.equipment.esc.Status| is used to report status of the
 motor control system.
 The message is broadcast at 1 hertz if the motor is not running,
-and 10 hertz if the motor is starting or running.
+and at 10 hertz if the motor is starting or running.
 All fields of the message are populated.
 
 The field \verb|error_count| carries the number of failures to detect a valid zero crossing
@@ -1329,13 +1381,38 @@ although this will never happen as long as the drive is functioning correctly.
 
 The field \verb|esc_index| contains the value of the configuration parameter \CfgRef{esc+index}.
 
-\subsection{Configuration management}
+\subsection{Configuration parameter management}
 
+The standard UAVCAN configuration parameter management interface is supported
+by means of the service data types defined in the namespace \verb|uavcan.protocol.param|.
 
+Note that the save action available via the service \verb|uavcan.protocol.param.ExecuteOpcode|
+is supported, but is redundant, because Sapog commits all the configuration parameters
+to the non-volatile configuration storage memory automatically after modification.
+
+When obtaining the list of all available configuration parameters using the field \verb|index|
+of the service \verb|uavcan.protocol.param.GetSet|, the ordering of the returned configuration
+parameters is undefined, but it is guaranteed to be consistent within the same firmware build.
+Updating the firmware to different versions or even different builds of the same version
+may change the ordering of the configuration parameters.
 
 \subsection{Audial and visual indication}
 
+\subsubsection{Audial indication}
 
+The standard message type \verb|uavcan.equipment.indication.BeepCommand|
+can be used to invoke the audial indication feature of Sapog
+described in the section \ref{sec:audial_indication}.
+
+\subsubsection{RGB LED control}
+
+The standard message type \verb|uavcan.equipment.indication.LightsCommand|
+can be used to control the RGB LED indicator via UAVCAN, as described in the section 
+\ref{sec:visual_indication_external_control}.
+
+The configuration parameter \CfgRef{light+index} defines the UAVCAN light ID of the RGB LED.
+Light control commands will only be accepted if the value of the field \verb|light_id|
+matches the value stored in the configuration parameter \CfgRef{light+index}.
 
 \subsection{Firmware upgrade}
 
@@ -1373,6 +1450,9 @@ This requirement may be removed in the future.
 \chapter{Configuration parameters}
 
 This chapter summarizes all configuration parameters available in Sapog.
+
+The length of the configuration parameter names does not exceed 16 characters,
+which ensures compatibility with MAVLink version 1.
 
 \section{Non-volatile configuration storage}
 
