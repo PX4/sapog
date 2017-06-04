@@ -1450,6 +1450,8 @@ direction of rotation.
 Sapog will memorize the direction of rotation and reflect it in the corresponding configuration
 parameter.
 
+Enumeration requests are ignored if the motor is not stopped.
+
 The user can benefit from this feature only if there is an adequate support from the
 controlling hardware installed on the vehicle (e.g. autopilot).
 Therefore, the full description of this feature falls outside of the scope of this
@@ -1457,16 +1459,42 @@ manual.
 For reference, the process of automated ESC enumeration performed with the PX4 autopilot
 is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
 
-\subsection{Data type index}
+\subsection{Data type summary}
 
-\subsubsection{Broadcast messages}
+\begin{ZubaxSimpleTable}{UAVCAN broadcast messages}{|l|l|l|X|}
+    Data type name                                         & Period, Hz & Tr. priority & Note \\
+    \texttt{uavcan.protocol.NodeStatus}                    & 1          & 16 (medium)  & \\
+    \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Aperiodic  & 30 (low)     & Only during the
+                                                                                         initialization or while
+                                                                                         in the bootloader. \\
+    \texttt{uavcan.protocol.enumeration.Indication}        & Aperiodic & 16 (medium)   & Only during ESC
+                                                                                         enumeration. \\
+    \texttt{uavcan.equipment.esc.Status}                   & 1 or 10   & 16 (medium)   & 1 Hz while idle,
+                                                                                         10 Hz otherwise. \\
+    \texttt{uavcan.protocol.debug.LogMessage}              & Aperiodic & 31 (lowest)   & \\
+\end{ZubaxSimpleTable}
 
-\subsubsection{Subscribed messages}
+\begin{ZubaxSimpleTable}{UAVCAN subscribed messages}{|l|X|}
+    Data type name                                         & Note \\
+    \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Only during the initialization or while
+                                                             in the bootloader. \\
+    \texttt{uavcan.equipment.esc.RawCommand}               & Open loop setpoint. \\
+    \texttt{uavcan.equipment.esc.RPMCommand}               & RPM control loop setpoint. \\
+    \texttt{uavcan.equipment.indication.BeepCommand}       & Ignored if running. \\
+    \texttt{uavcan.equipment.indication.LightsCommand}     & Overrides the RGB LED state indication. \\
+\end{ZubaxSimpleTable}
 
-\subsubsection{Provided services}
-
-\subsubsection{Invoked services}
-
+\begin{ZubaxSimpleTable}{UAVCAN provided services}{|l|X|}
+    Data type name                                         & Note \\
+    \texttt{uavcan.protocol.GetNodeInfo}                   & \\
+    \texttt{uavcan.protocol.GetDataTypeInfo}               & \\
+    \texttt{uavcan.protocol.GetTransportStats}             & \\
+    \texttt{uavcan.protocol.RestartNode}                   & \\
+    \texttt{uavcan.protocol.enumeration.Begin}             & Ignored if running. \\
+    \texttt{uavcan.protocol.file.BeginFirmwareUpdate}      & Stops the motor and reboots into the bootloader. \\
+    \texttt{uavcan.protocol.param.ExecuteOpcode}           & \\
+    \texttt{uavcan.protocol.param.GetSet}                  & \\
+\end{ZubaxSimpleTable}
 
 \section{CLI}
 
