@@ -943,6 +943,18 @@ See equation \ref{eq:rpm_pid_control_loop_period}.
 \item $\Pi_{\text{rpmctld}}$ - derivative term of the PID controller.
 \end{itemize}
 
+\subsection{Command timeout}\label{sec:setpoint_ttl}
+
+Every setpoint supplied to the motor control logic, regardless of the operating mode, is
+accompanied with a time interval that specifies its lifetime - setpoint TTL\footnote{Short for time-to-live.}.
+If the time interval expires before the next setpoint is received, Sapog will automatically
+stop the motor.
+
+This safety feature ensures that the motor will automatically stop in the event of a communication failure.
+
+The exact duration of the setpoint TTL depends on the communication interface which provides the command.
+This is reviewed in detail in the chapter \ref{sec:communication_interfaces}.
+
 \subsection{Current and voltage measurements}
 
 \subsubsection{Measurement}
@@ -1185,7 +1197,7 @@ Sapog will automatically constrain the parameters in order to produce the closes
 Sound modulation requests are only processed if the controller is idle and the motor is stopped.
 Otherwise, sound modulation requests will be silently ignored.
 
-\chapter{Communication interfaces}
+\chapter{Communication interfaces}\label{sec:communication_interfaces}
 
 Sapog is equipped with multiple communication interfaces.
 Not all communication interfaces can be disabled,
@@ -1359,6 +1371,7 @@ minimal response latency and high command throughput.
 
 Setpoints received via UAVCAN are assigned a fixed lifetime, which is specified by the
 configuration parameter \CfgRef{cmd+ttl+ms}.
+Read more on the concept of setpoint TTL in the section \ref{sec:setpoint_ttl}.
 
 As a safety precaution, when the motor is stopped and a non-zero open loop setpoint is received,
 Sapog will refuse to start the motor if the received non-zero open loop setpoint exceeds the
@@ -1452,7 +1465,7 @@ direction of rotation.
 Sapog will memorize the direction of rotation and reflect it in the corresponding configuration
 parameter.
 
-Enumeration request will return error \verb|ERROR_INVALID_MODE| if the motor is not stopped.
+Enumeration request will return the error \verb|ERROR_INVALID_MODE| if the motor is not stopped.
 
 The user can benefit from this feature only if there is an adequate support from the
 controlling hardware installed on the vehicle (e.g. autopilot).
