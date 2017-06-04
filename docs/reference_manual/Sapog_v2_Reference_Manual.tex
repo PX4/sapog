@@ -982,7 +982,7 @@ The gain of the current limiting P-controller is specified via the configuration
 ranging in $\left[-1, 1\right]$.
 The maximum current is specified via the configuration parameter \CfgRef{mot+i+max}, in amperes.
 
-\section{Self diagnostics}
+\section{Self diagnostics}\label{sec:self_diagnostics}
 
 Sapog contains a set of diagnostic routines that can detect problems with the hardware.
 The diagnostic routines are executed automatically at start up.
@@ -1505,7 +1505,7 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
     \texttt{uavcan.protocol.GetDataTypeInfo}               & \\
     \texttt{uavcan.protocol.GetTransportStats}             & \\
     \texttt{uavcan.protocol.RestartNode}                   & \\
-    \texttt{uavcan.protocol.enumeration.Begin}             & Ignored if the motor is running. \\
+    \texttt{uavcan.protocol.enumeration.Begin}             & Returns error if the motor is running. \\
     \texttt{uavcan.protocol.file.BeginFirmwareUpdate}      & Stops the motor and reboots into the bootloader. \\
     \texttt{uavcan.protocol.param.ExecuteOpcode}           & \\
     \texttt{uavcan.protocol.param.GetSet}                  & \\
@@ -1513,11 +1513,217 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
 
 \section{CLI}
 
+\subsection{Overview}
+
+Sapog provides a plain text command line interface (CLI) over its serial port interface.
+The CLI can be used for user interaction directly, or it can be used as a machine-to-machine command interface,
+since the command and response syntax is quite simple.
+
+The serial port interface operates at 115200 baud, 8 bit per word, no parity control, one stop bit
+(115200-8N1).
+
+The CLI line ending is \verb|\r\n| (CR, LF).
+
+Barring any special preferences,
+it is recommended to use the software listed in the table \ref{cli_software_recommendations}
+for accessing the CLI from the user's PC.
+
+\begin{ZubaxSimpleTable}{CLI terminal emulators}{|l|l|X|}\label{cli_software_recommendations}
+    PC OS            & Application         & Note \\
+    GNU/Linux        & \texttt{picocom}    & A simple and robust command-line tool.
+                                             It should be preferred over the popular
+                                             \texttt{minicom} and \texttt{screen}. \\
+    MS Windows       & PuTTY               & A simple multi-purpose GUI terminal emulator.
+                                             The HyperTerminal tool supplied by default with some versions
+                                             of Windows should be avoided. \\
+\end{ZubaxSimpleTable}
+
+\subsection{CLI commands}
+
+This section documents the CLI commands that can be of interest to the end user.
+Some commands that are not intended for use in production are intentionally omitted from this reference.
+
+\subsubsection{help}
+
+Prints the list of all available commands.
+
+\subsubsection{cfg}
+
+This command provides access to the configuration parameter storage.
+The configuration parameters and their non-volatile storage are described in more detail in the chapter
+\ref{sec:configuration_parameters}.
+
+Syntax:
+\begin{itemize}
+\item \verb|cfg list| - list all configuration parameters, their current values,
+acceptable value intervals, and default values.
+\item \verb|cfg save| - save the current configuration into the non-volatile storage.
+This command is redundant and normally need not be used, because Sapog commits all configuration
+into the non-volatile storage automatically upon modification.
+\item \verb|cfg erase| - erase the current configuration and reset the non-volatile memory to factory defaults.
+\item \verb|cfg set <name> <value>| - assign the configuration parameter named \verb|<name>| the value
+\verb|<value>|. For example: \verb|cfg set foo 42|.
+The non-volatile storage will be updated automatically.
+\end{itemize}
+
+\subsubsection{reboot}
+
+Reboot the firmware.
+If the motor is running, it will be stopped first.
+
+\subsubsection{beep}
+
+Modulate sound as described in the section \ref{sec:audial_indication}.
+
+Syntax:
+\begin{itemize}
+\item \verb|beep| - emit sound of the default duration at the default frequency.
+\item \verb|beep <freq>| - modulate sound of the default duration at the frequency \verb|<freq>|
+specified in hertz. For example: \verb|beep 1000|.
+\item \verb|beep <freq> <dur>| - modulate sound of the specified duration \verb|<dur>| in milliseconds
+at the frequency \verb|<freq>| specified in hertz. For example: \verb|beep 5000 200|.
+\end{itemize}
+
+\subsubsection{stat}
+
+Print the current state of the motor controller in a human-readable form.
+At least the following information will be displayed:
+\begin{itemize}
+\item Inverter supply voltage.
+\item Inverter DC current.
+\item Mechanical RPM.
+\item Actual duty cycle (not the setpoint).
+\item The number of failures since the motor has started.
+\end{itemize}
+
+\subsubsection{test}
+
+Execute the self-test routines, described in the section \ref{sec:self_diagnostics}.
+The output will be printed in a human-readable format.
+
+\subsubsection{dc}
+
+Set the open loop control setpoint.
+See the section \ref{sec:open_loop} for more information about the open loop control mode.
+
+The setpoint TTL when using this command is fixed at 30 seconds.
+More information on the setpoint TTL feature is provided in the section \ref{sec:setpoint_ttl}.
+
+By default this command is locked for safety reasons.
+In order to unlock it, execute \verb|dc arm| once, and it will stay unlocked until the firmware is rebooted.
+
+Syntax:
+\begin{itemize}
+\item \verb|dc| - assign zero setpoint, which will stop the motor if it is running.
+\item \verb|dc arm| - unlock the command.
+\item \verb|dc <duty cycle>| - set the specified duty cycle setpoint.
+The setpoint is a real number in the interval $\left[0, 1\right]$.
+For example: \verb|dc 0.5| assigns the 50\% duty cycle.
+\end{itemize}
+
+\subsubsection{rpm}
+
+Set the RPM control loop setpoint.
+See the section \ref{sec:rpm_loop} for more information about the RPM control mode.
+
+The setpoint TTL when using this command is fixed at 30 seconds.
+More information on the setpoint TTL feature is provided in the section \ref{sec:setpoint_ttl}.
+
+By default this command is locked for safety reasons.
+In order to unlock it, execute \verb|rpm arm| once, and it will stay unlocked until the firmware is rebooted.
+
+Syntax:
+\begin{itemize}
+\item \verb|rpm| - assign zero setpoint, which will stop the motor if it is running.
+\item \verb|rpm arm| - unlock the command.
+\item \verb|rpm <RPM>| - set the specified RPM setpoint.
+The setpoint is an integer number in the interval $\left[0, 65535\right]$.
+For example: \verb|rpm 5000| assigns the target setpoint of 5000 mechanical RPM.
+\end{itemize}
+
+\subsubsection{md}
+
+Print the internal motor controller status information in a human-readable format.
+The output of this command is also printed automatically when the rotor gets stalled.
+
+\subsubsection{zubax\_id}
+
+This command reports the complete information identifying this particular product:
+type, version information, make and model.
+The information is printed in a machine-readable yet human-friendly
+YAML\footnote{\url{https://en.wikipedia.org/wiki/YAML}} format.
+
+An example output is shown in the following listing.
+The meaning of each well-defined field is explained in the table \ref{zubax_id_fields_table}.
+Fields that are not intended for production use are intentionally left undocumented.
+Note that the number of fields and their ordering may vary.
+
+\begin{minted}{yaml}
+product_id   : 'io.px4.sapog'
+product_name : 'PX4 Sapog'
+sw_version   : '2.0'
+sw_vcs_commit: 7672820
+sw_build_date: Apr 29 2017
+hw_version   : '1.1'
+hw_unique_id : 'M//UBUdHNTZUVxlDAAAAAA=='
+hw_signature : 'NX3Y05Y1a/hDNajPyMF5dojuAB9r1HmUxZ3UVU8g39C9L5pjAZMVKdZ7yI1CetvumOJZHIjRYkHOBmMAEKvRU/3mpG\
++KgUND6yGpoHQ5aa+OK+LIcOw2LC+BaUmAPS6Hy4bxOvuARb062QruQlrOXyVc/vs28JtcBzOZo/b/OxY='
+hw_info_url  : 'http://device.zubax.com/device_info?uid=33FFD405474735365457194300000000'
+\end{minted}
+
+\begin{ZubaxSimpleTable}{Zubax ID fields}{|l|X|}\label{zubax_id_fields_table}
+Field name              & Meaning \\
+
+\texttt{product\_id}    & Product type identifier string. It is always set to \texttt{io.px4.sapog}.
+The same string is reported via UAVCAN as the node name string. \\
+
+\texttt{sw\_version}    & Firmware version number in the form ``major.minor''. \\
+
+\texttt{sw\_vcs\_commit}& Firmware patch ID as the short git commit hash.
+The abbreviation VCS stands for ``version control system''.
+This number allows to pinpoint the exact revision of the firmware that is currently running. \\
+
+\texttt{sw\_build\_date}& Firmware build date in the form ``\texttt{mmm dd yyyy}''. \\
+
+\texttt{hw\_version}    & Hardware version number in the form ``major.minor''.
+Refer to the documentation provided with your hardware to learn what version number it reports to Sapog. \\
+
+\texttt{hw\_unique\_id} & The 128-bit unique ID of this specific hardware instance.
+The UID is represented either as a hexadecimal string, or as a Base64 encoded string.\\
+
+\texttt{hw\_signature}  & The certificate of authenticity (CoA) of this specific hardware instance
+encoded in a Base64 string.
+This field will not be present if the current hardware instance does not have any CoA installed.
+Refer to the documentation provided with your hardware to find out what CoA is used, if any. \\
+
+\texttt{hw\_info\_url}  & Link to the web page that contains the test report, origin information,
+traceability data, and other important information about this specific hardware instance provided by
+the vendor. This field may not be populated if the hardware does not have any CoA installed. \\
+
+\end{ZubaxSimpleTable}
+
+Vendors that use Sapog for their own products can use this command to install their own CoA onto the hardware.
+Beware that the CoA can be written only once.
+The following form is used to write the CoA: \verb|zubax_id <CoA>|,
+where \verb|<CoA>| is a placeholder for Base64 encoded certificate of authenticity.
+More information about using Sapog in custom products is provided in the chapter \ref{sec:porting_guide}.
+
+Syntax:
+\begin{itemize}
+\item \verb|zubax_id| - print the Zubax ID YAML structure documented above.
+\item \verb|zubax_id <CoA>| - install the vendor's certificate of authenticity \verb|<CoA>| encoded in Base64.
+This command can be executed only once.
+\end{itemize}
+
+\subsubsection{uavcan}
+
+Print the status information of the local UAVCAN stack in a human-readable format.
+This command may take several seconds to execute, depending on the state of the UAVCAN stack.
 
 \section{RCPWM}
 
 
-\chapter{Configuration parameters}
+\chapter{Configuration parameters}\label{sec:configuration_parameters}
 
 This chapter summarizes all configuration parameters available in Sapog.
 
@@ -1663,6 +1869,6 @@ of the future revisions of the firmware.
 
 \chapter{Tuning guide}
 
-\chapter{Porting guide}
+\chapter{Porting guide}\label{sec:porting_guide}
 
 \end{document}
