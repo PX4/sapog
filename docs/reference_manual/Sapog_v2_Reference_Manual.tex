@@ -1101,7 +1101,7 @@ ADC, and the power supply of the microcontroller.
 
 \subsection{Temperature monitoring}
 
-Sapog periodically queries a digital temperature sensor installed on the power stage.
+Sapog periodically queries the digital temperature sensor installed on the power stage.
 This information is reported outside via communication interfaces, but not used
 by Sapog itself.
 
@@ -1738,6 +1738,76 @@ This command may take several seconds to execute, depending on the state of the 
 
 \section{RCPWM}
 
+\subsection{Overview}
+
+RCPWM is a simple analog interface that encodes the command in a series of repeating pulses.
+The commanded setpoint is proportional to the duration of the pulses,
+whereas the spacing between the pulses and their interval do not carry any useful information.
+The principle is illustrated on the figure \ref{rcpwm_signal_plot}.
+
+\begin{figure}[hbt]
+    \centering
+	\includegraphics[width=0.7\textwidth]{rcpwm_signal_plot}
+	\caption{RCPWM signal.
+	\label{rcpwm_signal_plot}}
+\end{figure}
+
+The RCPWM interface is widely used in robotics and flight control systems of small UAV.
+Its obvious downsides are the lack of any kind of feedback from the controlled system,
+very low throughput,
+high latency (in excess of 2 milliseconds in certain scenarios, and never lower than 1 millisecond),
+and general physical inefficiency due to the need to use one independent electrical connection
+per controlled system.
+
+\subsection{Functional description}
+
+When the RCPWM interface is enabled, Sapog demodulates the RCPWM signal into the open loop mode setpoints,
+and feeds them into the motor controller.
+Setpoints received via RCPWM are accepted immediately without pre-filtering or any other preprocessing.
+
+In order to be understood by Sapog,
+the RCPWM signal should match the requirements listed in the table \ref{rcpwm_constraints}.
+
+\begin{ZubaxSimpleTable}{RCPWM interface constraints}{|c X|c c|c|}\label{rcpwm_constraints}
+Symbol                               & Parameter            & Min   & Max & Unit \\
+$\Delta{}t_{\text{HL}_\text{RCPWM}}$ & RCPWM pulse duration & 0.5   & 3   & millisecond \\
+$\Delta{}t_{\text{LH}_\text{RCPWM}}$ & RCPWM pulse spacing  & 0.01  & 50  & millisecond \\
+\end{ZubaxSimpleTable}
+
+If the RCPWM pulse duration $\Delta{}t_{\text{HL}_\text{RCPWM}}$ is not within the specified limits,
+Sapog treats it as if there was no modulation at all.
+
+The setpoint TTL for RCPWM commands is fixed at 100 milliseconds.
+This implies that the motor will be stopped in 100 milliseconds after the RCPWM modulation is gone.
+More information on the setpoint TTL feature is provided in the section \ref{sec:setpoint_ttl}.
+
+The configuration parameter \CfgRef{pwm+enable} specifies whether the RCPWM is active.
+If the interface is disabled, Sapog will ignore the state of the RCPWM input line.
+If the interface is enabled, care should be taken to ensure that no conflicting commands
+are being issued via the other interfaces, otherwise the controller may exhibit an erratic behavior.
+
+The configuration parameters \CfgRef{pwm+min+usec} and \CfgRef{pwm+max+usec} define the pulse duration
+that corresponds to the minimum (zero) and the maximum (100\%) setpoints, respectively, in microseconds.
+Pulses shorter than \CfgRef{pwm+min+usec} are translated to zero setpoint;
+likewise, pulses that are longer than \CfgRef{pwm+max+usec} are translated to the maximum setpoint.
+
+Sapog applies a start-stop hysteresis that works as follows: if the motor is stopped, it will not start
+until the commanded setpoint has exceeded 6\%.
+If the motor is running, it will not stop until the commanded setpoint has fell below 3\%.
+
+A safety feature will not allow the motor to start if the commanded setpoint exceeds 40\%.
+Therefore, combining the effects of the hysteresis feature and the safety threshold,
+it can be seen that the motor will start only if the commanded setpoint falls into the interval
+$\left(6\%, 40\%\right)$.
+
+The setpoint handling logic is illustrated on the figure \ref{rcpwm_setpoint_handling}.
+
+\begin{figure}[hbt]
+    \centering
+	\includegraphics[width=0.8\textwidth]{rcpwm_setpoint_handling}
+	\caption{RCPWM setpoint handling.
+	\label{rcpwm_setpoint_handling}}
+\end{figure}
 
 \chapter{Configuration parameters}\label{sec:configuration_parameters}
 
