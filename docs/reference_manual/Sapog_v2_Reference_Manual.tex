@@ -1148,26 +1148,8 @@ While the firmware is running, the following LED colors can be used to reflect i
 The bootloader is started immediately after the device is powered on.
 It runs for several seconds, and then, unless there is no valid firmware image
 or update of the firmware is requested, the bootloader starts the firmware.
-More information on the bootloader is available in the section \ref{sec:bootloader}.
-
-While the bootloader is running, the following LED behaviors are defined.
-
-\begin{ZubaxSimpleTable}{Bootloader status indication via RGB LED}{|l l|X|}
-    State            &                         & Meaning \\
-    Solid red        & \ShowSolidColor{red}    & Error. Possible reasons: could not erase the old
-                                                 firmware image; the file server returned an invalid
-                                                 or unexpected response; file server response has timed
-                                                 out; the CRC of the firmware image is invalid. \\
-    Solid white      & \ShowSolidColor{lightgray}& Just started, initialization is in progress.
-                                                 This state is very transient. \\
-    Solid yellow     & \ShowSolidColor{yellow} & CAN auto bit rate detection. \\
-    Solid green      & \ShowSolidColor{green}  & CAN auto bit rate detection finished.
-                                                 This state is very transient. \\
-    Solid magenta    & \ShowSolidColor{magenta}& UAVCAN dynamic node ID allocation started. \\
-    Solid blue       & \ShowSolidColor{blue}   & UAVCAN dynamic node ID allocation finished. \\
-    Solid cyan       & \ShowSolidColor{cyan}   & Firmware image is being downloaded. \\
-    Off              & \ShowSolidColor{black}  & The application is being started. \\
-\end{ZubaxSimpleTable}
+More information on the bootloader and its state indication features
+is available in the section \ref{sec:bootloader}.
 
 \subsection{External control}\label{sec:visual_indication_external_control}
 
@@ -1952,6 +1934,108 @@ of the future revisions of the firmware.
 \end{CfgParamIndex}
 
 \chapter{Embedded bootloader}\label{sec:bootloader}
+
+\section{Overview}
+
+Sapog employs the PX4 Brickproof Bootloader - an ultra compact open source UAVCAN bootloader
+designed for ROM-limited embedded applications.
+
+The bootloader starts immediately after the device is powered on.
+Having started, the bootloader checks if there is a valid application image that can be started.
+If there is one, the bootloader measures a 5 second timeout since the point of its initialization,
+and when the timeout has expired, the bootloader starts the application, unless an external
+entity has requested the bootloader to download a new application image.
+If there is no valid application image found, the bootloader will wait forever for a request
+to download a new application image.
+
+The procedure of firmware update over UAVCAN is defined in the UAVCAN specification at the website
+\url{http://uavcan.org}.
+
+\section{Status indication}
+
+While the bootloader is running, the following RGB LED behaviors are defined.
+
+\begin{ZubaxSimpleTable}{Bootloader status indication via RGB LED}{|l l|X|}
+    State            &                         & Meaning \\
+    Solid red        & \ShowSolidColor{red}    & Error. Possible reasons: could not erase the old
+                                                 firmware image; the file server returned an invalid
+                                                 or unexpected response; file server response has timed
+                                                 out; the CRC of the firmware image is invalid. \\
+    Solid white      & \ShowSolidColor{lightgray}& Just started, initialization is in progress.
+                                                 This state is very transient. \\
+    Solid yellow     & \ShowSolidColor{yellow} & CAN auto bit rate detection. \\
+    Solid green      & \ShowSolidColor{green}  & CAN auto bit rate detection finished.
+                                                 This state is very transient. \\
+    Solid magenta    & \ShowSolidColor{magenta}& UAVCAN dynamic node ID allocation started. \\
+    Solid blue       & \ShowSolidColor{blue}   & UAVCAN dynamic node ID allocation finished. \\
+    Solid cyan       & \ShowSolidColor{cyan}   & Firmware image is being downloaded. \\
+    Off              & \ShowSolidColor{black}  & The application is being started. \\
+\end{ZubaxSimpleTable}
+
+\section{UAVCAN interface description}
+
+\subsection{Overview}
+
+The bootloader operates on the CAN1 interface only.
+The CAN2 interface is not used while the bootloader is running.
+It is therefore mandatory to use CAN1 as the primary communication interface
+rather than CAN2.
+
+\subsection{Initialization}
+
+Having started, the bootloader attempts to detect the bit rate of the CAN bus it is connected to
+(if connected at all), unless it was started by a request sent to the application, in which case,
+if the application had already known the bit rate of the bus, it will pass it to the bootloader.
+
+The bootloader can detect the following bit rates:
+\begin{itemize}
+\item 1 Mbit/s
+\item 500 kbit/s
+\item 250 kbit/s
+\item 125 kbit/s
+\end{itemize}
+
+Having successfully detected the bit rate, the bootloader will attempt to obtain a UAVCAN node ID,
+unless it has been provided by the application.
+
+The initialization can be interrupted at any time due to expiration of the boot timeout.
+Should that happen, the bootloader will pass the bus parameters it has detected,
+which are either the bit rate, the node ID, or both, to the application,
+in order to speed up its initialization.
+
+\subsection{Firmware update}
+
+\subsection{Logging}
+
+\subsection{Data type summary}
+
+\begin{ZubaxSimpleTable}{UAVCAN bootloader broadcast messages}{|l|l|l|X|}
+    Data type name                                         & Period, Hz & Tr. priority & Note \\
+    \texttt{uavcan.protocol.NodeStatus}                    & 1          & 30 (low)     & \\
+    \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Aperiodic  & 30 (low)     & Used only during the
+                                                                                         initialization. \\
+    \texttt{uavcan.protocol.debug.LogMessage}              & Aperiodic  & 30 (low)     & \\
+\end{ZubaxSimpleTable}
+
+\begin{ZubaxSimpleTable}{UAVCAN bootloader subscribed messages}{|l|X|}
+    Data type name                                         & Note \\
+    \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Used only during the initialization. \\
+\end{ZubaxSimpleTable}
+
+\begin{ZubaxSimpleTable}{UAVCAN bootloader provided services}{|l|X|}
+    Data type name                                         & Note \\
+    \texttt{uavcan.protocol.GetNodeInfo}                   & Software version identification fields will be
+                                                             zeroed if there is no valid application image 
+                                                             present.\\
+    \texttt{uavcan.protocol.file.BeginFirmwareUpdate}      & \\
+\end{ZubaxSimpleTable}
+
+\begin{ZubaxSimpleTable}{UAVCAN bootloader invoked services}{|l|l|X|}
+    Data type name                                         & Tr. priority & Note \\
+    \texttt{uavcan.protocol.file.GetInfo}                  & 30 (low)     & Invoked once before downloading
+                                                                            the firmware file. \\
+    \texttt{uavcan.protocol.file.Read}                     & 30 (low)     & Used to download the firmware file. \\
+\end{ZubaxSimpleTable}
 
 \chapter{Tuning guide}
 
