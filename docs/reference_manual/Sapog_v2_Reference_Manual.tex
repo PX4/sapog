@@ -1941,9 +1941,9 @@ Sapog employs the PX4 Brickproof Bootloader - an ultra compact open source UAVCA
 designed for ROM-limited embedded applications.
 
 The bootloader starts immediately after the device is powered on.
-Having started, the bootloader checks if there is a valid application image that can be started.
+Having started, the bootloader checks if there is a valid application image that can be executed.
 If there is one, the bootloader measures a 5 second timeout since the point of its initialization,
-and when the timeout has expired, the bootloader starts the application, unless an external
+and once the timeout has expired, the bootloader starts the application, unless an external
 entity has requested the bootloader to download a new application image.
 If there is no valid application image found, the bootloader will wait forever for a request
 to download a new application image.
@@ -1985,7 +1985,8 @@ rather than CAN2.
 
 Having started, the bootloader attempts to detect the bit rate of the CAN bus it is connected to
 (if connected at all), unless it was started by a request sent to the application, in which case,
-if the application had already known the bit rate of the bus, it will pass it to the bootloader.
+if the application already knew the bit rate of the bus, it will pass it to the bootloader,
+allowing it to skip the bit rate detection procedure.
 
 The bootloader can detect the following bit rates:
 \begin{itemize}
@@ -1997,15 +1998,88 @@ The bootloader can detect the following bit rates:
 
 Having successfully detected the bit rate, the bootloader will attempt to obtain a UAVCAN node ID,
 unless it has been provided by the application.
+In the latter case, the bootloader will simply re-use the node ID provided by the application.
 
 The initialization can be interrupted at any time due to expiration of the boot timeout.
 Should that happen, the bootloader will pass the bus parameters it has detected,
 which are either the bit rate, the node ID, or both, to the application,
 in order to speed up its initialization.
 
+\subsection{Node status and info reporting}
+
+The message \verb|uavcan.protocol.NodeStatus| is reported by the bootloader with the field
+\verb|mode| set to \verb|MODE_INITIALIZATION| while the initialization is in progress,
+or to \verb|MODE_SOFTWARE_UPDATE| while the update is in progress.
+The field \verb|status| can be set either to \verb|STATUS_OK| or \verb|STATUS_CRITICAL|;
+the latter is used only if the update process has failed.
+
+The service \verb|uavcan.protocol.GetNodeInfo| is responded to with all the fields of the nested structure
+\verb|software_version| zeroed, unless there is a valid application image found,
+in which case the fields will be set according to the information gathered from the firmware image.
+The fields of the nested structure \verb|hardware_version| are always all set correctly,
+except for the field \verb|certificate_of_authenticity|, which is always empty, even if there is
+a valid certificate installed.
+
 \subsection{Firmware update}
 
+\subsubsection{Initialization}
+
+Having received an update request \verb|uavcan.protocol.file.BeginFirmwareUpdate|,
+the bootloader verifies that the firmware image has an appropriate size by invoking
+\verb|uavcan.protocol.file.GetInfo|.
+If the size of the file appears to be incorrect,
+or if the service call could not be completed after up to three retries,
+the bootloader aborts the process with an error.
+Note that if the process fails at this point, the old firmware remains intact.
+
+\subsubsection{ROM preparation}
+
+Next, the bootloader erases the old firmware image.
+From this point on, there is no valid application that can be booted.
+
+\subsubsection{Image downloading}
+
+Having prepared the ROM for writing the new image, the bootloader downloads the new
+firmware image by invoking the service \verb|uavcan.protocol.file.Read|
+repeatedly while advancing the file read offset.
+If a read request times out in the process, the bootloader will try again up to three times.
+Shall all the attempts fail, the bootloader will abort the process and report failure.
+
+\subsubsection{Finalization}
+
+When the new image is fully downloaded, the bootloader verifies its integrity and
+aborts the process if there are issues detected.
+Otherwise, the application will be started immediately.
+The bootloader will pass the detected CAN bus bit rate and the node ID to the application
+in order to accelerate its initialization.
+
 \subsection{Logging}
+
+The bootloader emits the message \verb|uavcan.protocol.debug.LogMessage|
+at certain moments during the update in order to indicate its progress or report issues.
+
+The text field of the log messages always contains two ASCII letters.
+The first letter indicates the action,
+the second letter indicates the result of the action.
+The log source name is always set to the string ``\verb|Boot|''.
+
+\begin{ZubaxSimpleTable}{UAVCAN bootloader logging -- action codes}{|c|X|}
+Code & Meaning \\
+\texttt{I} & Initialization. \\
+\texttt{G} & Invoking \texttt{uavcan.protocol.file.GetInfo}. \\
+\texttt{E} & Erasing ROM. \\
+\texttt{R} & Invoking \texttt{uavcan.protocol.file.Read}. \\
+\texttt{P} & Writing ROM. \\
+\texttt{V} & Verification of the downloaded image. \\
+\texttt{F} & Finalization. \\
+\end{ZubaxSimpleTable}
+
+\begin{ZubaxSimpleTable}{UAVCAN bootloader logging -- status codes}{|c|X|}
+Code & Meaning \\
+\texttt{s} & Started \\
+\texttt{f} & Failed \\
+\texttt{o} & OK \\
+\end{ZubaxSimpleTable}
 
 \subsection{Data type summary}
 
