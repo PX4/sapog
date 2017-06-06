@@ -370,9 +370,16 @@ The following configuration parameters govern operation of the source voltage mo
 \begin{itemize}
 \item \CfgRef{mot+pwm+hz} - PWM carrier frequency, in hertz.
 \item \CfgRef{mot+pwm+dt+ns} - PWM switching dead time, in nanoseconds.
-It is not recommended to change this value from the default,
-unless there is full understanding of the matter.
 \end{itemize}
+
+\subsubsection{PWM dead time considerations}
+
+Generally, the end user should not change the dead time settings from the default values provided by
+the vendor, because that may have unexpected negative effects on the drive.
+
+However, in certain scenarios where a higher power output is preferred, the application may benefit from
+reduced dead time intervals.
+The hardware documentation may contain more useful data on this topic.
 
 \subsection{Field weakening}
 
@@ -385,13 +392,14 @@ The controller can alter the commutation sequence in a specific way, causing the
 created by the stator to interact with the magnetic field of the rotor in a way that reduces the magnetic
 field linkage, effectively increasing the maximum speed of the rotor, reducing the output torque,
 while keeping the maximum mechanical power output constant.
-Note that since part of the energy is expended on suppression of the magnetic fields induced by the rotor,
-the overall efficiency of the drive decreases with higher field weakening.
 
 This technique is known as \emph{field weakening}, and it is implemented by means of adjustment of the 
 commutation sequence, shortening the time interval from the zero crossing point to the moment when the next
 commutation step begins.
 In the context of BLDC drives this specific approach is also known as \emph{commutation advancing}.
+
+Observe that since some part of the energy is expended on suppression of the magnetic fields induced by the
+permanent magnets in the rotor, the overall efficiency of the drive decreases with stronger field weakening.
 
 Sapog defines commutation advance angle in electrical angular degrees of rotor position,
 and it can vary from 0\degree{} to 29\degree{}, inclusively, where 0\degree{} corresponds to no advance,
@@ -447,7 +455,7 @@ weakening settings are shown on the figure \ref{phase_voltages_at_high_advance_a
 
 \subsubsection{Freewheeling considerations}
 
-Upon careful review of the field weakening effect it might become obvious that it poses certain danger
+Upon careful review of the field weakening effect it might become obvious that it poses a certain danger
 when the motor is operating at a high speed.
 
 According to the explanations above, as long as the field weakening is active,
