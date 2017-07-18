@@ -3,7 +3,7 @@ PX4 Sapog
 
 [![Join the chat at https://gitter.im/Zubax/general](https://img.shields.io/badge/GITTER-join%20chat-green.svg)](https://gitter.im/Zubax/general)
 
-**Please refer to the documentation page at <https://docs.zubax.com/sapog>.**
+**READ THE DOCUMENTATION AT THE [ZUBAX KNOWLEDGE BASE](https://kb.zubax.com/x/cYAh).**
 
 ## Change Log
 
@@ -91,4 +91,4 @@ Reference hardware design is published under CC BY-SA 3.0 in the [PX4 Hardware r
 
 Known commercially available compatible hardware designs are listed below.
 
-- [Zubax Orel 20](https://docs.zubax.com/zubax_orel_20)
+- [Zubax Orel 20](https://zubax.com/products/orel_20)
