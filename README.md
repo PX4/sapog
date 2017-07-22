@@ -29,8 +29,8 @@ especially at high advance angles.
 
 ## Firmware
 
-If you're not running Linux or OSX natively, you can download
-[Bistromathic - a Linux virtual machine pre-configured for embedded development](https://files.zubax.com/vm/bistromathic.ova).
+If you're not running Linux or OSX natively, you can use
+[**Bistromathic** - a Linux virtual machine pre-configured for embedded development](https://kb.zubax.com/x/KIEh).
 
 ### Bootloader
 
