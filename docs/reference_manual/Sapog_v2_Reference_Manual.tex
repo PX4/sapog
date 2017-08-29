@@ -968,7 +968,7 @@ The following legend applies:
 \item F - the phase is floating. Both high and low transistors are turned off.
 \end{itemize}
 
-\begin{ZubaxCompactTable}{|c|c|c|c|}
+\begin{ZubaxCompactTable}{|c|c c c|}
     Step    & Phase A & Phase B & Phase C \\
     1       & L       & F       & F       \\
     2       & H       & F       & F       \\
@@ -1015,7 +1015,7 @@ The following legend applies:
 \item F - the phase is floating. Both high and low transistors are turned off.
 \end{itemize}
 
-\begin{ZubaxCompactTable}{|c|c|c|c|}
+\begin{ZubaxCompactTable}{|c|c c c|}
     Step    & Phase A & Phase B & Phase C \\
     1       & H       & F       & F       \\
     2       & F       & H       & F       \\
@@ -1026,7 +1026,7 @@ At each step, voltages of all three phases are sampled, which yields the set of 
 It is assumed that phases that are floating will be pulled down by the resistor dividers in the BEMF feedback
 circuits.
 
-\begin{ZubaxCompactTable}{|c|c|c|c|}
+\begin{ZubaxCompactTable}{|c|c c c|}
     Step    & Phase A & Phase B & Phase C \\
     1       &$Q_{1A}$ &$Q_{1B}$ &$Q_{1C}$  \\
     2       &$Q_{2A}$ &$Q_{2B}$ &$Q_{2C}$  \\
@@ -1185,7 +1185,7 @@ the MIT software license.
 The standard node status message \verb|uavcan.protocol.NodeStatus| is broadcast at 1 hertz.
 The mode and health codes are summarized below.
 
-\begin{ZubaxSimpleTable}{UAVCAN node health code interpretation}{|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN node health code interpretation}{|l X|}
 Node health & Meaning  \\
 OK        & Operating normally. \\
 WARNING   & Not used. \\
@@ -1194,7 +1194,7 @@ CRITICAL  & The controller is locked up (see section \ref{sec:stall_detection}),
             or the temperature sensor is malfunctioning.\\
 \end{ZubaxSimpleTable}
 
-\begin{ZubaxSimpleTable}{UAVCAN node mode code interpretation}{|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN node mode code interpretation}{|l X|}
 Node mode & Meaning  \\
 OPERATIONAL        & Operating normally. \\
 INITIALIZATION     & The firmware has just started and is not ready to begin normal operation yet. \\
@@ -1433,7 +1433,7 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
 
 \subsection{Data type summary}
 
-\begin{ZubaxSimpleTable}{UAVCAN broadcast messages}{|l|l|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN broadcast messages}{|l l l X|}
     Data type name                                         & Frequency, Hz & Tr. priority & Note \\
     \texttt{uavcan.protocol.NodeStatus}                    & 1          & 16 (medium)  & \\
     \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Aperiodic  & 30 (low)     & Only during the
@@ -1446,7 +1446,7 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
     \texttt{uavcan.protocol.debug.LogMessage}              & Aperiodic & 31 (lowest)   & \\
 \end{ZubaxSimpleTable}
 
-\begin{ZubaxSimpleTable}{UAVCAN subscribed messages}{|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN subscribed messages}{|l X|}
     Data type name                                         & Note \\
     \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Only during the initialization or while
                                                              in the bootloader. \\
@@ -1456,7 +1456,7 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
     \texttt{uavcan.equipment.indication.LightsCommand}     & Overrides the RGB LED state indication. \\
 \end{ZubaxSimpleTable}
 
-\begin{ZubaxSimpleTable}{UAVCAN provided services}{|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN provided services}{|l X|}
     Data type name                                         & Note \\
     \texttt{uavcan.protocol.GetNodeInfo}                   & \\
     \texttt{uavcan.protocol.GetDataTypeInfo}               & \\
@@ -1485,7 +1485,7 @@ Barring any special preferences,
 it is recommended to use the software listed in the table \ref{cli_software_recommendations}
 for accessing the CLI from the user's PC.
 
-\begin{ZubaxSimpleTable}{CLI terminal emulators}{|l|l|X|}\label{cli_software_recommendations}
+\begin{ZubaxSimpleTable}{CLI terminal emulators}{|l l X|}\label{cli_software_recommendations}
     PC OS            & Application         & Note \\
     GNU/Linux        & \texttt{picocom}    & A simple and robust command-line tool.
                                              It should be preferred over the popular
@@ -1644,7 +1644,7 @@ hw_signature : 'NX3Y05Y1a/hDNajPyMF5dojuAB9r1HmUxZ3UVU8g39C9L5pjAZMVKdZ7yI1Cetvu
 hw_info_url  : 'http://device.zubax.com/device_info?uid=33FFD405474735365457194300000000'
 \end{minted}
 
-\begin{ZubaxSimpleTable}{Zubax ID fields}{|l|X|}\label{zubax_id_fields_table}
+\begin{ZubaxSimpleTable}{Zubax ID fields}{|l X|}\label{zubax_id_fields_table}
 Field name              & Meaning \\
 
 \texttt{product\_id}    & Product type identifier string. It is always set to \texttt{io.px4.sapog}.
@@ -2038,7 +2038,7 @@ The first letter indicates the action,
 the second letter indicates the result of the action.
 The log source name is always set to the string ``\verb|Boot|''.
 
-\begin{ZubaxSimpleTable}{UAVCAN bootloader logging -- action codes}{|c|X|}
+\begin{ZubaxSimpleTable}{UAVCAN bootloader logging -- action codes}{|c X|}
 Code & Meaning \\
 \texttt{I} & Initialization. \\
 \texttt{G} & Invoking \texttt{uavcan.protocol.file.GetInfo}. \\
@@ -2049,7 +2049,7 @@ Code & Meaning \\
 \texttt{F} & Finalization. \\
 \end{ZubaxSimpleTable}
 
-\begin{ZubaxSimpleTable}{UAVCAN bootloader logging -- status codes}{|c|X|}
+\begin{ZubaxSimpleTable}{UAVCAN bootloader logging -- status codes}{|c X|}
 Code & Meaning \\
 \texttt{s} & Started \\
 \texttt{f} & Failed \\
@@ -2058,7 +2058,7 @@ Code & Meaning \\
 
 \subsection{Data type summary}
 
-\begin{ZubaxSimpleTable}{UAVCAN bootloader broadcast messages}{|l|l|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN bootloader broadcast messages}{|l l l X|}
     Data type name                                         & Frequency, Hz & Tr. priority & Note \\
     \texttt{uavcan.protocol.NodeStatus}                    & 1          & 30 (low)     & \\
     \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Aperiodic  & 30 (low)     & Used only during the
@@ -2066,12 +2066,12 @@ Code & Meaning \\
     \texttt{uavcan.protocol.debug.LogMessage}              & Aperiodic  & 30 (low)     & \\
 \end{ZubaxSimpleTable}
 
-\begin{ZubaxSimpleTable}{UAVCAN bootloader subscribed messages}{|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN bootloader subscribed messages}{|l X|}
     Data type name                                         & Note \\
     \texttt{uavcan.protocol.dynamic\_node\_id.Allocation}  & Used only during the initialization. \\
 \end{ZubaxSimpleTable}
 
-\begin{ZubaxSimpleTable}{UAVCAN bootloader provided services}{|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN bootloader provided services}{|l X|}
     Data type name                                         & Note \\
     \texttt{uavcan.protocol.GetNodeInfo}                   & Software version identification fields will be
                                                              zeroed if there is no valid application image 
@@ -2079,7 +2079,7 @@ Code & Meaning \\
     \texttt{uavcan.protocol.file.BeginFirmwareUpdate}      & \\
 \end{ZubaxSimpleTable}
 
-\begin{ZubaxSimpleTable}{UAVCAN bootloader invoked services}{|l|l|X|}
+\begin{ZubaxSimpleTable}{UAVCAN bootloader invoked services}{|l l X|}
     Data type name                                         & Tr. priority & Note \\
     \texttt{uavcan.protocol.file.GetInfo}                  & 30 (low)     & Invoked once before downloading
                                                                             the firmware file. \\
