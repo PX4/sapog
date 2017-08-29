@@ -15,6 +15,8 @@
 \SetWatermarkLightness{0.85}
 \SetWatermarkText{DRAFT}
 
+\hbadness=10000
+
 \title{Sapog v2 Reference Manual}
 
 %
@@ -1321,6 +1323,12 @@ The following bit rates can be detected by Sapog automatically:
 \end{itemize}
 Sapog cannot be interfaced with a CAN bus that operates at a different bit rate.
 
+Note that if the bootloader (section \ref{sec:bootloader}) was able to detect the bit rate of the CAN bus
+before starting the application,
+it will pass the detected value over to the application while booting it,
+in which case the application will immediately start using the supplied value rather than
+performing the bit rate detection again.
+
 \subsubsection{Node ID allocation}
 
 The configuration parameter \CfgRef{uavcan+node+id}, when set to a non-zero value,
@@ -1328,6 +1336,12 @@ defines the node ID of the local UAVCAN node.
 
 If this parameter is set to zero, Sapog will request a dynamic UAVCAN node ID from the bus,
 which is the default behavior.
+
+Note that if the bootloader (section \ref{sec:bootloader}) was able to obtain a dynamic UAVCAN node ID
+from the bus before starting the application,
+it will pass the detected value over to the application while booting it,
+in which case the application will use the provided node ID
+\emph{regardless of the value configured in \CfgRef{uavcan+node+id}}.
 
 Until there is a valid node ID available for the local UAVCAN node (either specified
 statically via the configuration parameter, or provided dynamically),
@@ -1349,7 +1363,8 @@ Both messages carry arrays of commands for multiple motors.
 Sapog selects the single command from the array at the index specified by the configuration
 parameter \CfgRef{esc+index}.
 If the specified index points out of the range of the array,
-Sapog assumes that the commanded setpoint is zero, and stops the motor.
+Sapog assumes that the commanded setpoint is zero, and stops the motor.\footnote{
+Obviously, multiple ESC can share the same ESC index setting.}
 
 Sapog does not perform any additional processing of the received command message,
 and does not prioritize between the supported types of messages
