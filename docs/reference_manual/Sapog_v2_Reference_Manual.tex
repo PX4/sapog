@@ -9,6 +9,7 @@
 \usepackage{multirow}
 \usepackage{diagbox}
 \usepackage{amsmath}
+\usepackage{ConfigParamIndex}
 
 % Draft watermark
 \usepackage{draftwatermark}
@@ -18,55 +19,6 @@
 \hbadness=10000
 
 \title{Sapog v2 Reference Manual}
-
-%
-% Use this macro to define configuration parameter names.
-% It automatically creates parameter references that can be accessed later using the respective macro.
-% Note that underscores in the parameter name must be replaced with +, e.g.:
-%   \CfgDef{mot+abc+def}
-% Expands to:
-%   mot_abc_def
-%
-\newcommand{\CfgDef}[1]{%
-    \StrSubstitute{#1}{+}{\textunderscore}[\temp]%
-    \texttt{\temp}\label{#1}%
-}
-
-%
-% Use this macro to refer to configuration parameter definition from other parts of the document.
-%
-% NEVER MENTION CONFIGURATION PARAMETERS DIRECTLY BY NAME IN THE TEXT OF THE DOCUMENT.
-% The only acceptable way to refer to a configuration parameter is though this macro.
-%
-% Note that underscores in the parameter name must be replaced with +, e.g.:
-%   \CfgRef{mot+abc+def}
-% Expands to:
-%   mot_abc_def
-%
-\newcommand{\CfgRef}[1]{%
-    \StrSubstitute{#1}{+}{\textunderscore}[\temp]%
-    \texttt{\temp} {\footnotesize (page \pageref{#1})}%
-    % The stuff below comes from the etoolbox package
-    \xifinlistcs{\thepage}{#1}% Is this page number already in the list?
-    {}% Yes, no need to add it again.
-    {\listcsxadd{#1}{\thepage}} % No, it is not, add it now.
-}
-
-%
-% This command generates a list of references to the specified parameter made from within the document.
-%
-\newcounter{CfgReferenceScratchpad}
-\newcommand{\CfgListReferences}[1]{%
-    \renewcommand*{\do}[1]{%
-        \ifnum\theCfgReferenceScratchpad=0%
-            \stepcounter{CfgReferenceScratchpad}%
-            \else{,\ }%
-        \fi%
-        \hyperlink{page.##1}{##1}%
-    }%
-    \dolistcsloop{#1}%
-    \setcounter{CfgReferenceScratchpad}{0}%
-}
 
 \begin{document}
 \frontmatter
