@@ -1619,7 +1619,7 @@ For example: \verb|rpm 5000| assigns the target setpoint of 5000 mechanical RPM.
 Print the internal motor controller status information in a human-readable format.
 The output of this command is also printed automatically when the rotor gets stalled.
 
-\subsubsection{zubax\_id}
+\subsubsection{zubax\_id}\label{sec:cli_zubax_id}
 
 This command reports the complete information identifying this particular product:
 type, version information, make and model.
@@ -2097,5 +2097,46 @@ Code & Meaning \\
 \section{Performance considerations}
 
 \chapter{Porting guide}\label{sec:porting_guide}
+
+\section{Overview}
+
+This section contains the information necessary for implementation of custom hardware designs compatible with the
+Sapog firmware.
+
+The reader should be familiar with the firmware codebase in order to be able to implement a successful
+custom hardware design compatible with Sapog.
+
+Questions concerning custom designs can be asked via \url{https://forum.zubax.com}.
+
+\section{Certificate of authenticity}
+
+Sapog can store an arbitrary chunk of data up to 256 bytes large in a dedicated ROM area.
+This data is supposed to be the certificate of authenticity (CoA) provided by the hardware vendor.
+
+The CoA can be written using the command \verb|zubax_id| described in the section
+\ref{sec:cli_zubax_id}.
+Beware that the CoA can be written only once.
+
+\section{Reference schematic}
+
+This section contains the schematic of the reference hardware design that can be used as a basis for custom hardware
+designs compatible with Sapog.
+The design files and additional information can be gathered from the Github repository at
+\url{https://github.com/PX4/Hardware}.
+
+Note that the EEPROM memory chip is not currently used by the firmware,
+but it is required nevertheless because future versions of the firmware may need it.
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[page=1,angle=90,origin=c,width=1\textwidth]{sapog_reference_hardware.pdf}
+	\caption{Reference schematic, page 1.}
+\end{figure}
+
+\begin{figure}[hbt]
+    \centering
+    \includegraphics[page=2,angle=90,origin=c,width=1\textwidth]{sapog_reference_hardware.pdf}
+	\caption{Reference schematic, page 2.}
+\end{figure}
 
 \end{document}
