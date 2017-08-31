@@ -1528,16 +1528,43 @@ The configuration parameters and their non-volatile storage are described in mor
 
 Syntax:
 \begin{itemize}
-\item \verb|cfg list| - list all configuration parameters, their current values,
-acceptable value intervals, and default values.
-\item \verb|cfg save| - save the current configuration into the non-volatile storage.
-This command is redundant and normally need not be used, because Sapog commits all configuration
-into the non-volatile storage automatically upon modification.
-\item \verb|cfg erase| - erase the current configuration and reset the non-volatile memory to factory defaults.
-\item \verb|cfg set <name> <value>| - assign the configuration parameter named \verb|<name>| the value
-\verb|<value>|. For example: \verb|cfg set foo 42|.
-The non-volatile storage will be updated automatically.
+    \item \verb|cfg list| - list all configuration parameters, their current values,
+          acceptable value intervals, and default values.
+    
+    \item \verb|cfg save| - save the current configuration into the non-volatile storage.
+          This command is redundant and normally need not be used, because Sapog commits all configuration
+          into the non-volatile storage automatically upon modification.
+    
+    \item \verb|cfg erase| - erase the current configuration and reset the non-volatile memory to factory defaults.
+    
+    \item \verb|cfg set <name> <value>| - assign the configuration parameter named \verb|<name>| the value
+          \verb|<value>|. For example: \verb|cfg set foo 42|.
+          The non-volatile storage will be updated automatically.
 \end{itemize}
+
+The syntax \verb|cfg list| prints one parameter per line, where the line is formatted as follows:
+
+\verb|name = value [min, max] (default)|
+
+The number of whitespaces between tokens may vary.
+
+Floating point parameters are always reported with the point symbol (\verb|.|),
+which allows one to distinguish them from integer and boolean typed parameters.
+
+Boolean parameters are reported as integers, where 1 represents logical true and 0 represents logical false.
+They can be distinguished from integer parameters by their minimum and maximum values being 0 and 1,
+respectively.
+
+Whenever a parameter is assigned a new value, the device verifies if the new value is within the
+acceptable limits.
+If it is, the new value is assigned. Otherwise, the old value is retained.
+Afterwards the device prints out the resulting value of the parameter in the following format:
+
+\verb|name = value|
+
+The number of whitespaces between tokens may vary.
+
+This response can be used to check whether the new value has been accepted by the device or not.
 
 \subsubsection{reboot}
 
