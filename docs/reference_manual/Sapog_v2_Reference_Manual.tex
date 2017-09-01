@@ -335,7 +335,7 @@ However, in certain scenarios where a higher power output is preferred, the appl
 reduced dead time intervals.
 The hardware documentation may contain more useful data on this topic.
 
-\subsection{Field weakening}
+\subsection{Field weakening}\label{sec:field_weakening}
 
 From section \ref{sec:motor_equations} we know that the maximum speed that a motor can achieve is dependent
 on the the load, magnetic flux linkage, and the source voltage.
@@ -2121,6 +2121,8 @@ This chapter describes how to configure Sapog for optimal performance with a giv
 in a particular application.
 The reader is assumed to have read the previous parts of the reference manual.
 
+Further help can be gained via \url{https://forum.zubax.com}.
+
 \section{Basic configuration}
 
 \subsection{Number of rotor magnetic poles}
@@ -2139,14 +2141,48 @@ The parameter \CfgRef{mot+i+max} should be configured correctly to avoid overloa
 The maximum current allowed for the motor should be provided in the motor specification.
 For more information, refer to the section \ref{sec:current_limiting}.
 
+\subsection{Low speed operation}
+
+The default settings may be unsuitable to maintain stable operation of certain motors at low speeds.
+This especially affects large, high-power motors.
+
+The parameters \CfgRef{mot+comm+per+max} and \CfgRef{mot+v+min} should be adjusted in the first
+order if necessary.
+
 \subsection{Response characteristics}
 
 The settings of the duty cycle ramp should be adjusted for the target application.
 Please refer to the sections \ref{sec:open_loop} and \ref{sec:rpm_loop} for details.
 
-\section{Spin-up settings}
+\section{Advanced tuning}
 
-\section{Performance considerations}
+\subsection{Field weakening}
+
+The field weakening feature (documented in the section \ref{sec:field_weakening}) is governed by the following
+set of configuration parameters:
+\CfgRef{mot+tim+adv+max}, \CfgRef{mot+tim+adv+min}, \CfgRef{mot+tim+cp+min}, \CfgRef{mot+tim+cp+max}.
+
+The angles are specified in electrical degrees;
+one electrical degree is equivalent to 3 phase degrees.
+For example, 90\textdegree{} of phase advance is equivalent to 30\textdegree{} of electrical advance.
+
+It is recommended to follow the described below algorithm to configure the advance angle settings:
+
+\begin{enumerate}
+    \item Find out the idle commutation period of your motor.
+          The commutation period (in seconds) can be derived from RPM using the following formula:
+          $20 / (\text{NumPoles}\times\text{RPM})$, where \textbf{NumPoles} is the number of magnetic poles
+          of the rotor, and \textbf{RPM} is the angular velocity of the rotor in revolutions per minute.
+
+    \item Assign \CfgRef{mot+tim+cp+min} the idle commutation period computed in the step 1.
+
+    \item Find out the commutation period when the motor is working at the nominal RPM.
+          Use the formula defined in the step 1 if necessary.
+
+    \item Assign \CfgRef{mot+tim+cp+max} the commutation period computed in the step 3.
+
+    \item Assign \CfgRef{mot+tim+adv+max} the desired advance angle at the nominal load.
+\end{enumerate}
 
 \chapter{Porting guide}\label{sec:porting_guide}
 
