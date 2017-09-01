@@ -935,7 +935,7 @@ Measurements of the inverter DC current $I_\text{inv}$ and voltage $V_\text{inv}
 are filtered with a first-order low-pass filter.
 The corner frequency of the filter is specified by the parameter \CfgRef{mot+lpf+freq}, in hertz.
 
-\subsubsection{Current limiting}
+\subsubsection{Current limiting}\label{sec:current_limiting}
 
 Sapog can limit the maximum DC bus current with the help of a simple P-controller
 that activates when the instant current exceeds the limit.
@@ -2132,6 +2132,17 @@ The number of magnetic poles can be obtained from the motor specification;
 alternatively, it can be obtained by counting the number of magnets on the rotor.
 
 The relevant configuration parameter is \CfgRef{mot+num+poles}.
+
+\subsection{Maximum current}
+
+The parameter \CfgRef{mot+i+max} should be configured correctly to avoid overloading the motor.
+The maximum current allowed for the motor should be provided in the motor specification.
+For more information, refer to the section \ref{sec:current_limiting}.
+
+\subsection{Response characteristics}
+
+The settings of the duty cycle ramp should be adjusted for the target application.
+Please refer to the sections \ref{sec:open_loop} and \ref{sec:rpm_loop} for details.
 
 \section{Spin-up settings}
 
