@@ -26,13 +26,13 @@
 \begin{titlepage}
 \section*{Overview}
 
-Sapog is an advanced open source sensorless PMSM\slash{}BLDC motor controller firmware designed for
+Sapog is an advanced open source sensorless PMSM/\allowbreak{}BLDC motor controller firmware designed for
 use in propulsion systems of electric unmanned aircraft and watercraft.
 
 The source repository and the public bug tracker are located at
 \url{https://github.com/PX4/sapog}.
 
-This document is applicable to firmware versions 2.x released until \today.
+This document is applicable to firmware versions 2.x released before \today.
 
 This document focuses only on the firmware.
 Please refer to your product documentation for relevant information about the hardware.
@@ -53,12 +53,12 @@ Please refer to your product documentation for relevant information about the ha
     \item Optional RPM control loop (RPM governor).
     \item Current limiting.
     \item Self diagnostics and extensive real-time status reporting.
-    \item Compatible with most BLDC motors with very little tuning.
+    \item Compatible with most BLDC motors with minimal tuning.
     \item Highly configurable.
     \item Automatic firmware update over UAVCAN in the field.
     \item Supported communication interfaces:
     \begin{itemize}
-        \item UAVCAN interface with optional double redundancy.
+        \item UAVCAN interface with optional dual bus redundancy.
         \item Command line interface over UART, suitable for M2M communications.
         \item RCPWM (analog PWM interface widely used in robotics).
     \end{itemize}
