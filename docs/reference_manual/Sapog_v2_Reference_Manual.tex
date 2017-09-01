@@ -2117,7 +2117,21 @@ Code & Meaning \\
 
 \section{Overview}
 
+This chapter describes how to configure Sapog for optimal performance with a given motor
+in a particular application.
+The reader is assumed to have read the previous parts of the reference manual.
+
 \section{Basic configuration}
+
+\subsection{Number of rotor magnetic poles}
+
+The number of rotor magnetic poles is required for the closed-loop speed control and
+measurement of the mechanical speed of the rotor.
+
+The number of magnetic poles can be obtained from the motor specification;
+alternatively, it can be obtained by counting the number of magnets on the rotor.
+
+The relevant configuration parameter is \CfgRef{mot+num+poles}.
 
 \section{Spin-up settings}
 
