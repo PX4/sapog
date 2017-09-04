@@ -47,15 +47,15 @@ Please refer to your product documentation for relevant information about the ha
 \BeginRightColumn
 \section*{Features}
 \begin{itemize}
-    \item Robust motor control and resilience to synchronization losses in all operating modes.
-    \item Fast response. This feature is especially critical for multirotor aircraft.
+    \item Robust motor control algorithms.
+    \item Fast response (critical for multirotor aircraft).
     \item Regenerative braking and active freewheeling.
     \item Optional RPM control loop (RPM governor).
     \item Current limiting.
     \item Self diagnostics and extensive real-time status reporting.
     \item Compatible with most BLDC motors with minimal tuning.
     \item Highly configurable.
-    \item Automatic firmware update over UAVCAN in the field.
+    \item Automatic firmware update over the CAN bus in the field.
     \item Supported communication interfaces:
     \begin{itemize}
         \item UAVCAN interface with optional dual bus redundancy.
@@ -88,8 +88,8 @@ hardware vendors.
 
 \section{Conventions}
 
-Unless specifically stated otherwise, all units of measurements used in this document are assumed to be SI.
-Units of measurements are shown in square brackets, e.g. $\left[\text{unit}\right]$.
+Unless specifically stated otherwise, all units of measurement used in this document are assumed to be SI.
+Units of measurement are typically shown in square brackets: $\left[\text{unit}\right]$.
 
 Within equations, references to configuration parameter values are made through the symbol $\Pi$
 with the name of the configuration parameter in the subscript;
