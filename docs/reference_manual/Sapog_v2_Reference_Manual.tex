@@ -111,25 +111,25 @@ for example: $\Pi_\text{parametername}$.
 \chapter{Principles of operation}
 
 This chapter provides a brief overview of the basic operating principles of electric permanent magnet
-synchronous motors, and the relevant approaches and solutions implemented in Sapog.
+synchronous motors and of the relevant approaches and solutions implemented in Sapog.
 
 \section{PMSM and BLDC motors}
 
 \subsection{Basic equations}\label{sec:motor_equations}
 
-This section provides the most important equations that describe a DC electric motor.
+This section provides some of the most important equations that describe a DC electric motor.
 The principles explained here can be extended to all types of polyphase PMSM motors as well.
 
 In the context of electric drives, BEMF is the voltage induced on the motor windings
 while the armature of the motor is moving relative to the magnetic field of the rotor.
-The induced voltage can be observed on the phase leads of the motor.
 The magnitude of the induced voltage is dependent on the speed of the armature relative to the magnetic field
-of the rotor, and the magnetic flux linkage of the motor. The dependency can be expressed as follows:
+of the rotor and on the magnetic flux linkage of the motor.
+The dependency can be expressed as follows:
 \begin{equation}
 E_b = \phi \omega_e
 \end{equation}
 where $E_b$ $\left[\text{volt}\right]$ is the induced back electromotive force,
-$\phi$ $\left[\text{weber}\right]$ is the magnetic flux linkage,
+$\phi$ $\left[\text{weber}\right]$ is the magnetic flux linkage of the motor,
 and $\omega_e$ $\left[\frac{\text{radian}}{\text{second}}\right]$ is the electrical angular velocity.
 
 Electrical angular velocity is a function of the mechanical angular velocity
@@ -140,7 +140,7 @@ and the number of rotor magnetic poles $N_p$:
 N_p \geq 2, N_p\text{\ is even}
 \end{equation}
 
-Both mechanical and electrical angular velocity are related to the mechanical and electrical RPM,
+Both mechanical and electrical angular velocities are related to the mechanical and electrical RPM,
 respectively, as follows:
 \begin{equation}
 \text{RPM} = \frac{30 \omega }{\pi }
@@ -155,7 +155,7 @@ I_a = \frac{E_s - E_b}{R}
 where $R$ $\left[\text{ohm}\right]$ is the internal resistance of the stator.
 
 Torque $\tau$ $\left[\text{newton}\cdot{}\text{meter}\right]$ observed on the shaft is dependent on the
-torque-generating current, flux linkage, and the number of rotor magnetic poles as follows:
+torque-generating current, magnetic flux linkage, and the number of rotor magnetic poles as follows:
 \begin{equation}
 \tau = \frac{\sqrt{3}}{2} I_a N_p \phi
 \end{equation}
