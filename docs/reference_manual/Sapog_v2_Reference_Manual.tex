@@ -179,8 +179,8 @@ K_V = \frac{20 \sqrt{3}}{\pi  N_p \phi }
 
 \subsection{BEMF shape}
 
-There are two major types of permanent magnet synchronous motors (PMSM) that differ by the shape of the back
-electromotive force induced while the rotor is moving at a constant speed.
+There are two major types of permanent magnet synchronous motors (PMSM) that differ by the shape of the induced
+back electromotive force while the rotor is moving at a constant speed.
 
 The first type has a fixed magnetic flux linkage that is independent of the electrical position of the rotor.
 The induced BEMF per phase therefore has a sinusoidal shape.
@@ -200,15 +200,17 @@ The difference is illustrated on the figure \ref{bemf_trapezoidal_vs_sinusoidal}
 
 Sapog, being a BLDC drive, drives the motor with trapezoidal modulated voltage.
 This produces smooth torque and vibration free operation with BLDC motors,
-since it is expected that the flux linkage will be changing in a specific way.
+since it is expected that the flux linkage will be changing in a specific way
+that matches the shape of the modulated voltage.
 
 Like any BLDC drive, Sapog can operate with BLAC motors as well, albeit with increased torque ripple.
-From the model presented in section \ref{sec:motor_equations} we can predict that the motor
-will exhibit periodic variations in the output torque if the form of the voltage modulated by the controller
-does not match with the form of the back EMF induced in the motor.
+From the model presented in the section \ref{sec:motor_equations} we can predict that the motor
+will exhibit periodic variations of the output torque if the form of the voltage modulated by the controller
+does not match the form of the back EMF induced in the motor.
 The resulting periodic torque variations that occur in a BLAC motor driven by a BLDC drive
 (and, likewise, in a BLDC motor driven with sine modulated voltages) are shown on the figure 
 \ref{sine_torque_deviation}.
+Many applications, however, can tolerate the resulting torque ripple and vibrations.
 
 \begin{figure}[hbt]
     \centering
@@ -216,9 +218,6 @@ The resulting periodic torque variations that occur in a BLAC motor driven by a 
 	\caption{Torque ripple caused by mismatching forms of the back EMF and the source voltage.
 	\label{sine_torque_deviation}}
 \end{figure}
-
-Many applications, however, can tolerate the induced torque ripple and associated vibrations produced
-by the motor.
 
 \section{Motor control}
 
@@ -251,13 +250,13 @@ The choice between forward and reverse commutation tables affects the direction 
 and it is specified via the configuration parameter \CfgRef{ctl+dir}.
 
 The rotor position is deduced from the behavior of the induced BEMF on the floating phase.
-From figure \ref{bemf_trapezoidal_vs_sinusoidal} we can deduce that when the induced BEMF of the floating
-phase crosses the median voltage between the high and the low phase, there is 30 electrical degrees left
+From the figure \ref{bemf_trapezoidal_vs_sinusoidal} we can deduce that when the induced BEMF of the floating
+phase crosses the median voltage between the high and the low phase, there are 30 electrical degrees left
 before the next commutation step begins.
-The controller employs this rule to estimate the time when the next commutation should occur.
+The controller leverages this rule to estimate the time when the next commutation should occur.
 The process is demonstrated on the figure \ref{commutation_basics}.
 The voltage waveforms shown on the figure were acquired from the phase voltage signal conditioning circuits,
-before the ADC inputs, shown on the figure \ref{power_stage_schematic}.
+before the ADC inputs (as shown on the figure \ref{power_stage_schematic}).
 
 \begin{figure}[hbt]
     \centering
@@ -265,7 +264,7 @@ before the ADC inputs, shown on the figure \ref{power_stage_schematic}.
 	\caption{Six step commutation sequence observed through phase voltages.
 	\label{commutation_basics}}
 	PWM modulation is not seen because the shown voltages were acquired while the controller
-	was operating at full duty cycle.
+	was operating at the full duty cycle.
 \end{figure}
 
 \begin{figure}[hbt]
@@ -276,31 +275,31 @@ before the ADC inputs, shown on the figure \ref{power_stage_schematic}.
 \end{figure}
 
 From the section \ref{sec:motor_equations} we know that the magnitude of the induced BEMF is linearly
-dependent on the speed of relative motion between the armature and the rotor magnetic field.
+dependent on the speed of the relative motion between the armature and the rotor's magnetic field.
 Considering also the fact that the controller relies on the induced BEMF signal for rotor position estimation,
 we can predict that the rotor position estimation may be unreliable if the induced BEMF is not sufficiently
 strong.
-In order to avoid issues at low speed operation, Sapog provides several configuration parameters that
+In order to avoid issues with low speed operation, Sapog provides several configuration parameters that
 restrict the minimum operating speed, such as the following:
 
 \begin{itemize}
 \item \CfgRef{mot+comm+per+max} - maximum commutation period, in microseconds.
-The estimated commutation period will be artificially constrained to not exceed this value.
-\item \CfgRef{mot+rpm+min} - minimum RPM that can be demanded in RPM governor mode.
-If the demanded RPM is lower, the setpoint will be artificially increased.
+The estimated commutation period will be constrained by the controller to not exceed this value.
+\item \CfgRef{mot+rpm+min} - minimum RPM that can be demanded in the RPM governor mode.
+If the demanded RPM is lower, the setpoint will be increased by the controller.
 Reduce this parameter to make the minimum speed lower; increase it to improve stability.
-\item \CfgRef{mot+v+min} - minimum source voltage when operating in open loop mode, in volts.
-If the demanded duty cycle amounts to a lower source voltage than this, the setpoint will be artificially
-increased.
+\item \CfgRef{mot+v+min} - minimum source voltage when operating in the open loop mode, in volts.
+If the demanded duty cycle amounts to a lower source voltage than this, the setpoint will be
+increased by the controller.
 Reduce this parameter to make the minimum speed lower; increase it to improve stability.
 \end{itemize}
 
 These parameters may need adjustment to make Sapog compatible with a specific motor.
-For example, if the motor cannot keep stable operation at low speed,
+For example, if the motor cannot maintain stable operation at a low speed,
 the minimum source voltage should be increased,
 and/or the maximum commutation period should be made longer.
-The minimum voltage limit does not apply to RPM loop mode,
-where the minimum speed is governed by the dedicated configuration parameter shown above.
+The minimum voltage limit does not apply to the RPM loop mode,
+where the minimum speed is governed by a dedicated configuration parameter as shown above.
 
 The following equation can be used to convert between commutation period $T_\text{comm}$
 $\left[\text{second}\right]$
@@ -311,7 +310,7 @@ and electrical angular velocity $\omega_e$ $\left[\frac{\text{radian}}{\text{sec
 
 \subsection{Source voltage modulation}
 
-Source voltage modulation technique employed by Sapog is a fixed carrier frequency, fixed dead time,
+The source voltage modulation technique employed by Sapog is a fixed carrier frequency, fixed dead time,
 4-quadrant, simultaneous complementary switching PWM modulation.
 This modulation technique supports active freewheeling and regenerative braking.
 
@@ -320,7 +319,7 @@ For more background, the reader is advised to refer to other sources, such as th
 ``Influence of PWM Schemes and Commutation Methods for DC and Brushless Motors and Drives''
 (Dal Y. Ohm, Richard J. Oleksuk).
 
-The following configuration parameters govern operation of the source voltage modulator:
+The following configuration parameters govern the operation of the source voltage modulator:
 \begin{itemize}
 \item \CfgRef{mot+pwm+hz} - PWM carrier frequency, in hertz.
 \item \CfgRef{mot+pwm+dt+ns} - PWM switching dead time, in nanoseconds.
@@ -337,10 +336,10 @@ The hardware documentation may contain more useful data on this topic.
 
 \subsection{Field weakening}\label{sec:field_weakening}
 
-From section \ref{sec:motor_equations} we know that the maximum speed that a motor can achieve is dependent
+From the section \ref{sec:motor_equations} we know that the maximum speed that a motor can achieve is dependent
 on the the load, magnetic flux linkage, and the source voltage.
-Reduction of the magnetic flux linkage decreases the induced BEMF, which allows the rotor reach higher speed,
-given constant source voltage and load.
+Reduction of the magnetic flux linkage decreases the induced BEMF, which allows the rotor to reach a higher speed,
+given a constant source voltage and load.
 
 The controller can alter the commutation sequence in a specific way, causing the rotating magnetic field
 created by the stator to interact with the magnetic field of the rotor in a way that reduces the magnetic
@@ -348,14 +347,14 @@ field linkage, effectively increasing the maximum speed of the rotor, reducing t
 while keeping the maximum mechanical power output constant.
 
 This technique is known as \emph{field weakening}, and it is implemented by means of adjustment of the 
-commutation sequence, shortening the time interval from the zero crossing point to the moment when the next
+commutation sequence, shortening the time interval between the point of zero crossing and the moment when the next
 commutation step begins.
 In the context of BLDC drives this specific approach is also known as \emph{commutation advancing}.
 
-Observe that since some part of the energy is expended on suppression of the magnetic fields induced by the
+Observe that since a part of the input power is used for the suppression of the magnetic fields induced by the
 permanent magnets in the rotor, the overall efficiency of the drive decreases with stronger field weakening.
 
-Sapog defines commutation advance angle in electrical angular degrees of rotor position,
+Sapog defines the commutation advance angle in electrical angular degrees of rotor position,
 and it can vary from 0\degree{} to 29\degree{}, inclusively, where 0\degree{} corresponds to no advance,
 and 29\degree{} corresponds to the maximum advance angle.
 The practical effects imposed on the drive are summarized in the following table.
@@ -367,9 +366,9 @@ The practical effects imposed on the drive are summarized in the following table
 \end{ZubaxCompactTable}
 
 Sapog can modulate a fixed advance angle, or it can be defined as a function of speed.
-The latter is especially useful, since high field weakening at low speeds does not make practical sense,
-and serves only to reduce the drive efficiency with no apparent benefit to the application.
-Additionally, high field weakening may be responsible for stability issues at low operating speeds,
+The latter is especially useful, because a strong field weakening at low speeds does not make practical sense,
+and serves only to reduce the drive efficiency with no apparent benefit for the application.
+Additionally, a strong field weakening may be responsible for stability issues at low operating speeds,
 because it effectively reduces the magnitude of the BEMF induced in the motor.
 
 The field weakening feature is configured with the help of the following configuration parameters:
@@ -395,13 +394,13 @@ The interpolation logic is demonstrated on the figure \ref{timing_advance_interp
 	\label{timing_advance_interpolation_plot}}
 \end{figure}
 
-Sample phase voltage waveforms acquired while the controller was operating under high field
+Sample phase voltage waveforms acquired while the controller was operating with high field
 weakening settings are shown on the figure \ref{phase_voltages_at_high_advance_angle}.
 
 \begin{figure}[hbtp]
     \centering
 	\includegraphics[width=\textwidth]{phase_voltages_at_high_advance_angle}
-	\caption{Commutation sequence at high advance angle settings.
+	\caption{Commutation sequence with high advance angle settings.
 	\label{phase_voltages_at_high_advance_angle}}
 	It can be seen that the next commutation begins shortly after the induced BEMF
 	crosses the neutral voltage.
@@ -409,45 +408,46 @@ weakening settings are shown on the figure \ref{phase_voltages_at_high_advance_a
 
 \subsubsection{Freewheeling considerations}
 
-Upon careful review of the field weakening effect it might become obvious that it poses a certain danger
-when the motor is operating at a high speed.
+Upon careful review of the field weakening principle it might become obvious that it poses a certain danger
+when the motor operates at a high speed.
 
 According to the explanations above, as long as the field weakening is active,
 the controller actively suppresses the excessive flux of the permanent magnets in the rotor.
-This suppression allows the controller to lower the induced BEMF, and, therefore,
+The suppression allows the controller to lower the induced BEMF, and, therefore,
 extend the operating speed upwards, while keeping the source voltage constant.
 
-Consider what happens when the inverter (or the controller as a whole) is turned off while the
-motor was running with the rotor field weakened.
+Consider what happens when the inverter (or the controller as a whole) becomes turned off while the
+motor is running with the rotor field weakened.
 As the controller ceases to suppress the field, the flux linkage of the motor returns to nominal,
 which, given that the speed is sufficiently high, may significantly exceed the inverter supply
-voltage $V_\text{inv}$, possibly causing damage to the controller, the power supply, the motor, etc.
+voltage $V_\text{inv}$, possibly causing damage to the controller, the power supply, the motor, and so on.
 
 \subsection{Rotor state observer}
 
 \subsubsection{BEMF processing}
 
 As mentioned previously, Sapog deduces the current position of the rotor by tracking the induced BEMF
-on the floating phase.
-Which phase is floating and the direction in which BEMF is changing is dependent on the current electrical
+of the floating phase.
+Which phase is floating and the direction in which the BEMF is changing is dependent on the current electrical
 angle of the rotor.
 
 Measurement of the induced BEMF is done by the ADC, which is connected to the motor phases via
-resistive voltage dividers which reduce the dynamic range of the motor phase voltages into a narrower
-dynamic range acceptable by the ADC,
+resistive voltage dividers which reduce the dynamic range of the motor phase voltages down to a narrower
+dynamic range acceptable for the ADC,
 and a buffer capacitor that provides fast recharge of the sample-and-hold capacitor of the ADC,
 and suppresses high frequency noise.
 The resulting simplified schematic can be seen on the figure \ref{power_stage_schematic}.
 
-BEMF measurements are sensitive to noise. In order to avoid interference with the noise generated
-by the VSI, the controller synchronizes BEMF sampling with PWM switching.
-However, the timing resolution provided by the resulting sampling pattern is insufficient for robust
+BEMF measurements are sensitive to noise.
+In order to prevent the noise emitted by the VSI from interfering with BEMF measurements,
+the controller synchronizes the BEMF sampling with PWM switching.
+However, the temporal resolution provided by the resulting sampling pattern is insufficient for robust
 rotor state estimation because of the sampling period restrictions imposed by the
 PWM carrier frequency.
 
 In order to work around this limitation, Sapog collects a number of samples, and,
 knowing that the shape of the BEMF induced by the floating phase of a BLDC motor is linear,
-solves a linear regression problem on the collected samples, effectively recovering the most likely
+solves a linear regression problem on the collected samples, effectively recovering the most probable
 shape of the BEMF signal.
 The resulting approximation is very robust and resilient to noise.
 
@@ -475,11 +475,11 @@ An attentive reader might point out that the assumption of linear BEMF that the 
 upon does not hold for BLAC motors, since the induced BEMF of a floating phase will be sinusoidal rather
 than linear.
 While the objection is correct, this deviation does not pose a significant problem, since the sinusoidal
-BEMF well approximates to linear near the point of zero crossing.
-Some issues may arise at very high advance angles, where the controller will be forced to resort to
-look-ahead extrapolation, so that the linear regression will be applied to the sample set acquired
-at the point where the linear approximation assumption does not hold.
-The resulting imprecision, however, should not be of significant practical importance.
+BEMF can be effectively approximated to linear near the point of zero crossing.
+Some issues may arise with very high advance angle settings, where the controller may be forced to resort to
+the look-ahead extrapolation, so that the linear regression will be applied to a sample set acquired
+at the point where the linear approximation is not valid.
+The resulting imprecision, however, should not be of a significant practical importance.
 
 \subsubsection{Special cases}
 
