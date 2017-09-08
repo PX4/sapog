@@ -1804,8 +1804,8 @@ The setpoint handling logic is illustrated on the figure \ref{rcpwm_setpoint_han
 
 This chapter summarizes all configuration parameters available in Sapog.
 
-The length of the configuration parameter names does not exceed 16 characters,
-which ensures compatibility with MAVLink version 1.
+The length of configuration parameter names does not exceed 16 characters,
+which ensures compatibility with the MAVLink protocol version 1.
 
 \section{Non-volatile configuration storage}
 
@@ -1826,10 +1826,10 @@ If the device is turned off while the configuration storage was being updated,
 the stored configuration data may get damaged.
 
 The stored configuration is read from the non-volatile memory once upon boot-up.
-If Sapog detects that the stored configuration data has been damaged,
-it will automatically revert to the factory default configuration.
-Sapog can always reliably detect damage of the stored configuration data,
-so it is guaranteed that invalid configuration can never be loaded.
+If Sapog detects that the stored configuration data is damaged,
+it will automatically revert it to the factory default state.
+Sapog can always reliably detect a damage of the stored configuration data,
+so it is guaranteed that an invalid configuration can never be loaded.
 
 \section{Firmware upgrade considerations}
 
@@ -1846,7 +1846,7 @@ Keep these considerations in mind when upgrading the firmware.
 
 The minimum, maximum, and default values provided in the table are shown for exemplary purposes only,
 and they are \emph{not expected to be valid} for all firmware revisions that this document applies to.
-Intervals and default values may change in newer firmware revisions; furthermore,
+The value intervals and default values may change in newer firmware revisions; furthermore,
 they can also depend on which particular hardware Sapog is running on.
 
 The following abbreviations are adopted for the tables below:
@@ -1886,10 +1886,10 @@ take effect.
 \CfgParamIndexEntry{mot+bemf+range}{percent}{boot}{10}{100}{90}{Valid BEMF magnitude}
 \CfgParamIndexEntry{mot+bemf+win+den}{}{boot}{3}{8}{4}{BEMF sampling window length denominator}
 \CfgParamIndexEntry{mot+blank+usec}{microsecond}{boot}{10}{300}{40}{Comm. blanking time for normal mode}
-\CfgParamIndexEntry{mot+tim+cp+min}{microsecond}{boot}{100}{50000}{600}{Advance angle interpolation point}
-\CfgParamIndexEntry{mot+tim+cp+max}{microsecond}{boot}{100}{50000}{300}{Advance angle interpolation point}
-\CfgParamIndexEntry{mot+tim+adv+max}{angular degree}{boot}{0}{29}{15}{Advance angle interpolation point}
-\CfgParamIndexEntry{mot+tim+adv+min}{angular degree}{boot}{0}{20}{5}{Advance angle interpolation point}
+\CfgParamIndexEntry{mot+tim+cp+min}{microsecond}{boot}{100}{50000}{600}{Advance angle interpolation point X1}
+\CfgParamIndexEntry{mot+tim+cp+max}{microsecond}{boot}{100}{50000}{300}{Advance angle interpolation point X2}
+\CfgParamIndexEntry{mot+tim+adv+max}{angular degree}{boot}{0}{29}{15}{Advance angle interpolation point Y1}
+\CfgParamIndexEntry{mot+tim+adv+min}{angular degree}{boot}{0}{20}{5}{Advance angle interpolation point Y2}
 \CfgParamIndexEntry{mot+i+shunt+mr}{milliohm}{boot}{0.1}{100}{}{Resistance of the current measurement shunt}
 \CfgParamIndexEntry{rpmctl+p}{$\frac{\text{dutycycle}}{\text{RPM}_m}$}{boot}{0}{1}{0.0001}%
 {RPM loop PID proportional gain}
