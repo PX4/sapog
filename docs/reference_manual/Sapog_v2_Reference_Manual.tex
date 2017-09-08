@@ -591,31 +591,31 @@ BEMF signal, predicting the upcoming zero crossing ahead of time.
 
 Despite that, operation at very high speeds may not provide the time necessary to take a sufficient
 number of samples and solve the regression problem before the next commutation is due.
-In this case, Sapog will silently lower the current advance angle and keep it at as close to the requested
-value as the current operating mode permits.
+In this case, Sapog will silently lower the current advance angle setting and keep it at as close
+to the requested value as the current operating mode permits.
 
 \subsection{Regenerative braking}
 
-During regenerative braking, the source voltage $E_s$ modulated by the controller is lower than the
-induced BEMF $E_b$, which causes reverse current flow from the motor into the VSI
+During a regenerative braking, the source voltage $E_s$ modulated by the controller is lower than the
+induced BEMF $E_b$, which creates a reverse current flow from the motor into the VSI
 and further into the power supply network.
 According to the formulas presented in the section \ref{sec:motor_equations},
 reversing the current will also reverse the torque, causing the motor to rapidly decelerate.
 
-This process converts the mechanical energy of the motor into electrical energy returned back into the
+This process converts the mechanical energy of the motor into electrical energy that is returned back into the
 power supply network.
 If the power supply network cannot absorb the recovered energy (e.g. due to its resistance being too high),
-the regenerative energy transfer may lead to increase of the supply voltage beyond the safe operating limits.
-Typically, the controller hardware is equipped with some protection circuits that activate and dissipate the
+the regenerative energy transfer may lead to an increase of the supply voltage beyond the safe operating limits.
+Typically, the controller's hardware is equipped with some protection circuits that activate and dissipate the
 excessive energy when $V_\text{inv}$ increases a certain threshold;
-however, their energy absorption capabilities are often very  limited.
+however, their energy absorption capabilities are often very limited.
 
 Generally, batteries are capable of absorbing the regenerated energy during braking without issues.
 Problems may arise if the controller is powered from a source that does not permit reverse currents,
 such as laboratory power supplies or some types of voltage conversion circuits.
 
 Refer to the documentation provided with your hardware to learn more about the issues
-concerning regenerative braking and the excess energy release.
+concerning the regenerative braking and the excess energy release.
 
 \subsection{Rotor stall detection}\label{sec:stall_detection}
 
