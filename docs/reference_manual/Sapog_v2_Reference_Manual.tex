@@ -755,32 +755,32 @@ Sapog assumes that the rotor is (nearly) stationary in the beginning of the spin
 If this assumption is violated, there may be brief transient processes involving abnormal currents,
 high vibrations and high EMI.
 
-The transient currents can be either forward or regenerative, depending on whether the desired
+The transient currents can be either direct or regenerative, depending on whether the desired
 and the actual directions of rotation match, and whether the initial guess of the current
 commutation step was correct.
 
-Typically Sapog can establish adequate synchronization in a few steps.
+Typically Sapog can establish an adequate field synchronization in a few commutation steps.
 If the rotor was rotating in the same direction but at a higher speed,
-it will be rapidly decelerated until the speed defined by the load and the source voltage is
+it will be rapidly decelerated until the speed defined by the mechanical load and the source voltage is
 reached.
-If it is expected that the motor will be frequently started from non-stationary state,
+If it is expected that the motor will be frequently started from a non-stationary state,
 it is recommended to either shorten the initial voltage ramp, or increase the initial
-spin-up voltage, in order to reduce the stresses caused by initial braking.
+spin-up voltage, in order to reduce the stresses caused by the initial braking.
 
 \subsubsection{Configuration parameters}
 
-This section summarizes information about the configuration parameters pertaining to the spin-up mode.
+This section summarizes the information about the configuration parameters pertaining to the spin-up mode.
 Read the preceding sections for a more detailed review.
 
 \begin{itemize}
-\item \CfgRef{mot+spup+blnk+pm} - duration of the extended blanking time during spin-up in permill
+\item \CfgRef{mot+spup+blnk+pm} - the duration of the extended blanking time during spin-up in permill
 (i.e. one-thousands; $10\text{\space{}permill} = 1\% $) of the current commutation period.
-\item \CfgRef{mot+spup+to+ms} - overall spin-up timeout, in milliseconds.
-If spin-up could not be completed in this amount of time, the rotor will be considered stalled.
-\item \CfgRef{mot+spup+st+cp} - maximum commutation period for spin-up mode, in microseconds.
+\item \CfgRef{mot+spup+to+ms} - the overall spin-up timeout, in milliseconds.
+If a spin-up attempt could not be completed in this amount of time, the rotor will be considered stalled.
+\item \CfgRef{mot+spup+st+cp} - the maximum commutation period for the spin-up mode, in microseconds.
 This is also the initial commutation period.
-\item \CfgRef{mot+spup+vramp+t} - duration of the initial voltage ramp, in seconds.
-\item \CfgRef{mot+v+spinup} - initial source voltage $E_s$ in the beginning of the voltage ramp, in volts.
+\item \CfgRef{mot+spup+vramp+t} - the duration of the initial voltage ramp, in seconds.
+\item \CfgRef{mot+v+spinup} - the initial source voltage $E_s$ in the beginning of the voltage ramp, in volts.
 \end{itemize}
 
 \subsection{Open loop operation}\label{sec:open_loop}
@@ -796,16 +796,16 @@ where $S_\text{DC}$ is the setpoint (DC stands for \emph{duty cycle}),
 $\mathrm{ramp}$ is the setpoint ramp function,
 and $\mathrm{limit}$ is the speed limiting P-controller, reviewed below.
 
-The ramp function replaces abrupt changes in the setpoint with gradual changes.
-Abrupt changes that are small enough to not be a hazard to stability of the drive are
+The ramp function replaces abrupt changes of the setpoint with gradual changes.
+Abrupt changes that are small enough to not be a hazard to the stability of the drive are
 accepted by the controller directly, bypassing the ramp.
-The following configuration parameters govern the open loop setpoint ramp:
+The following configuration parameters govern operation of the open loop setpoint ramp:
 
 \begin{itemize}
 \item \CfgRef{mot+dc+slope} - the slope of the setpoint ramp, in full ranges per second.
 For example, the value of 1 allows the controller to sweep the setpoint from 0\% to 100\% in 1 second.
 The value of 10 allows the controller to sweep the setpoint from 0\% to 100\% in 0.1 seconds.
-\item \CfgRef{mot+dc+accel} - the maximum change in setpoint that will be propagated directly,
+\item \CfgRef{mot+dc+accel} - the maximum change of setpoint that will be accepted directly,
 bypassing the ramp.
 For example, the value of 0.1 allows the controller to apply step changes up to 10\% large directly.
 \end{itemize}
@@ -813,7 +813,7 @@ For example, the value of 0.1 allows the controller to apply step changes up to 
 Increase the parameters (either one or both) to improve the response characteristics of the drive.
 Reduce them if rapid setpoint changes cause stability issues.
 
-Note that the minimum acceptable setpoint is constrained by the minimum duty cycle deduced from
+Note that the minimal acceptable setpoint is constrained by the minimum duty cycle deduced from
 the parameter \CfgRef{mot+v+min}.
 If the setpoint falls into $\left(0, S_{\text{DC}_\text{min}}\right]$,
 where $S_{\text{DC}_\text{min}}$ is the minimum
@@ -831,8 +831,8 @@ While the motor is stopped, the VSI is disabled, allowing the shaft to rotate fr
 \subsection{RPM control loop}\label{sec:rpm_loop}
 
 When operating in the RPM control mode, also known as RPM governor mode,
-Sapog will try to maintain a specified mechanical speed.
-Speed control is implemented by means of a parallel PID controller
+Sapog strives to maintain a specified mechanical speed.
+The speed control is implemented by means of a parallel PID controller
 that takes the current mechanical RPM as input and
 produces the duty cycle setpoint at the output.
 
@@ -844,18 +844,18 @@ where $T_\text{comm}$ is the current commutation period.
 Update of the RPM control loop is not a hard real time process, and the software is allowed to
 deviate.
 
-RPM control loop relies on the duty cycle slope control function defined in the section \ref{sec:open_loop},
-so the related configuration parameters are still applicable.
+The RPM control loop relies on the duty cycle slope control function defined in the section
+\ref{sec:open_loop}, so the related configuration parameters are still applicable.
 The speed limiting P-controller that is used in the open loop mode, however,
-is entirely bypassed in RPM mode.
+is entirely bypassed in the RPM mode.
 The maximum supported speed is dependent on the PWM carrier frequency;
 see the figure \ref{pwm_maximum_speed} for details.
 Equation \ref{eq:speed_electrical_mechanical} defines the relation between electrical
 and mechanical angular rates.
 
 If the commanded setpoint is lower than the value specified by the parameter \mbox{\CfgRef{mot+rpm+min},}
-the actual setpoint will be silently increased to match this value.
-A zero setpoint is treated as the command to stop the motor.
+the actual setpoint will be overridden to match this value.
+A zero setpoint is treated as a command to stop the motor.
 While the motor is stopped, the VSI is disabled, allowing the shaft to rotate freely.
 
 The RPM PID controller does not wind up the integral term if the output is constrained by external factors,
@@ -866,9 +866,9 @@ such as:
 \item Maximum RPM limit.
 \end{itemize}
 
-The configuration parameters listed below govern operation of the RPM control loop.
+The configuration parameters listed below govern the operation of the RPM control loop.
 The symbol $\text{DC}$ refers to the duty cycle unit ranging in $\left[-1, 1\right]$,
-where negative values correspond to negative inverter source voltage $E_s$.
+where negative values correspond to negative inverter source voltages $E_s$.
 
 \begin{itemize}
 \item \CfgRef{mot+num+poles} - the number of magnetic poles on the rotor, always even, always $\geq 2$.
@@ -880,10 +880,10 @@ in $\frac{\text{DC}}{\text{RPM}_m}$.
 in $\frac{\text{DC}}{\text{second}\cdot{}\text{RPM}_m}$.
 \item \CfgRef{rpmctl+d} - derivative term of the RPM PID controller,
 in $\frac{\text{second}\cdot{}\text{DC}}{\text{RPM}_m}$.
-\item \CfgRef{mot+rpm+min} - minimum mechanical RPM at which stable operation is guaranteed.
+\item \CfgRef{mot+rpm+min} - the minimal mechanical RPM at which stable operation is guaranteed.
 \end{itemize}
 
-The overall RPM control loop output for time step $n$ can be approximated with the following equations:
+The overall RPM control loop output for a time step $n$ can be approximated with the following equations:
 \begin{equation}
 e(n) = \omega_{m_{n}} - S_{\omega_{m_{n}}}
 \end{equation}
@@ -897,8 +897,8 @@ E_{s_n} = V_{\text{inv}_n}\cdot\mathrm{ramp}
 \end{equation}
 where:
 \begin{itemize}
-\item $\mathrm{ramp}$ - slope control function defined in the section \ref{sec:open_loop}.
-\item $\mathrm{clamp}$ - integrator wind-up control function described in this section.
+\item $\mathrm{ramp}$ - the slope control function defined in the section \ref{sec:open_loop}.
+\item $\mathrm{clamp}$ - the integrator wind-up control function described in this section.
 \item $\omega_{m}$ - current speed, in mechanical RPM.
 \item $S_{\omega_{m}}$ - target speed setpoint, in mechanical RPM.
 \item $T_{\text{RPMPID}}$ - instant control loop update period.
@@ -911,7 +911,7 @@ See equation \ref{eq:rpm_pid_control_loop_period}.
 \subsection{Command timeout}\label{sec:setpoint_ttl}
 
 Every setpoint supplied to the motor control logic, regardless of the operating mode, is
-accompanied with a time interval that specifies its lifetime - setpoint TTL\footnote{Short for time-to-live.}.
+accompanied with a time interval that specifies its lifetime -- setpoint TTL\footnote{Short for time-to-live.}.
 If the time interval expires before the next setpoint is received, Sapog will automatically
 stop the motor.
 
@@ -943,20 +943,20 @@ The corner frequency of the filter is specified by the parameter \CfgRef{mot+lpf
 Sapog can limit the maximum DC bus current with the help of a simple P-controller
 that activates when the instant current exceeds the limit.
 The gain of the current limiting P-controller is specified via the configuration parameter
-\CfgRef{mot+i+max+p}, in $\frac{\text{DC}}{\text{ampere}}$, where $\text{DC}$ is the duty cycle units
+\CfgRef{mot+i+max+p}, in $\frac{\text{DC}}{\text{ampere}}$, where $\text{DC}$ is the duty cycle unit
 ranging in $\left[-1, 1\right]$.
 The maximum current is specified via the configuration parameter \CfgRef{mot+i+max}, in amperes.
 
 \section{Self diagnostics}\label{sec:self_diagnostics}
 
-Sapog contains a set of diagnostic routines that can detect problems with the hardware.
+Sapog contains a set of extensive diagnostic routines that can detect problems with the hardware.
 The diagnostic routines are executed automatically at start up.
-Additionally they can be run by external request.
+Additionally they can be run by an external request at any time, as long as the motor is not running.
 
-While tests are executed, their progress and status information are printed to the CLI.
+While the tests are being executed, their progress and status information are printed to the CLI.
 The user can understand the nature of detected failures by reading the printed test reports.
 
-If at least one test fails at start-up, the controller will enter panic mode,
+If at least one test fails at start up, the controller will enter the panic mode,
 where it will remain until power cycled.
 Learn more about this in the chapter \ref{sec:indication}.
 
@@ -995,7 +995,7 @@ Then the following assertions are verified:
 where $L$ is a specific lower threshold defined by the hardware implementation,
 typically at the level corresponding to 5\% of the dynamic range of BEMF.
 
-The test is considered passed only of all assertions are true.
+The test is considered passed only if all assertions are true.
 It is easy to see that this test is invariant to the fact whether the motor is connected or not.
 
 Malfunctions in the following components may cause this test to fail:
@@ -1026,7 +1026,7 @@ The following legend applies:
 \end{ZubaxCompactTable}
 
 At each step, voltages of all three phases are sampled, which yields the set of samples shown in the next table.
-It is assumed that phases that are floating will be pulled down by the resistor dividers in the BEMF feedback
+It is assumed that the phases that are floating will be pulled down by the resistor dividers in their BEMF feedback
 circuits.
 
 \begin{ZubaxCompactTable}{|c|c c c|}
@@ -1051,7 +1051,7 @@ or its BEMF feedback circuits are not functioning correctly.
 Failure of at least one assertion against $L$ indicates that there is a short circuit between
 the current high phase and the phase of the column of the failed assertion.
 
-It is easy to see that the test will always be failing if the motor is connected.
+It is easy to see that the test will always be failing as long as the motor is connected.
 Sapog can recognize that the motor is connected by observing all phases shorted,
 in which case the results of this test will be discarded and the test will be considered passed.
 
