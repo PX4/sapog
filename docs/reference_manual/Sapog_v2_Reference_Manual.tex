@@ -1076,9 +1076,8 @@ Sapog is equipped with means of visual and audial indication that are reviewed i
 
 \section{RGB LED}
 
-The RGB LED is used to indicate the status of the firmware,
-the status of the bootloader while it is running,
-or it can be controlled externally via one of the available communication interfaces.
+The RGB LED is used to indicate the status of the firmware or the status of the bootloader while it is running.
+It also can be controlled externally via one of the available communication interfaces.
 In the latter case, the status indication output is overridden in favor of the externally
 received indication commands.
 
@@ -1110,9 +1109,9 @@ While the firmware is running, the following LED colors can be used to reflect i
 
 \subsection{Bootloader status indication}
 
-The bootloader is started immediately after the device is powered on.
-It runs for several seconds, and then, unless there is no valid firmware image
-or update of the firmware is requested, the bootloader starts the firmware.
+The bootloader starts immediately after the device is powered on.
+It runs for several seconds, and then, unless there is no valid firmware to boot
+or an update of the firmware is requested, the bootloader starts the firmware.
 More information on the bootloader and its state indication features
 is available in the section \ref{sec:bootloader}.
 
@@ -1123,11 +1122,11 @@ External control overrides the state indication capabilities of the LED.
 
 \section{Sound}\label{sec:audial_indication}
 
-Sapog can modulate arbitrary sounds by applying specific low-power voltage patterns on the motor windings.
-Induced currents cause the windings to vibrate, which produces audible sounds at the frequency of the
+Sapog can modulate arbitrary sounds by applying specific low-power voltage patterns to the motor windings.
+The resulting currents cause the windings to vibrate, which produces audible sounds at the frequency of the
 applied voltage.
 
-This feature can be invoked by external command via communication interfaces.
+This feature can be invoked by an external command via the supported communication interfaces.
 
 At start up, Sapog generates two short beeps with the following parameters:
 frequency 1 kHz, duration 100 ms each, spacing 200 ms.
@@ -1138,10 +1137,10 @@ frequency 1 kHz, duration 100 ms each, spacing 200 ms.
     Duration of modulated sound          & 1   & 100  & ms \\
 \end{ZubaxSimpleTable}
 
-If the requested parameters fall outside the limits specified in the table,
+If the requested parameters fall outside of the limits specified in the table,
 Sapog will automatically constrain the parameters in order to produce the closest achievable results.
 
-Sound modulation requests are only processed if the controller is idle and the motor is stopped.
+Sound modulation requests are only processed if the controller is idling and the motor is stopped.
 Otherwise, sound modulation requests will be silently ignored.
 
 \chapter{Communication interfaces}\label{sec:communication_interfaces}
