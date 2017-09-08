@@ -1155,7 +1155,7 @@ Sapog does not attempt to resolve such ambiguity, simply accepting every command
 without regard to what interface it was received from.
 This trait should be kept in mind when using multiple interfaces concurrently.
 For example, a common cause of confusion is encountered when Sapog is connected to a
-UAVCAN bus which commands zero setpoint periodically,
+UAVCAN bus which commands a zero setpoint periodically,
 and some other interface at the same time is commanding to start the motor.
 The controller would appear to behave erratically,
 which is caused by alternating conflicting commands.
@@ -1164,27 +1164,27 @@ which is caused by alternating conflicting commands.
 
 \subsection{Overview}
 
-This section provides documentation for the UAVCAN interface implemented in Sapog.
-A general overview and specification of the UAVCAN protocol is provided on the official website at
-\url{http://uavcan.org}.
+This section contains the documentation for the UAVCAN interface implemented in Sapog.
+A general overview and the specification of the UAVCAN protocol is provided on the official website at
+\mbox{\url{http://uavcan.org}}.
 
 The UAVCAN interface enables access to all features of Sapog.
 It is possible to control the motor in all operating modes via UAVCAN,
 change the configuration parameters, emit audial and visual indications,
 upgrade the firmware, and perform automated ESC enumeration.
 
-This section documents the UAVCAN interface that is available in the firmware itself,
+This section documents the UAVCAN interface as implemented in the firmware,
 omitting the logic specific to the bootloader, which is documented separately in the chapter
 \ref{sec:bootloader}.
 
-Sapog employs Libuavcan - an open source implementation of the UAVCAN protocol stack in C++ distributed under
+Sapog employs Libuavcan -- an open source implementation of the UAVCAN protocol stack in C++ distributed under
 the MIT software license.
 
 \subsection{Basic functions}
 
 \subsubsection{Node status reporting}
 
-The standard node status message \verb|uavcan.protocol.NodeStatus| is broadcast at 1 hertz.
+The standard node status message \verb|uavcan.protocol.NodeStatus| is broadcasted at 1 hertz.
 The mode and health codes are summarized below.
 
 \begin{ZubaxSimpleTable}{UAVCAN node health code interpretation}{|l X|}
@@ -1207,7 +1207,7 @@ OFFLINE            & Not applicable. \\
 
 The vendor-specific status code field is not used by Sapog.
 
-Node uptime is reported from the moment when the firmware is started.
+The node uptime is reported from the moment when the firmware is started.
 The time while the bootloader was running is not included in the reported uptime value.
 
 \subsubsection{Node identification}
@@ -1218,8 +1218,9 @@ All fields of the nested structure \verb|uavcan.protocol.SoftwareVersion|
 are populated, which are \verb|major|, \verb|minor|, \verb|vcs_commit|, and \verb|image_crc|.
 The VCS commit field is assigned the most significant bits of the git commit hash
 of the running revision of the firmware.
-The image CRC is computed for the entire firmware image padded to 8 bytes,
-with the value of the image CRC value set to zero during CRC computation.
+The image CRC is computed for the entire firmware image padded to 8 bytes;
+the bytes of the image that are occupied by the stored image CRC are assumed to be zero while
+the image CRC is being computed.
 
 The following fields of the nested structure \verb|uavcan.protocol.HardwareVersion|
 are always populated: \verb|major|, \verb|minor|, and \verb|unique_id|.
@@ -1246,7 +1247,7 @@ All fields of all nested structures are populated.
 
 \subsubsection{Data type information}
 
-The service \verb|uavcan.protocol.GetDataTypeInfo| provides extensive information about the
+The service \verb|uavcan.protocol.GetDataTypeInfo| provides an extensive information about the
 supported UAVCAN data types.
 No special cases apply.
 
@@ -1325,7 +1326,7 @@ and does not prioritize between the supported types of messages
 and between different broadcasters.
 This means that the drive will not operate properly if there are multiple types of control
 messages being received, or if multiple nodes are broadcasting conflicting setpoints.
-Direct execution of received commands without additional processing allows Sapog to achieve
+Direct execution of all received commands without additional processing allows Sapog to achieve
 minimal response latency and high command throughput.
 
 Setpoints received via UAVCAN are assigned a fixed lifetime, which is specified by the
@@ -1342,9 +1343,9 @@ This feature is only available for the open loop control mode.
 
 \subsubsection{Status reporting}
 
-The standard message type \verb|uavcan.equipment.esc.Status| is used to report status of the
+The standard message type \verb|uavcan.equipment.esc.Status| is used to report the status of the
 motor control system.
-The message is broadcast at 1 hertz if the motor is not running,
+The message is broadcasted at 1 hertz if the motor is not running,
 and at 10 hertz if the motor is starting or running.
 All fields of the message are populated.
 
@@ -1406,7 +1407,7 @@ This requirement may be removed in the future.
 
 Sapog allows the user to configure the ESC index (parameter \CfgRef{esc+index})
 and the direction of rotation (parameter \CfgRef{ctl+dir}) intuitively,
-by means of manual rotation of the rotors in a specific order and direction.
+by manually rotating the rotors in a specific order and direction.
 This feature is only useful for multi-motor vehicles, such as multirotor UAV,
 and is entirely optional.
 The respective configuration parameters can be equally well configured manually
@@ -1424,13 +1425,13 @@ direction of rotation.
 Sapog will memorize the direction of rotation and reflect it in the corresponding configuration
 parameter.
 
-Enumeration request will return the error \verb|ERROR_INVALID_MODE| if the motor is not stopped.
+The enumeration request will return the error \verb|ERROR_INVALID_MODE| if the motor is not stopped.
 
-The user can benefit from this feature only if there is an adequate support from the
+The user can benefit from this feature only if it is adequately supported by the
 controlling hardware installed on the vehicle (e.g. autopilot).
 Therefore, the full description of this feature falls outside of the scope of this
 manual.
-For reference, the process of automated ESC enumeration performed with the PX4 autopilot
+For reference, the automated ESC enumeration procedure performed with a PX4-based autopilot
 is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
 
 \subsection{Data type summary}
@@ -1464,7 +1465,7 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
     \texttt{uavcan.protocol.GetDataTypeInfo}               & \\
     \texttt{uavcan.protocol.GetTransportStats}             & \\
     \texttt{uavcan.protocol.RestartNode}                   & \\
-    \texttt{uavcan.protocol.enumeration.Begin}             & Returns error if the motor is running. \\
+    \texttt{uavcan.protocol.enumeration.Begin}             & Returns an error if the motor is running. \\
     \texttt{uavcan.protocol.file.BeginFirmwareUpdate}      & Stops the motor and reboots into the bootloader. \\
     \texttt{uavcan.protocol.param.ExecuteOpcode}           & \\
     \texttt{uavcan.protocol.param.GetSet}                  & \\
@@ -1474,14 +1475,14 @@ is demonstrated on the following video: \url{https://youtu.be/4nSa8tvpbgQ}.
 
 \subsection{Overview}
 
-Sapog provides a plain text command line interface (CLI) over its serial port interface.
-The CLI can be used for user interaction directly, or it can be used as a machine-to-machine command interface,
-since the command and response syntax is quite simple.
+Sapog exposes a plain text command line interface (CLI) on its serial port.
+The CLI can be used for user interaction directly; also it can be used as a machine-to-machine command interface,
+as the command syntax is quite simple.
 
 The serial port interface operates at 115200 baud, 8 bit per word, no parity control, one stop bit
 (115200-8N1).
 
-The CLI line ending is \verb|\r\n| (CR, LF).
+The CLI line termination sequence is \verb|\r\n| (CR, LF).
 
 Barring any special preferences,
 it is recommended to use the software listed in the table \ref{cli_software_recommendations}
@@ -1499,7 +1500,7 @@ for accessing the CLI from the user's PC.
 
 \subsection{Boot logging}
 
-While in the process of booting, Sapog prints human-readable diagnostic messages via the serial port interface.
+While in the process of booting, Sapog prints human-readable diagnostic messages via the serial port.
 The printed messages, among other things, include the reports of the start-up self-test procedures
 described in the section \ref{sec:self_diagnostics}.
 
@@ -1537,7 +1538,8 @@ Syntax:
           This command is redundant and normally need not be used, because Sapog commits all configuration
           into the non-volatile storage automatically upon modification.
     
-    \item \verb|cfg erase| - erase the current configuration and reset the non-volatile memory to factory defaults.
+    \item \verb|cfg erase| - erase the current configuration and reset the non-volatile memory to
+          the factory defaults.
     
     \item \verb|cfg set <name> <value>| - assign the configuration parameter named \verb|<name>| the value
           \verb|<value>|. For example: \verb|cfg set foo 42|.
@@ -1553,7 +1555,8 @@ The number of whitespaces between tokens may vary.
 Floating point parameters are always reported with the point symbol (\verb|.|),
 which allows one to distinguish them from integer and boolean typed parameters.
 
-Boolean parameters are reported as integers, where 1 represents logical true and 0 represents logical false.
+Boolean parameters are reported as integers, where 1 represents the logical true and
+0 represents the logical false.
 They can be distinguished from integer parameters by their minimum and maximum values being 0 and 1,
 respectively.
 
@@ -1566,7 +1569,7 @@ Afterwards the device prints out the resulting value of the parameter in the fol
 
 The number of whitespaces between tokens may vary.
 
-This response can be used to check whether the new value has been accepted by the device or not.
+The response can be used to check whether the new value was accepted by the device or not.
 
 \subsubsection{reboot}
 
@@ -1612,11 +1615,12 @@ The setpoint TTL when using this command is fixed at 30 seconds.
 More information on the setpoint TTL feature is provided in the section \ref{sec:setpoint_ttl}.
 
 By default this command is locked for safety reasons.
-In order to unlock it, execute \verb|dc arm| once, and it will stay unlocked until the firmware is rebooted.
+In order to unlock it, execute the command
+``\verb|dc arm|'' once, and it will stay unlocked until the firmware is rebooted.
 
 Syntax:
 \begin{itemize}
-\item \verb|dc| - assign zero setpoint, which will stop the motor if it is running.
+\item \verb|dc| - assign a zero setpoint, which will stop the motor if it is running.
 \item \verb|dc arm| - unlock the command.
 \item \verb|dc <duty cycle>| - set the specified duty cycle setpoint.
 The setpoint is a real number in the interval $\left[0, 1\right]$.
@@ -1632,11 +1636,12 @@ The setpoint TTL when using this command is fixed at 30 seconds.
 More information on the setpoint TTL feature is provided in the section \ref{sec:setpoint_ttl}.
 
 By default this command is locked for safety reasons.
-In order to unlock it, execute \verb|rpm arm| once, and it will stay unlocked until the firmware is rebooted.
+In order to unlock it, execute the command
+``\verb|rpm arm|'' once, and it will stay unlocked until the firmware is rebooted.
 
 Syntax:
 \begin{itemize}
-\item \verb|rpm| - assign zero setpoint, which will stop the motor if it is running.
+\item \verb|rpm| - assign a zero setpoint, which will stop the motor if it is running.
 \item \verb|rpm arm| - unlock the command.
 \item \verb|rpm <RPM>| - set the specified RPM setpoint.
 The setpoint is an integer number in the interval $\left[0, 65535\right]$.
@@ -1646,7 +1651,7 @@ For example: \verb|rpm 5000| assigns the target setpoint of 5000 mechanical RPM.
 \subsubsection{md}
 
 Print the internal motor controller status information in a human-readable format.
-The output of this command is also printed automatically when the rotor gets stalled.
+The output of this command is also printed automatically when the rotor stalls.
 
 \subsubsection{zubax\_id}\label{sec:cli_zubax_id}
 
@@ -1683,7 +1688,7 @@ The same string is reported via UAVCAN as the node name string. \\
 
 \texttt{sw\_vcs\_commit}& Firmware patch ID as the short git commit hash.
 The abbreviation VCS stands for ``version control system''.
-This number allows to pinpoint the exact revision of the firmware that is currently running. \\
+This number allows one to determine the exact revision of the firmware that is currently running. \\
 
 \texttt{sw\_build\_date}& Firmware build date in the form ``\texttt{mmm dd yyyy}''. \\
 
@@ -1704,10 +1709,10 @@ the vendor. This field may not be populated if the hardware does not have any Co
 
 \end{ZubaxSimpleTable}
 
-Vendors that use Sapog for their own products can use this command to install their own CoA onto the hardware.
+Vendors that use Sapog for their own products can use this command to install their own CoA on the hardware.
 Beware that the CoA can be written only once.
 The following form is used to write the CoA: \verb|zubax_id <CoA>|,
-where \verb|<CoA>| is a placeholder for Base64 encoded certificate of authenticity.
+where \verb|<CoA>| is a placeholder for a Base64-encoded certificate of authenticity.
 More information about using Sapog in custom products is provided in the chapter \ref{sec:porting_guide}.
 
 Syntax:
@@ -1738,7 +1743,7 @@ The principle is illustrated on the figure \ref{rcpwm_signal_plot}.
 	\label{rcpwm_signal_plot}}
 \end{figure}
 
-The RCPWM interface is widely used in robotics and flight control systems of small UAV.
+The RCPWM interface is widely used in robotics and in flight control systems of small UAV.
 Its obvious downsides are the lack of any kind of feedback from the controlled system,
 very low throughput,
 high latency (in excess of 2 milliseconds in certain scenarios, and never lower than 1 millisecond),
@@ -1767,19 +1772,19 @@ The setpoint TTL for RCPWM commands is fixed at 100 milliseconds.
 This implies that the motor will be stopped in 100 milliseconds after the RCPWM modulation is gone.
 More information on the setpoint TTL feature is provided in the section \ref{sec:setpoint_ttl}.
 
-The configuration parameter \CfgRef{pwm+enable} specifies whether the RCPWM is active.
+The configuration parameter \CfgRef{pwm+enable} specifies whether the RCPWM interface is active.
 If the interface is disabled, Sapog will ignore the state of the RCPWM input line.
 If the interface is enabled, care should be taken to ensure that no conflicting commands
-are being issued via the other interfaces, otherwise the controller may exhibit an erratic behavior.
+are being issued via other interfaces, otherwise the controller may exhibit an erratic behavior.
 
 The configuration parameters \CfgRef{pwm+min+usec} and \CfgRef{pwm+max+usec} define the pulse duration
 that corresponds to the minimum (zero) and the maximum (100\%) setpoints, respectively, in microseconds.
-Pulses shorter than \CfgRef{pwm+min+usec} are translated to zero setpoint;
-likewise, pulses that are longer than \CfgRef{pwm+max+usec} are translated to the maximum setpoint.
+Pulses shorter than \CfgRef{pwm+min+usec} are interpreted as a zero setpoint;
+likewise, pulses that are longer than \CfgRef{pwm+max+usec} are interpreted as the maximum setpoint.
 
 Sapog applies a start-stop hysteresis that works as follows: if the motor is stopped, it will not start
-until the commanded setpoint has exceeded 6\%.
-If the motor is running, it will not stop until the commanded setpoint has fell below 3\%.
+until the commanded setpoint exceeds 6\%.
+If the motor is running, it will not stop until the commanded setpoint falls below 3\%.
 
 A safety feature will not allow the motor to start if the commanded setpoint exceeds 40\%.
 Therefore, combining the effects of the hysteresis feature and the safety threshold,
