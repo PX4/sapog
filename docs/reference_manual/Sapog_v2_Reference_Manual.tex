@@ -625,16 +625,17 @@ Sapog detects this condition by observing a specific number of failures to find
 a valid BEMF zero crossing event.
 
 As explained in one of the earlier sections of this document,
-Sapog requires the rotor to move in order to be able to operate normally.
-Once the rotor has stalled, Sapog will shut down the VSI and wait for the next setpoint to arrive.
-Once the next setpoint has arrived, Sapog will restart the motor normally,
+Sapog requires the rotor to move in order to be able to operate normally
+(this applies to virtually all sensorless drives).
+Once the rotor has stalled, Sapog shuts down the VSI and waits for the next setpoint to arrive.
+Once the next setpoint has arrived, Sapog restarts the motor normally,
 unless the number of consecutive stalls has exceeded a specific limit.
 
 In the latter case, Sapog will lock up and refuse to start the motor again,
 until it has received a zero setpoint.
-Zero setpoint is treated as a reset command that clears the stall counter and unlocks the controller.
+A zero setpoint is treated as a reset command that clears the stall counter and unlocks the controller.
 
-Zero cross failures are counted with the help of a dedicated counter state.
+Zero crossing detection failures are counted with the help of a dedicated counter state.
 When Sapog fails to find a zero crossing solution,
 the failure counter is incremented by one.
 When Sapog succeeds to perform six (6) commutations in a row without failures,
@@ -657,7 +658,7 @@ because the state estimation methods that work well when the rotor is moving bre
 stationary or nearly so.
 
 From the above follows that a different method of state estimation is needed to start the motor
-from standstill, especially so if the shaft is attached to a mechanical/inertial load.
+from standstill, especially so if the shaft is attached to a mechanical load.
 
 \subsubsection{Algorithm}
 
@@ -668,11 +669,11 @@ begin the next commutation period, or until the amount of time specified by the 
 \CfgRef{mot+spup+st+cp} expires, whichever happens first.
 Afterwards, Sapog switches to the next commutation step, and the process repeats again.
 
-While in spin-up mode, Sapog will slowly increase the voltage from the initial value specified
+While in the spin-up mode, Sapog slowly increases the voltage from the initial value specified
 by \CfgRef{mot+v+spinup} until the minimal operating voltage \CfgRef{mot+v+min} is reached.
 The duration of the spin-up voltage ramp is specified by the parameter \CfgRef{mot+spup+vramp+t},
 in seconds.
-The ramp is graphically illustrated on the image \ref{spinup_voltage_ramp}.
+The ramp is graphically illustrated on the figure \ref{spinup_voltage_ramp}.
 
 \begin{figure}[hbt]
     \centering
@@ -683,7 +684,7 @@ The ramp is graphically illustrated on the image \ref{spinup_voltage_ramp}.
 
 It should be noted that high initial voltages and/or steep voltage ramps need to be avoided,
 because they may lead to severe instabilities in the beginning of the spin-up sequence.
-Keep in mind that it is virtually impossible for any synchronous sensorless drive to create stable
+Keep in mind that it is virtually impossible for any synchronous sensorless drive to create a stable
 torque at low speeds, and especially at standstill.
 
 While spin-up is in progress, Sapog always operates at the zero advance angle
@@ -695,13 +696,13 @@ regardless of the configured advance angle settings.
 The zero crossing detector mentioned above operates in a very different way compared to the
 normal rotor state observer used in the normal operating mode.
 
-While operating in spin-up mode, the observable behavior of the induced BEMF may be very erratic,
-mainly due to the low magnitude of the signal and irregular rotation of the rotor caused by
+While operating in the spin-up mode, the observable behavior of the induced BEMF may be very erratic,
+mainly due to the low magnitude of the signal and also due to the irregular rotation of the rotor caused by
 imprecise synchronization of the modulated field with the field of the rotor.
 In order to combat these difficulties, Sapog employs a different kind of observer, which provides
 more robust operation at low speeds.
 
-Immediately after commutation Sapog inserts a blanking delay $T_\text{blank}$
+Immediately after a commutation Sapog inserts a blanking delay $T_\text{blank}$
 defined by the following equation:
 \begin{equation}
 T_{\text{blank}}=
@@ -715,7 +716,7 @@ $\Pi_{\text{blankusec}}$ is the value of the configuration parameter \CfgRef{mot
 (in microseconds).
 
 Upon expiration of the blanking delay, Sapog watches the BEMF waiting for the flyback current to cease.
-Afterwards, Sapog starts to integrate the sampled BEMF voltages relative to the neutral voltage.
+Afterwards, Sapog begins to integrate the sampled BEMF voltages relative to the neutral voltage.
 Once the integrated voltage changes the sign, Sapog switches to the next commutation period.
 A more formal definition of the commutation condition is shown below:
 \begin{equation}
@@ -738,16 +739,17 @@ The principle is illustrated on the oscillogram \ref{spinup_phase_voltages}.
 
 Spin-up will be considered finished once the maximum commutation period defined by the parameter
 \CfgRef{mot+comm+per+max} \emph{and} the minimum voltage \CfgRef{mot+v+min} are reached.
-Should the target commutation period be reached earlier than the voltage ramp comes to the final
-voltage level, the controller will significantly accelerate the ramp in order to converge to
+If the target commutation period is reached sooner than the voltage ramp comes to the final
+voltage level, the controller will significantly accelerate the ramp in order to reach
 the minimum operating voltage faster.
-Once spin-up is finished, the controller will abandon the spin-up mode and switch into normal mode.
+Once the spin-up process is finished,
+the controller will abandon the spin-up mode and switch into the normal mode.
 
 If the target commutation period could not be reached in the amount of time specified by
-the parameter \CfgRef{mot+spup+to+ms}, in milliseconds, the controller will abort spin-up,
-shut down the VSI and register it as a regular rotor stall event.
+the parameter \CfgRef{mot+spup+to+ms}, in milliseconds, the controller will abort the spin-up process,
+shut down the VSI and register a regular rotor stall event.
 
-\subsubsection{Spin-up from non-stationary state}
+\subsubsection{Spin-up from a non-stationary state}
 
 Sapog assumes that the rotor is (nearly) stationary in the beginning of the spin-up process.
 If this assumption is violated, there may be brief transient processes involving abnormal currents,
