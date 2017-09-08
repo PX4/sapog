@@ -2006,7 +2006,7 @@ The bootloader can detect the following bit rates:
 \end{itemize}
 
 Having successfully detected the bit rate, the bootloader will attempt to obtain a UAVCAN node ID,
-unless it has been provided by the application.
+unless it was provided by the application.
 In the latter case, the bootloader will simply re-use the node ID provided by the application.
 
 The initialization can be interrupted at any time due to expiration of the boot timeout.
@@ -2150,7 +2150,7 @@ For more information, refer to the section \ref{sec:current_limiting}.
 
 \subsection{Low speed operation}
 
-The default settings may be unsuitable to maintain stable operation of certain motors at low speeds.
+The default settings may be unsuitable for maintaining a stable operation of certain motors at low speeds.
 This especially affects large, high-power motors.
 
 The parameters \CfgRef{mot+comm+per+max} and \CfgRef{mot+v+min} should be adjusted in the first
@@ -2169,11 +2169,11 @@ The field weakening feature (documented in the section \ref{sec:field_weakening}
 set of configuration parameters:
 \CfgRef{mot+tim+adv+max}, \CfgRef{mot+tim+adv+min}, \CfgRef{mot+tim+cp+min}, \CfgRef{mot+tim+cp+max}.
 
-The angles are specified in electrical degrees;
+The angles are specified in the electrical degrees of rotor position;
 one electrical degree is equivalent to 3 phase degrees.
 For example, 90\textdegree{} of phase advance is equivalent to 30\textdegree{} of electrical advance.
 
-It is recommended to follow the described below algorithm to configure the advance angle settings:
+It is recommended to follow the algorithm described below to configure the advance angle settings:
 
 \begin{enumerate}
     \item Find out the idle commutation period of your motor.
