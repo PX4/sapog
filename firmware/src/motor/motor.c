@@ -123,7 +123,7 @@ CONFIG_PARAM_INT("ctl_dir",        0,      0,       1)
 CONFIG_PARAM_INT("mot_rpm_min",    1000,   50,      5000)
 
 CONFIG_PARAM_FLOAT("mot_i_max",    20.0,   1.0,     60.0)
-CONFIG_PARAM_FLOAT("mot_i_max_p",  0.01,   0.001,   2.0)
+CONFIG_PARAM_FLOAT("mot_i_max_p",  0.2,    0.01,    2.0)
 
 CONFIG_PARAM_FLOAT("mot_lpf_freq", 20.0,   1.0,     200.0)
 CONFIG_PARAM_INT("mot_stop_thres", 7,      1,       100)
@@ -144,21 +144,7 @@ static void configure(void)
 	_params.rpm_max = comm_period_to_rpm(_params.comm_period_limit);
 	_params.rpm_min = configGet("mot_rpm_min");
 
-	/*
-	 * This is a dirty hack, don't step into it.
-	 *
-	 * The current limiting P controller may have a serious destabilizing effect on the drive.
-	 * There is a certain operating mode where the current limiting P-controller puts the drive into a
-	 * non-decaying self-induced oscillation. An interesting thing about it is that a singular non-repeating
-	 * overcurrent event may force the drive into the oscillation, which it would then never leave even
-	 * if the average current drops far below the limit. This happens because during the oscillation
-	 * the drive frequently undergoes a rapid acceleration phase which reactivates the current limiter.
-	 *
-	 * The current approach is to simply raise the limit so that the self-induced oscillation is avoided.
-	 * A proper solution would be to implement a full-featured PI current limiter, or some other stable algorithm.
-	 */
-	_params.current_limit = configGet("mot_i_max") * 2.0f;
-
+	_params.current_limit = configGet("mot_i_max");
 	_params.current_limit_p = configGet("mot_i_max_p");
 
 	_params.voltage_current_lowpass_tau = 1.0f / configGet("mot_lpf_freq");
