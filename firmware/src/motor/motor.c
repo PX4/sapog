@@ -82,6 +82,8 @@ static struct state
 	float input_current;
 	float input_curent_offset;
 
+	float filtered_input_current_for_limiter;
+
 	enum motor_rtctl_state rtctl_state;
 
 	int beep_frequency;
@@ -181,6 +183,7 @@ static void init_filters(void)
 	// Assuming that initial current is zero
 	motor_rtctl_get_input_voltage_current(&_state.input_voltage, &_state.input_curent_offset);
 	_state.input_current = 0.0f;
+	_state.filtered_input_current_for_limiter = 0.0f;
 }
 
 static void update_filters(float dt)
@@ -198,6 +201,10 @@ static void update_filters(float dt)
 
 	_state.input_voltage = lowpass(_state.input_voltage, voltage, _params.voltage_current_lowpass_tau, dt);
 	_state.input_current = lowpass(_state.input_current, current, _params.voltage_current_lowpass_tau, dt);
+
+	_state.filtered_input_current_for_limiter =
+		lowpass(_state.filtered_input_current_for_limiter, _state.input_current,
+			1.0F, dt);
 }
 
 static void stop(bool expected)
@@ -208,6 +215,7 @@ static void stop(bool expected)
 	_state.dc_openloop_setpoint = 0.0;
 	_state.rpm_setpoint = 0;
 	_state.setpoint_ttl_ms = 0;
+	_state.filtered_input_current_for_limiter = 0.0;
 	_state.rtctl_state = motor_rtctl_get_state();
 	if (expected) {
 		_state.num_unexpected_stops = 0;
@@ -313,11 +321,11 @@ static float update_control_rpm(uint32_t comm_period, float dt)
 
 static float update_control_current_limit(float new_duty_cycle)
 {
-	const bool overcurrent = _state.input_current > _params.current_limit;
+	const bool overcurrent = _state.filtered_input_current_for_limiter > _params.current_limit;
 	const bool braking = _state.dc_actual <= 0.0f || new_duty_cycle <= 0.0f;
 
 	if (overcurrent && !braking) {
-		const float error = _state.input_current - _params.current_limit;
+		const float error = _state.filtered_input_current_for_limiter - _params.current_limit;
 
 		const float comp = error * _params.current_limit_p;
 		assert(comp >= 0.0f);
