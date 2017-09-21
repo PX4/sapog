@@ -1180,6 +1180,9 @@ omitting the logic specific to the bootloader, which is documented separately in
 Sapog employs Libuavcan -- an open source implementation of the UAVCAN protocol stack in C++ distributed under
 the MIT software license.
 
+The CAN interface recovers from the bus-off state automatically once the controller has
+observed 128 occurrences of 11 consecutive recessive bits on the bus, as defined by the CAN specification.
+
 \subsection{Basic functions}
 
 \subsubsection{Node status reporting}
