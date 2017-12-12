@@ -13,8 +13,16 @@ FRAME_HEADER = 0xFA
 
 VOLT_REFERENCE = 5.0
 
-VOLT_MULT = 10.0
-CURR_MULT = 17.0
+# 3DR Power Brick
+#VOLT_MULT = 10.0
+#CURR_MULT = 17.0
+
+# AUAV ACSP4
+#VOLT_MULT = 13.653333333
+#CURR_MULT = 36.367515152
+
+VOLT_MULT = 12.8
+CURR_MULT = 33.0
 
 def _scale_tach(x):
     # tick_duration = 1 / (16e6 / 256)
@@ -62,8 +70,10 @@ class Ardubenchmark:
 
 if __name__ == '__main__':
     import time
-    def handler(tach, voltage, current):
-        print time.time(), tach, voltage, current
+    import sys
 
-    abm = Ardubenchmark('/dev/ttyUSB0')
+    def handler(tach, voltage, current):
+        print('%.3f % 6.0f RPM  % 5.1f V  % 5.1f A' % (time.time(), tach, voltage, current))
+
+    abm = Ardubenchmark(sys.argv[1])
     abm.run(handler)
