@@ -49,7 +49,7 @@ bool serial_send(uint16_t tach, uint16_t voltage, uint16_t current)
     memcpy(serial_tx_frame.data + 2, &tach, 2);
     memcpy(serial_tx_frame.data + 4, &voltage, 2);
     memcpy(serial_tx_frame.data + 6, &current, 2);
-    
+
     serial_tx_frame.data[1] = 0;
     for (int i = 2; i < SERIAL_FRAME_SIZE; ++i)
         serial_tx_frame.data[1] += serial_tx_frame.data[i];
