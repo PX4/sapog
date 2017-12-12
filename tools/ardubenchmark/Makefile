@@ -10,7 +10,7 @@ DEF = -DF_CPU=16000000
 FLAGS  = -O3 -mmcu=$(MCU) -Wl,-u,vfprintf -lprintf_flt -Wl,-u,vfscanf -lscanf_flt -lm
 CFLAGS = $(FLAGS) -ffunction-sections -fdata-sections -Wall -Wextra -Werror -pedantic -Wno-unused-parameter -std=c99
 
-LDFLAGS = $(FLAGS) --gc-sections -lgcc -lc
+LDFLAGS = $(FLAGS) -lgcc -lc
 
 # ---------------
 
