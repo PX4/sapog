@@ -2,8 +2,8 @@
  * Pavel Kirienko <pavel.kirienko@gmail.com>
  *
  * Arduino Nano v3 connections:
- *   A7 - 3DR PowerBrick Voltage
- *   A6 - 3DR PowerBrick Current
+ *   A7 - Voltage transducer input
+ *   A6 - Current transducer input
  *   A0 - Vishay BPW24R (cathode) (anode to GND)
  *
  */
