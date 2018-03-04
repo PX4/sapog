@@ -3,7 +3,12 @@ PX4 Sapog
 
 [![Join the chat at https://gitter.im/Zubax/general](https://img.shields.io/badge/GITTER-join%20chat-green.svg)](https://gitter.im/Zubax/general)
 
-**READ THE DOCUMENTATION AT THE [ZUBAX KNOWLEDGE BASE](https://kb.zubax.com/x/cYAh).**
+## Documentation
+
+**[Sapog v2 Reference Manual](https://files.zubax.com/products/io.px4.sapog/Sapog_v2_Reference_Manual.pdf)**
+is the main piece of project documentation; make sure to read it.
+Additional documentation and related resources can be found at the
+**[Zubax Knowledge Base](https://kb.zubax.com/x/cYAh)**.
 
 ## Change Log
 
