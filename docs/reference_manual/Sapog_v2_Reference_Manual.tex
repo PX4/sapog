@@ -2215,7 +2215,24 @@ The CoA can be written using the command \verb|zubax_id| described in the sectio
 \ref{sec:cli_zubax_id}.
 Beware that the CoA can be written only once.
 
-\section{Reference schematic}
+\section{Hardware design guidelines}
+
+\subsection{Requirements}
+
+\begin{enumerate}
+    \item The state estimation methods used in Sapog require a high-speed inverter.
+    When choosing the power transistors and their drivers, keep the dynamic characteristics in mind:
+    the total switching time should be under 200 nanoseconds.
+    
+    \item The RC filters in the phase voltage feedback circuits should be designed so that their cutoff frequency
+    is around 19 kHz and the output impedance does not exceed 8 $\text{k}\Omega$.
+    
+    \item Unless the maximum supply voltage exceeds 25 V (Li-ion $\text{LiCoO}_2$ 6S),
+    the DC link voltage measurement divider should not be changed from the default specified in
+    the reference schematic.
+\end{enumerate}
+
+\subsection{Reference schematic}
 
 This section contains the schematic of the reference hardware design that can be used as a basis for custom hardware
 designs compatible with Sapog.
