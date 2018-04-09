@@ -891,7 +891,9 @@ e(n) = \omega_{m_{n}} - S_{\omega_{m_{n}}}
 E_{s_n} = V_{\text{inv}_n}\cdot\mathrm{ramp}
 \left[
 \underbrace{\frac{e\left(n\right) - e\left(n-1\right)}{T_{\text{RPMPID}}} \Pi_{\text{rpmctld}}}_\text{derivative} +
-\mathrm{clamp}\left(\underbrace{\sum_{i=0}^n e\left(i\right) \Pi_{\text{rpmctli}}}_\text{integral}\right) +
+\mathrm{clamp}\left(
+\underbrace{\sum_{i=0}^n e\left(i\right) T_{\text{RPMPID}} \Pi_{\text{rpmctli}}}_\text{integral}
+\right) +
 \underbrace{e\left(n\right) \Pi_{\text{rpmctlp}}}_\text{proportional}
 \right]
 \end{equation}
