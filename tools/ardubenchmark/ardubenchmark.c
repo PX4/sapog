@@ -5,7 +5,7 @@
  *   A7 - Voltage transducer input
  *   A6 - Current transducer input
  *   A0 - Vishay BPW24R (cathode) (anode to GND)
- *
+ *   D2 - RPM signal output
  */
 
 #include <stdlib.h>
@@ -131,15 +131,15 @@ void gpio_init(void)
     DDRB  = 1 << 5;  // LED on PB5, Sensor input on PB0
     PORTB = 0xFF;    // All pull-ups, LED on
 
-    DDRC  = 1 << 1;  // Photodiode cathode on PC1
-    PORTC = 1;       // Photodiode anode pulled up on PC0, rest are inputs (disabled by DIDR)
+    DDRC  = 1 << 1;  // Photodiode anode on PC1 (which is LOW, i.e. GND)
+    PORTC = 1;       // Photodiode cathode pulled up on PC0, rest are inputs (disabled by DIDR)
 
-    DDRD  = 1 << 2;  // Testpoint on PD2
+    DDRD  = 1 << 2;  // RPM output on PD2
     PORTD = 0xFF;
 }
 
-#define testpoint_set() PORTD = 0xFF
-#define testpoint_clr() PORTD = 0xFB
+#define rpm_out_set() PORTD = 0xFF
+#define rpm_out_clr() PORTD = 0xFB
 
 void led_set(bool on)
 {
@@ -187,9 +187,11 @@ bool opto_detect_edge(int16_t sample)
         return false;
     } else {
         if (ac > OPTO_THRESHOLD) {
+            rpm_out_set();
             in_peak = true;
             return true;
         }
+        rpm_out_clr();
         return false;
     }
 }
@@ -212,13 +214,9 @@ int main(void)
     bool opto_timed_out = true;
 
     while (1) {
-        //testpoint_clr();
-
         wait_adc_poll_serial();
         adc_start();
         const uint8_t sample = adc_read();
-
-        //testpoint_set();
 
         const uint16_t timestamp = timer_stamp();
 
