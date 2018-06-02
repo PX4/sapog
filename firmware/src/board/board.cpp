@@ -150,6 +150,27 @@ HardwareVersion detect_hardware_version()
 	return v;
 }
 
+float get_current_shunt_resistance()
+{
+	switch (detect_hardware_version().minor)
+	{
+	case 0:                // Sapog Reference Hardware
+	case 1:                // Zubax Orel
+	{
+		return 5e-3F;
+	}
+	case 2:                // Kotleta
+	{
+		return 1e-3F;
+	}
+	default:
+	{
+		die(0);
+		return 0.0F;
+	}
+	}
+}
+
 bool try_read_device_signature(DeviceSignature& out_sign)
 {
 	std::memcpy(out_sign.data(), &DeviceSignatureStorage[0], std::tuple_size<DeviceSignature>::value);

@@ -495,14 +495,17 @@ static void control_thread(void* arg)
 	abort();
 }
 
-int motor_init(void)
+int motor_init(float current_shunt_resistance)
 {
 	_watchdog_id = watchdogCreate(WATCHDOG_TIMEOUT_MSEC);
 	if (_watchdog_id < 0) {
 		return _watchdog_id;
 	}
 
-	int ret = motor_rtctl_init();
+	struct motor_rtctl_hardware_info hw_info;
+	hw_info.current_shunt_resistance = current_shunt_resistance;
+
+	int ret = motor_rtctl_init(&hw_info);
 	if (ret) {
 		return ret;
 	}

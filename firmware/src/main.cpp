@@ -69,7 +69,7 @@ os::watchdog::Timer init()
 	}
 
 	// Motor control (must be initialized earlier than communicaton interfaces)
-	res = motor_init();
+	res = motor_init(board::get_current_shunt_resistance());
 	if (res < 0) {
 		board::die(res);
 	}

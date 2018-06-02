@@ -924,8 +924,10 @@ void motor_adc_sample_callback(const struct motor_adc_sample* sample)
 // --- End of hard real time code ---
 #pragma GCC reset_options
 
-int motor_rtctl_init(void)
+int motor_rtctl_init(const struct motor_rtctl_hardware_info* hw_info)
 {
+	assert(hw_info != NULL);
+
 	int ret = motor_pwm_init();
 	if (ret) {
 		return ret;
@@ -933,7 +935,7 @@ int motor_rtctl_init(void)
 
 	motor_timer_init();
 
-	ret = motor_adc_init();
+	ret = motor_adc_init(hw_info->current_shunt_resistance);
 	if (ret) {
 		return ret;
 	}
