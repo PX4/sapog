@@ -7,3 +7,9 @@
 [submodule "docs/reference_manual/document_templates"]
 	path = docs/reference_manual/document_templates
 	url = https://github.com/Zubax/document_templates
+[submodule "tools/drwatson/drwatson"]
+	path = tools/drwatson/drwatson
+	url = https://github.com/Zubax/drwatson
+[submodule "tools/drwatson/pyuavcan"]
+	path = tools/drwatson/pyuavcan
+	url = https://github.com/UAVCAN/pyuavcan

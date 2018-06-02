@@ -56,7 +56,7 @@ struct motor_adc_sample
 };
 
 
-int motor_adc_init(void);
+int motor_adc_init(float current_shunt_resistance);
 
 void motor_adc_enable_from_isr(void);
 void motor_adc_disable_from_isr(void);

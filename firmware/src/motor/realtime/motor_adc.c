@@ -40,6 +40,7 @@
 #include <ch.h>
 #include <hal.h>
 #include <assert.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <zubax_chibios/config/config.h>
 
@@ -67,9 +68,6 @@ const int MOTOR_ADC_SAMPLE_WINDOW_NANOSEC = SAMPLE_DURATION_NANOSEC * NUM_SAMPLE
  * Higher oversampling allows for a lower blanking time, due to stronger averaging.
  */
 const int MOTOR_ADC_MIN_BLANKING_TIME_NANOSEC = 9000;
-
-
-CONFIG_PARAM_FLOAT("mot_i_shunt_mr",         5.0,   0.1,   100.0)
 
 
 static float _shunt_resistance = 0;
@@ -189,9 +187,16 @@ static void enable(void)
 	chSysEnable();
 }
 
-int motor_adc_init(void)
+int motor_adc_init(float current_shunt_resistance)
 {
-	_shunt_resistance = configGet("mot_i_shunt_mr") / 1000.0f;
+	if ((current_shunt_resistance < 1e-6F) ||
+	    (current_shunt_resistance > 1.0F))
+	{
+		return -1;
+	}
+
+	_shunt_resistance = current_shunt_resistance;
+	printf("Motor: Shunt %.6f ohm\n", _shunt_resistance);
 
 	chSysDisable();
 

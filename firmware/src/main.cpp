@@ -69,7 +69,7 @@ os::watchdog::Timer init()
 	}
 
 	// Motor control (must be initialized earlier than communicaton interfaces)
-	res = motor_init();
+	res = motor_init(board::get_current_shunt_resistance());
 	if (res < 0) {
 		board::die(res);
 	}
@@ -219,6 +219,6 @@ int main()
 #define MATCH_GCC_VERSION(major, minor)  \
     ((__GNUC__ == (major)) && (__GNUC_MINOR__ == (minor)))
 
-#if !MATCH_GCC_VERSION(4, 9)
+#if !(MATCH_GCC_VERSION(7, 2) || MATCH_GCC_VERSION(4, 9))
 # error "This compiler is not supported"
 #endif

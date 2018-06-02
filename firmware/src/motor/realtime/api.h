@@ -78,10 +78,18 @@ enum motor_rtctl_forced_rotation
 };
 
 /**
+ * Information about the hardware provided by the application.
+ */
+struct motor_rtctl_hardware_info
+{
+	float current_shunt_resistance;
+};
+
+/**
  * Initialize the hardware and control logic
  * @return 0 on success, negative on error
  */
-int motor_rtctl_init(void);
+int motor_rtctl_init(const struct motor_rtctl_hardware_info* hw_info);
 
 /**
  * Safety feature.

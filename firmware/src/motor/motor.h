@@ -61,7 +61,12 @@ enum motor_forced_rotation_direction
 	MOTOR_FORCED_ROTATION_REVERSE,
 };
 
-int motor_init(void);
+/**
+ * @param current_shunt_resistance      resistance of the DC current shunt [ohm]
+ *
+ * @return negative on error, zero otherwise
+ */
+int motor_init(float current_shunt_resistance);
 
 /**
  * Sets the duty cycle. Control mode will be OPENLOOP.

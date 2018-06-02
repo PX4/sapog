@@ -70,7 +70,8 @@ UDEFS += -DCONFIG_PARAM_MAX_NAME_LENGTH=16
 UDEFS += -DUAVCAN_STM32_TIMER_NUMBER=7                   \
          -DUAVCAN_STM32_NUM_IFACES=2                     \
          -DUAVCAN_CPP_VERSION=UAVCAN_CPP11               \
-         -DUAVCAN_STM32_CHIBIOS=1
+         -DUAVCAN_STM32_CHIBIOS=1                        \
+         -DUAVCAN_GENERAL_PURPOSE_PLATFORM=0
 
 include libuavcan/libuavcan/include.mk
 CPPSRC += $(LIBUAVCAN_SRC)
@@ -114,6 +115,7 @@ DEBUG_OPT = -O2 -g3 -DDISABLE_WATCHDOG=1
 
 # More warnings are enabled in the included makefile
 CWARN = -Wshadow -Wpointer-arith -Wno-packed -Wno-attributes -Wno-error=undef -Wno-error=shadow -Werror
+CWARN += -Wno-error=implicit-fallthrough
 CPPWARN = $(CWARN)
 
 # This firmware is compatible with all versions of hardware where the major number is 1 (i.e. 1.x),
