@@ -929,9 +929,6 @@ This is reviewed in detail in the chapter \ref{sec:communication_interfaces}.
 Sapog measures the DC inverter current $I_\text{inv}$ by means of a current shunt installed on the ground path,
 the output of which is connected to the ADC via a current amplifier with a fixed gain coefficient of 10.
 
-The resistance of the current shunt is specified via the configuration parameter \CfgRef{mot+i+shunt+mr},
-in milliohms.
-
 The inverter supply voltage $V_\text{inv}$ is measured through a resistor divider with the same
 division ratio as that of the BEMF feedback circuits.
 This division ratio is hard-coded per every supported hardware design and cannot be changed by the user.
@@ -1895,7 +1892,6 @@ take effect.
 \CfgParamIndexEntry{mot+tim+cp+max}{microsecond}{boot}{100}{50000}{300}{Advance angle interpolation point X2}
 \CfgParamIndexEntry{mot+tim+adv+max}{angular degree}{boot}{0}{29}{15}{Advance angle interpolation point Y1}
 \CfgParamIndexEntry{mot+tim+adv+min}{angular degree}{boot}{0}{20}{5}{Advance angle interpolation point Y2}
-\CfgParamIndexEntry{mot+i+shunt+mr}{milliohm}{boot}{0.1}{100}{}{Resistance of the current measurement shunt}
 \CfgParamIndexEntry{rpmctl+p}{$\frac{\text{dutycycle}}{\text{RPM}_m}$}{boot}{0}{1}{0.0001}%
 {RPM loop PID proportional gain}
 \CfgParamIndexEntry{rpmctl+i}{$\frac{\text{dutycycle}}{\text{second}\cdot\text{RPM}_m}$}{boot}{0}{10}{0.001}%
