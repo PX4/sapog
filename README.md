@@ -12,6 +12,12 @@ Additional documentation and related resources can be found at the
 
 ## Change Log
 
+### v2.3
+
+* Configuration parameter `mot_i_shunt_mr` has been removed; now the firmware detects the shunt resistance
+based on the HW ID pin states.
+* Migrated from GCC 4.9 to GCC 7.2.
+
 ### v2.2
 
 * Added a low-pass filter on the estimated angular speed output.
