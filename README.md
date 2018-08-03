@@ -57,7 +57,7 @@ factory fresh MCU.
 
 Prerequisites:
 
-* [GCC ARM 4.9 or newer](https://launchpad.net/gcc-arm-embedded) (beware that *some* newer versions of GCC segfault during linking)
+* GCC ARM 7.2
 * Python 3.2+
 * Linux or OSX host computer (Windows is not supported)
 
