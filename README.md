@@ -103,3 +103,4 @@ Reference hardware design is published under CC BY-SA 3.0 in the [PX4 Hardware r
 Known commercially available compatible hardware designs are listed below.
 
 - [Zubax Orel 20](https://zubax.com/products/orel_20)
+- [Holybro Kotleta20](https://shop.holybro.com/kotleta20_p1156.html)
