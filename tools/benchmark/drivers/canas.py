@@ -3,6 +3,7 @@
 # This is actually a quickly implemented testing tool, it is not intended for real use
 #
 
+from __future__ import print_function
 import threading, struct, time
 from itertools import count
 import pycanbus
@@ -65,7 +66,7 @@ if __name__ == '__main__':
     redund_chan = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     service_code = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     cesc = CanAerospaceEsc('can0', redundancy_channel_id=redund_chan, service_code=service_code)
-    print 'Redundancy channel:', redund_chan, 'Service code:', service_code
+    print('Redundancy channel:', redund_chan, 'Service code:', service_code)
     while 1:
         try:
             dc = float(raw_input('Duty cycle: '))

@@ -5,6 +5,7 @@
 # ESC testing utility
 #
 
+from __future__ import print_function
 import sys, time, threading, logging
 from functools import partial
 from drivers.ardubenchmark import Ardubenchmark
@@ -76,7 +77,7 @@ def make_driver(name, port=None):
         drv.dispose = lambda: None
 
     if HALF_DUTY_CYCLE:
-        print 'Duty cycle limiting is enabled'
+        print('Duty cycle limiting is enabled')
         drv.set_duty_cycle_unsafe_ = drv.set_duty_cycle
         drv.set_duty_cycle = lambda dc: drv.set_duty_cycle_unsafe_(float(dc) / 2.0)
 

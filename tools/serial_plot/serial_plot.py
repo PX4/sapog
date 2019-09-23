@@ -3,6 +3,7 @@
 # Pavel Kirienko, 2013 <pavel.kirienko@gmail.com>
 #
 
+from __future__ import print_function
 from PyQt4 import QtGui
 from plot_widget import RealtimePlotWidget
 from serial_reader import SerialReader
@@ -14,7 +15,7 @@ SER_BAUDRATE = 115200
 
 
 def raw_handler(line):
-    print line
+    print(line)
 
 def value_handler(x, values):
     for i,val in enumerate(values):
