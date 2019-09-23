@@ -1,3 +1,4 @@
+from __future__ import print_function
 #
 # Pavel Kirienko <pavel.kirienko@gmail.com>
 #
@@ -59,11 +60,11 @@ class Ardubenchmark:
             try:
                 res = self.poll(handler)
                 if not res:
-                    print 'Ardubenchmark checksum mismatch'
+                    print('Ardubenchmark checksum mismatch')
             except serial.serialutil.SerialException:
                 raise
             except Exception, ex:
-                print 'Ardubenchmark poll failed:', ex
+                print('Ardubenchmark poll failed:', ex)
 
     def stop(self):
         self._keep_going = False

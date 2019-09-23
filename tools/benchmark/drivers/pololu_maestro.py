@@ -1,3 +1,4 @@
+from __future__ import print_function
 #
 # Pavel Kirienko <pavel.kirienko@gmail.com>
 #
@@ -30,11 +31,11 @@ class PololuMaestro:
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             return ch
-        print 'Commands: + for max, - for min'
+        print('Commands: + for max, - for min')
         # Turnigy: http://www.hobbyking.com/hobbyking/store/uploads/981522291X561242X33.pdf
         while 1:
             ch = getchar()
-            print ch
+            print(ch)
             if ch == '+':
                 self.set_ppm_fraction(0, 1.0)
             elif ch == '-':
