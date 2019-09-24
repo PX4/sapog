@@ -33,8 +33,7 @@ def strip_data_with_zero_values(in_data, column_name):
     keep_indices = map(lambda x: x > 0.0, in_data[column_name])
     out_data = {}
     for key, value in in_data.items():
-        filt_with_indices = filter(lambda (index, value): keep_indices[index], enumerate(value))
-        out_data[key] = array(map(lambda (l,r): r, filt_with_indices))
+        out_data[key] = array(v for i, v in enumerate(value) if keep_indices[i])
     assert len(set(map(len, out_data.values()))) == 1
     return out_data
 
