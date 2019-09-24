@@ -72,7 +72,7 @@ if __name__ == '__main__':
     w = RealtimePlotWidget()
 
     w.add_curve('1', 'Vincent van Gogh')
-    for i in xrange(100):
+    for i in range(100):
         w.update_values('1', [i], [random.random()])
 
     w.redraw()

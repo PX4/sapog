@@ -30,9 +30,9 @@ class SerialCli:
             while deadline > time.time():
                 try:
                     line = self.readln()
-                except serial.serialutil.SerialException, ex:
+                except serial.serialutil.SerialException as ex:
                     if enforce_echo:
-                        raise SerialCliError, 'Echo check failed: %s' % ex
+                        raise SerialCliError('Echo check failed: %s' % ex)
                     self._logger.error(ex, exc_info=True)
                     break
                 else:

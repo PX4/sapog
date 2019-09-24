@@ -63,7 +63,7 @@ class Ardubenchmark:
                     print('Ardubenchmark checksum mismatch')
             except serial.serialutil.SerialException:
                 raise
-            except Exception, ex:
+            except Exception as ex:
                 print('Ardubenchmark poll failed:', ex)
 
     def stop(self):
