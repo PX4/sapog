@@ -1,3 +1,4 @@
+from __future__ import print_function
 #
 # Pavel Kirienko, 2013 <pavel.kirienko@gmail.com>
 #
@@ -24,5 +25,5 @@ class SerialReader:
         while 1:
             try:
                 self.poll(value_handler, raw_handler)
-            except Exception, ex:
-                print 'Serial poll failed:', ex
+            except Exception as ex:
+                print('Serial poll failed:', ex)

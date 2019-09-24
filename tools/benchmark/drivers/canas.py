@@ -8,6 +8,12 @@ import threading, struct, time
 from itertools import count
 import pycanbus
 
+try:
+    raw_input
+except NameError:
+    raw_input = input
+
+
 class CanAerospaceEsc:
     DATA_TYPE = 2
     CAN_ID = 200
