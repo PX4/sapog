@@ -5,6 +5,7 @@
 # ESC dataset plotter
 #
 
+from __future__ import print_function
 import sys
 from functools import partial
 from pylab import *
@@ -38,12 +39,12 @@ def strip_data_with_zero_values(in_data, column_name):
     return out_data
 
 def prepare_input_data(filename):
-    print 'Reading', filename
+    print('Reading', filename)
     data = read_csv_to_column_dict(filename)
-    print 'Raw data points:', len(data.values()[0])
+    print('Raw data points:', len(data.values()[0]))
     data = strip_data_with_zero_values(data, 'rpm')
-    print 'Stripped data points:', len(data.values()[0])
-    print 'Max current:', max(data['current'])
+    print('Stripped data points:', len(data.values()[0]))
+    print('Max current:', max(data['current']))
 
     data['power'] = data['voltage'] * data['current']
 
@@ -99,7 +100,7 @@ def add_dynamic_plots(data, axes):
 
 def add_efficiency_plots(data, ax, color, label):
     data = strip_data_with_zero_values(data, 'power')
-    print 'Stripped zero power:', len(data.values()[0])
+    print('Stripped zero power:', len(data.values()[0]))
 
     x = data['rpm']
     y = data['power']
@@ -117,10 +118,10 @@ def add_ripple_plots(data, axes, color, label, field, plot_name):
     data = data.copy()
     data['dc_raising'] = [True] + map(lambda i: data['dc'][i] > data['dc'][i - 1], xrange(1, len(data['dc'])))
     data = strip_data_with_zero_values(data, 'dc_raising')
-    print 'Stripped raising DC:', len(data.values()[0])
+    print('Stripped raising DC:', len(data.values()[0]))
     data['low_rpm'] = map(lambda x: x > LOW_RPM, data['rpm'])
     data = strip_data_with_zero_values(data, 'low_rpm')
-    print 'Stripped low RPM:', len(data.values()[0])
+    print('Stripped low RPM:', len(data.values()[0]))
 
     ax_time, ax_ripple = axes
     time = data['time']
@@ -183,7 +184,7 @@ mpl.rcParams['grid.linestyle'] = '-'
 mpl.rcParams['font.size'] = 10
 
 if len(sys.argv) < 3:
-    print sys.argv[0], '<dynamic|efficiency|ripple> <CSV path [...]>'
+    print(sys.argv[0], '<dynamic|efficiency|ripple> <CSV path [...]>')
     exit(1)
 plot_type = sys.argv[1].lower()
 filenames = sys.argv[2:]
@@ -195,7 +196,7 @@ elif plot_type == 'efficiency':
 elif plot_type == 'ripple':
     fig = plot_ripple(filenames)
 else:
-    print 'Invalid plot type:', plot_type
+    print('Invalid plot type:', plot_type)
     exit(1)
 
 fig.set_size_inches(9, 7)
