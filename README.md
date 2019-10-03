@@ -1,7 +1,8 @@
 PX4 Sapog
 =========
 
-[![Join the chat at https://gitter.im/Zubax/general](https://img.shields.io/badge/GITTER-join%20chat-green.svg)](https://gitter.im/Zubax/general)
+[![Forum](https://img.shields.io/discourse/https/discuss.px4.io/users.svg)](https://discuss.px4.io/)
+[![Forum](https://img.shields.io/discourse/https/forum.uavcan.org/users.svg)](https://forum.uavcan.org)
 
 ## Documentation
 
