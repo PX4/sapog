@@ -1,6 +1,12 @@
 /*
  * Pavel Kirienko <pavel.kirienko@gmail.com>
  *
+ * This is an optical tachometer firmware for Arduino Nano v3.
+ * It operates by observing the voltage drop variations on a photodiode connected to an ADC
+ * when a source of light is obscured by the propeller blade.
+ * The firmware also samples two extra ADC inputs for DC voltage and current measurement.
+ * The data is reported via the serial port; the format can be deduced from the source code.
+ *
  * Arduino Nano v3 connections:
  *   A7 - Voltage transducer input
  *   A6 - Current transducer input
